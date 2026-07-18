@@ -8,16 +8,18 @@
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "npm run typecheck && npm run check:support && npm run check:forbidden && node esbuild.config.mjs production",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm run check:conventions && npm run check:support && npm run check:forbidden && npm run test",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run check:conventions && npm run check:test-vault && npm run check:support && npm run check:forbidden && npm run test",
     "check:conventions": "node scripts/check-repository-conventions.mjs",
     "check:forbidden": "node scripts/check-forbidden-apis.mjs",
     "check:support": "node scripts/check-support-policy.mjs",
+    "check:test-vault": "node scripts/check-test-vault-workflow.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
     "test": "vitest run",
     "test:fixtures": "vitest run tests/fixtures.test.ts",
     "test:coverage": "vitest run --coverage",
+    "test:vault": "npm run build && node scripts/create-test-vault.mjs",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [

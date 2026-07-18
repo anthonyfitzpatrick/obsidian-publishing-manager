@@ -20,6 +20,10 @@ npm run build
 
 Use `npm run dev` for a watch build. Copy or link `main.js`, `manifest.json`, and `styles.css` into a test vault at `.obsidian/plugins/publishing-manager/`.
 
+### Disposable test vault
+
+Run `npm run test:vault` to build the plugin and create a new disposable, fictional vault in the operating system's temporary directory. The command prints the vault path; open that folder as an Obsidian vault. It never reads or copies personal vault content and refuses to create its output inside this repository. See [TEST_VAULT.md](TEST_VAULT.md).
+
 ## Supported platforms
 
 Publishing Manager supports public stable Obsidian releases from 1.8.0 onward on macOS, Windows, Linux, iOS, and Android. Development and CI use Node.js 24 as the reproducible build baseline. See [SUPPORT.md](SUPPORT.md) for the compatibility and release-test policy.
@@ -43,9 +47,11 @@ Start with a Gitea issue and reference the permanent backlog ID. See [CONTRIBUTI
 - `npm run check` — formatting, lint, types, forbidden APIs, and tests
 - `npm run test` — deterministic unit tests
 - `npm run test:fixtures` — deterministic small, target-scale, malformed, and upgrade fixture checks
+- `npm run test:vault` — production build plus a new disposable Obsidian test vault
 - `npm run test:coverage` — tests with coverage
 - `npm run check:forbidden` — production-source policy scan
 - `npm run check:conventions` — required contributor, issue, pull-request, commit, and release conventions
+- `npm run check:test-vault` — disposable test-vault safety and installation workflow
 - `npm run check:support` — manifest, version map, platform, and toolchain policy alignment
 
 ## License

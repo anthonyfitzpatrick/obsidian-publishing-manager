@@ -40,6 +40,8 @@ npm run build
 
 Add tests in proportion to risk. Fixtures must be fictional, deterministic, network-free, and independent of personal vault content. Record manual desktop/mobile evidence when behavior cannot be proven automatically.
 
+For manual Obsidian testing, use `npm run test:vault` and follow [TEST_VAULT.md](TEST_VAULT.md). Never point development tooling at a personal vault or copy personal content into a generated vault.
+
 ## Pull requests
 
 Use the repository pull-request template. Link the issue and backlog ID; describe the outcome and boundaries; list automated and manual evidence; disclose schema, migration, compatibility, accessibility, performance, privacy, and security effects; and include screenshots only when they contain no private vault data.
