@@ -29,6 +29,8 @@ function snapshot(
       sourceRevision: `source-${index}`,
       fields: { title: `Book ${index}`, status: 'active', 'primary-language': 'en' }
     })),
+    editions: [],
+    formats: [],
     diagnostics: Array.from({ length: diagnostics }, (_, index) => ({
       code: 'catalog.malformed-schema' as const,
       severity: 'error' as const,

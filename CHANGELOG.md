@@ -16,6 +16,7 @@ All notable changes to Publishing Manager are recorded here using Keep a Changel
 - M1 schema and storage kernel covering versioned publishing records, safe paths, Obsidian-only repositories, lossless conflict-aware writes, resumable journals and migrations, managed layout, and rebuildable derived indexes.
 - M1 catalog and book vertical slice with focused create/edit/archive/restore commands, reload-safe identity, incremental vault-event reconciliation, stable series ordering, activity/next-step summaries, and actionable diagnostics.
 - M1 native Dashboard and Book Workspace with graphical catalog summaries, Overview editing, runtime draft preservation and confirmed discard, explicit availability states, responsive single-column behavior, and accessible keyboard/non-color interaction.
+- M2 Editions and Formats section with nine stable/custom types, conditional print/digital/audio data, canonical format/file records, previewed revisions, comparison, non-destructive archival/reassignment, and an accessible responsive Editions workspace.
 
 ## [0.1.0] - 2026-07-18
 

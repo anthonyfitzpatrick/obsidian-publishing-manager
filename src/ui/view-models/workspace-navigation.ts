@@ -1,10 +1,10 @@
 /**
- * Defines the enabled M1 workspace tabs and deterministic keyboard movement. Future tabs remain
+ * Defines the enabled M2 workspace tabs and deterministic keyboard movement. Future tabs remain
  * visible as unavailable context but never enter the focus sequence until their milestones ship.
  */
 
-/** M1 tabs backed by implemented data rather than placeholders pretending to be functional. */
-export const ENABLED_WORKSPACE_TABS = ['overview', 'diagnostics'] as const;
+/** Tabs backed by implemented data rather than placeholders pretending to be functional. */
+export const ENABLED_WORKSPACE_TABS = ['overview', 'editions', 'diagnostics'] as const;
 
 /** Enabled workspace tab identifier persisted in Obsidian view state. */
 export type WorkspaceTab = (typeof ENABLED_WORKSPACE_TABS)[number];

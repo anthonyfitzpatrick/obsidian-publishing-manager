@@ -8,6 +8,10 @@
 import type { Clock } from '../../domain/foundation/clock';
 import { validateBookProject } from '../../domain/books/book-project';
 import {
+  validateEditionFormat,
+  validateEditionProject
+} from '../../domain/editions/edition-project';
+import {
   type BookCatalogSnapshot,
   type CatalogActivity,
   type CatalogActivityAction,
@@ -17,6 +21,8 @@ import {
   type NextMilestoneSummary
 } from '../../domain/catalog/catalog-model';
 import { validateRecordSchema } from '../../domain/records/schema-validation';
+import { getRecordSchema } from '../../domain/records/schema-catalog';
+import type { ManagedRecordType } from '../../domain/records/record-types';
 import type { VaultPath } from '../../domain/storage/vault-path';
 import type {
   LoadedManagedRecord,
@@ -154,18 +160,61 @@ export class BookCatalog {
       .sort(compareBooks);
   }
 
+  /** Returns valid editions for one stable book in type/revision/identity order. */
+  public editionsForBook(bookId: string): readonly CatalogRecord[] {
+    return this.snapshot()
+      .editions.filter((record) => record.fields['book-id'] === bookId)
+      .sort(compareEditions);
+  }
+
+  /** Returns valid formats belonging to one edition in category/kind/identity order. */
+  public formatsForEdition(editionId: string): readonly CatalogRecord[] {
+    return this.snapshot()
+      .formats.filter((record) => record.fields['edition-id'] === editionId)
+      .sort(compareFormats);
+  }
+
+  /** Exposes a deterministic valid-record query without granting collection mutation. */
+  public recordsOfType(type: ManagedRecordType): readonly CatalogRecord[] {
+    const diagnostics = this.collectDiagnostics();
+    return [...this.recordsByPath.values()]
+      .filter((record) => record.type === type && !hasPathError(record.path, diagnostics))
+      .sort((left, right) => left.id.localeCompare(right.id));
+  }
+
+  /** Finds every valid record that currently points at one edition through `edition-id`. */
+  public dependantsOfEdition(editionId: string): readonly CatalogRecord[] {
+    const diagnostics = this.collectDiagnostics();
+    return [...this.recordsByPath.values()]
+      .filter(
+        (record) =>
+          record.type !== 'edition' &&
+          record.fields['edition-id'] === editionId &&
+          !hasPathError(record.path, diagnostics)
+      )
+      .sort((left, right) => `${left.type}:${left.id}`.localeCompare(`${right.type}:${right.id}`));
+  }
+
   /** Produces an immutable view that can be regenerated from the vault at any time. */
   public snapshot(): BookCatalogSnapshot {
     const diagnostics = this.collectDiagnostics();
     const books = [...this.recordsByPath.values()]
       .filter((record) => record.type === 'book' && !hasPathError(record.path, diagnostics))
       .sort(compareBooks);
+    const editions = [...this.recordsByPath.values()]
+      .filter((record) => record.type === 'edition' && !hasPathError(record.path, diagnostics))
+      .sort(compareEditions);
+    const formats = [...this.recordsByPath.values()]
+      .filter((record) => record.type === 'format' && !hasPathError(record.path, diagnostics))
+      .sort(compareFormats);
     return {
       availability: this.availability,
       books,
+      editions,
+      formats,
       diagnostics,
       recentActivity: [...this.recentActivity],
-      nextMilestone: nextMilestoneFor(books, diagnostics)
+      nextMilestone: nextMilestoneFor(books, editions, formats, diagnostics)
     };
   }
 
@@ -216,23 +265,36 @@ export class BookCatalog {
       }
     }
 
-    for (const record of records.filter((candidate) => candidate.type === 'book')) {
-      const seriesId = record.fields['series-id'];
-      if (typeof seriesId === 'string') {
-        const series = byId.get(seriesId) ?? [];
-        if (series.length !== 1 || series[0]?.type !== 'series') {
+    // Resolve every schema-declared relationship by stable identity and expected type. This one
+    // rule covers editions and formats now and automatically protects later record families.
+    for (const record of records) {
+      const schema = getRecordSchema(record.type);
+      for (const [field, definition] of Object.entries(schema.fields)) {
+        if (definition.relationship === undefined) continue;
+        const raw = record.fields[field];
+        const references: readonly string[] = Array.isArray(raw)
+          ? raw.filter((value): value is string => typeof value === 'string')
+          : typeof raw === 'string'
+            ? [raw]
+            : [];
+        for (const reference of references) {
+          const matches = byId.get(reference) ?? [];
+          if (matches.length === 1 && matches[0]?.type === definition.relationship) continue;
           diagnostics.push({
             code: 'catalog.unresolved-link',
             severity: 'error',
             path: record.path,
             entityId: record.id,
-            field: 'series-id',
-            message: `Series reference ${seriesId} does not resolve to one series record.`,
-            suggestedAction: 'Create or repair the referenced series, then reload this book.'
+            field,
+            message: `${definition.relationship} reference ${reference} does not resolve to one valid record.`,
+            suggestedAction: `Create, repair, or reassign the referenced ${definition.relationship}, then reload this ${record.type}.`
           });
         }
       }
+    }
 
+    for (const record of records.filter((candidate) => candidate.type === 'book')) {
+      const seriesId = record.fields['series-id'];
       const position = record.fields['series-position'];
       if (typeof seriesId === 'string' && typeof position === 'number') {
         const conflicts = records.filter(
@@ -268,7 +330,12 @@ export class BookCatalog {
     record: CatalogRecord,
     previousPath?: VaultPath
   ): void {
-    const title = record.type === 'book' ? record.fields.title : record.fields.name;
+    const title =
+      record.type === 'book'
+        ? record.fields.title
+        : record.type === 'edition'
+          ? (record.fields['custom-type'] ?? record.fields.type)
+          : record.fields.name;
     this.recentActivity.unshift({
       action,
       occurredAt: this.clock.now().toISOString(),
@@ -344,6 +411,32 @@ function inspectRecord(record: CatalogRecord): readonly CatalogDiagnostic[] {
       }))
     );
   }
+  if (record.type === 'edition' && schemaDiagnostics.length === 0) {
+    diagnostics.push(
+      ...validateEditionProject(record.fields).map((diagnostic) => ({
+        code: 'catalog.invalid-edition' as const,
+        severity: 'error' as const,
+        path: record.path,
+        entityId: record.id,
+        field: String(diagnostic.field),
+        message: diagnostic.message,
+        suggestedAction: 'Open this edition and correct the highlighted conditional field.'
+      }))
+    );
+  }
+  if (record.type === 'format' && schemaDiagnostics.length === 0) {
+    diagnostics.push(
+      ...validateEditionFormat(record.fields).map((diagnostic) => ({
+        code: 'catalog.invalid-format' as const,
+        severity: 'error' as const,
+        path: record.path,
+        entityId: record.id,
+        field: String(diagnostic.field),
+        message: diagnostic.message,
+        suggestedAction: 'Open this format and correct the highlighted file or metadata field.'
+      }))
+    );
+  }
   return diagnostics;
 }
 
@@ -387,6 +480,25 @@ function compareBooks(left: CatalogRecord, right: CatalogRecord): number {
   return titleOrder === 0 ? left.id.localeCompare(right.id) : titleOrder;
 }
 
+/** Keeps edition master lists stable across reloads and external note renames. */
+function compareEditions(left: CatalogRecord, right: CatalogRecord): number {
+  const typeOrder = String(left.fields.type).localeCompare(String(right.fields.type));
+  if (typeOrder !== 0) return typeOrder;
+  const leftRevision = typeof left.fields.revision === 'number' ? left.fields.revision : 0;
+  const rightRevision = typeof right.fields.revision === 'number' ? right.fields.revision : 0;
+  return leftRevision === rightRevision
+    ? left.id.localeCompare(right.id)
+    : leftRevision - rightRevision;
+}
+
+/** Keeps format trees stable by semantic category/kind rather than mutable file path. */
+function compareFormats(left: CatalogRecord, right: CatalogRecord): number {
+  const semantic = `${String(left.fields.category)}:${String(left.fields.kind)}`.localeCompare(
+    `${String(right.fields.category)}:${String(right.fields.kind)}`
+  );
+  return semantic === 0 ? left.id.localeCompare(right.id) : semantic;
+}
+
 /** Excludes records with any direct or relational error from normal book queries. */
 function hasPathError(path: VaultPath, diagnostics: readonly CatalogDiagnostic[]): boolean {
   return diagnostics.some(
@@ -397,6 +509,8 @@ function hasPathError(path: VaultPath, diagnostics: readonly CatalogDiagnostic[]
 /** Chooses the next useful publishing action from the current catalog evidence. */
 function nextMilestoneFor(
   books: readonly CatalogRecord[],
+  editions: readonly CatalogRecord[],
+  formats: readonly CatalogRecord[],
   diagnostics: readonly CatalogDiagnostic[]
 ): NextMilestoneSummary {
   if (diagnostics.some(({ severity }) => severity === 'error')) {
@@ -415,9 +529,23 @@ function nextMilestoneFor(
         'A stable book project is the anchor for editions, workflow, identifiers, and launch work.'
     };
   }
+  if (!editions.some((edition) => !edition.archived)) {
+    return {
+      code: 'add-first-edition',
+      title: 'Define the first edition',
+      explanation: 'Choose a stable edition type and record its format-specific production details.'
+    };
+  }
+  if (!formats.some((format) => !format.archived)) {
+    return {
+      code: 'add-first-format',
+      title: 'Link the first edition format',
+      explanation: 'Record a print, digital, or audio output and its vault-relative file reference.'
+    };
+  }
   return {
-    code: 'add-first-edition',
-    title: 'Define the first edition',
-    explanation: 'The active book is ready for its first marketable edition in M2.'
+    code: 'manage-editions',
+    title: 'Review edition production details',
+    explanation: 'Compare revisions, complete conditional details, and keep format records current.'
   };
 }

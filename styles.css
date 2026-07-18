@@ -470,6 +470,161 @@
   padding: 14px;
 }
 
+/* Edition management uses an accessible master/detail layout that becomes stacked mobile cards. */
+.pm-editions-layout {
+  align-items: start;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(220px, 0.55fr) minmax(0, 1.45fr);
+}
+
+.pm-edition-master {
+  position: sticky;
+  top: 12px;
+}
+
+.pm-edition-list,
+.pm-format-list,
+.pm-dependant-list,
+.pm-warning-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pm-edition-list {
+  display: grid;
+  gap: 8px;
+}
+
+.pm-edition-card {
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 9px;
+  color: var(--text-normal);
+  display: grid;
+  gap: 5px;
+  min-height: 72px;
+  padding: 11px;
+  text-align: start;
+  width: 100%;
+}
+
+.pm-edition-card.is-selected {
+  background: var(--background-secondary);
+  border-color: var(--interactive-accent);
+  box-shadow: inset 3px 0 0 var(--interactive-accent);
+}
+
+.pm-edition-card small,
+.pm-edition-fact dt,
+.pm-format-list small,
+.pm-dependant-list small {
+  color: var(--text-muted);
+}
+
+.pm-edition-detail {
+  min-width: 0;
+}
+
+.pm-edition-facts {
+  display: grid;
+  gap: 1px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 18px 0;
+  overflow: hidden;
+}
+
+.pm-edition-fact {
+  background: var(--background-secondary);
+  display: grid;
+  gap: 4px;
+  min-height: 72px;
+  padding: 11px 13px;
+}
+
+.pm-edition-fact dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.pm-edition-subsection {
+  border-block-start: 1px solid var(--background-modifier-border);
+  margin-block-start: 18px;
+  padding-block-start: 18px;
+}
+
+.pm-format-list,
+.pm-dependant-list {
+  display: grid;
+  gap: 10px;
+}
+
+.pm-format-list > li,
+.pm-dependant-list > li {
+  background: var(--background-secondary);
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  overflow-wrap: anywhere;
+  padding: 12px;
+}
+
+.pm-comparison-table {
+  border-collapse: collapse;
+  display: block;
+  margin-block-start: 12px;
+  max-width: 100%;
+  overflow-x: auto;
+  width: max-content;
+}
+
+.pm-comparison-table :is(th, td) {
+  border: 1px solid var(--background-modifier-border);
+  min-width: 130px;
+  padding: 9px 11px;
+  text-align: start;
+  vertical-align: top;
+}
+
+.pm-comparison-table thead th {
+  background: var(--background-secondary);
+}
+
+.pm-revision-selections {
+  display: grid;
+  gap: 9px;
+  margin-block: 14px;
+}
+
+.pm-checkbox-field {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  min-height: 44px;
+}
+
+.pm-checkbox-field input {
+  min-height: 20px;
+  min-width: 20px;
+}
+
+.pm-revision-preview {
+  background: var(--background-secondary);
+  border-radius: 8px;
+  margin-block: 14px;
+  padding: 12px;
+}
+
+.pm-warning-list {
+  display: grid;
+  gap: 7px;
+}
+
+.pm-edition-modal .is-hidden {
+  display: none;
+}
+
 .publishing-manager-form-error {
   color: var(--text-error);
   margin-block-end: 8px;
@@ -498,8 +653,14 @@
   .pm-context-grid,
   .pm-form-grid,
   .pm-dashboard-grid,
-  .pm-overview-grid {
+  .pm-overview-grid,
+  .pm-editions-layout,
+  .pm-edition-facts {
     grid-template-columns: 1fr;
+  }
+
+  .pm-edition-master {
+    position: static;
   }
 
   .pm-workspace-tabs [role='tablist'] {

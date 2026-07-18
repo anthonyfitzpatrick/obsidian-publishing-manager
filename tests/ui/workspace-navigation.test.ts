@@ -9,7 +9,8 @@ import { isWorkspaceTab, nextWorkspaceTab } from '../../src/ui/view-models/works
 
 describe('workspace keyboard navigation', () => {
   it('wraps arrow navigation across enabled tabs', () => {
-    expect(nextWorkspaceTab('overview', 'ArrowRight')).toBe('diagnostics');
+    expect(nextWorkspaceTab('overview', 'ArrowRight')).toBe('editions');
+    expect(nextWorkspaceTab('editions', 'ArrowRight')).toBe('diagnostics');
     expect(nextWorkspaceTab('diagnostics', 'ArrowRight')).toBe('overview');
     expect(nextWorkspaceTab('overview', 'ArrowLeft')).toBe('diagnostics');
   });
@@ -18,6 +19,7 @@ describe('workspace keyboard navigation', () => {
     expect(nextWorkspaceTab('diagnostics', 'Home')).toBe('overview');
     expect(nextWorkspaceTab('overview', 'End')).toBe('diagnostics');
     expect(isWorkspaceTab('overview')).toBe(true);
+    expect(isWorkspaceTab('editions')).toBe(true);
     expect(isWorkspaceTab('workflow')).toBe(false);
   });
 });

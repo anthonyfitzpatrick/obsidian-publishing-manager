@@ -6,9 +6,9 @@ The product specification and project backlog in the Publishing Manager Obsidian
 
 ## Current state
 
-Milestones M0 and M1 are complete. The live plugin now provides canonical records, conflict-aware persistence, book lifecycle/catalog reconciliation, and native graphical Dashboard and Book Workspace views with draft continuity, responsive states, diagnostics, and accessible keyboard interaction. M2 begins with edition types, lifecycle, formats, and referenced assets.
+Milestones M0 and M1 are complete, and the first M2 section is delivered. The live plugin now provides canonical records, conflict-aware persistence, book lifecycle/catalog reconciliation, a native graphical Dashboard, and a Book Workspace with Overview, Editions, and Diagnostics. Editions include nine stable/custom types, conditional print/digital/audio fields, canonical format/file records, previewed revisions, comparison, safe archival/reassignment, responsive cards, and accessible keyboard interaction. M2 continues with referenced vault assets and freshness evidence.
 
-See [M0_EXIT_REVIEW.md](M0_EXIT_REVIEW.md) for the milestone decision and evidence.
+The authoritative milestone and section reviews live in the Publishing Manager Obsidian documentation space.
 
 ## Development
 

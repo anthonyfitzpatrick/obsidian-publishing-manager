@@ -57,13 +57,31 @@ export const RECORD_SCHEMAS = {
   edition: schema('edition', {
     'book-id': relation('book', true),
     type: requiredString(),
+    'custom-type': optionalString(),
+    medium: requiredString(),
     revision: { kind: 'integer', required: true },
     status: requiredString(),
-    'publication-date': { kind: 'date', required: false }
+    'publication-date': { kind: 'date', required: false },
+    cover: optionalString(),
+    'retail-links': { kind: 'object', required: false },
+    notes: optionalString(),
+    'source-edition-id': relation('edition', false),
+    'trim-width': { kind: 'decimal', required: false },
+    'trim-height': { kind: 'decimal', required: false },
+    'trim-unit': optionalString(),
+    'page-count': { kind: 'integer', required: false },
+    narrator: optionalString(),
+    'duration-minutes': { kind: 'integer', required: false },
+    'audio-metadata': { kind: 'object', required: false }
   }),
   format: schema('format', {
     'edition-id': relation('edition', true),
     kind: requiredString(),
+    category: requiredString(),
+    label: optionalString(),
+    'file-path': optionalString(),
+    accessibility: { kind: 'object', required: false },
+    metadata: { kind: 'object', required: false },
     'asset-reference-id': relation('asset-reference', false)
   }),
   'platform-target': schema('platform-target', {

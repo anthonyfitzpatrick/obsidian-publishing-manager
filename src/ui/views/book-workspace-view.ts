@@ -1,5 +1,5 @@
 /**
- * Renders the M1 Book Workspace around one valid catalog record. The persistent header supplies
+ * Renders the M2 Book Workspace around one valid catalog record. The persistent header supplies
  * identity, series, status, publication/readiness placeholders, edition context, and lifecycle
  * commands. Overview editing uses the shared draft store; navigation never discards input, while
  * explicit discard requires confirmation. Responsive desktop/mobile navigation and keyboard tabs
@@ -17,6 +17,7 @@ import {
 
 import type { BookProjectService } from '../../application/books/book-project-service';
 import type { BookCatalog } from '../../application/catalog/book-catalog';
+import type { EditionProjectService } from '../../application/editions/edition-project-service';
 import { BOOK_STATUSES, type BookStatus } from '../../domain/books/book-project';
 import type {
   BookCatalogSnapshot,
@@ -24,7 +25,16 @@ import type {
   CatalogRecord
 } from '../../domain/catalog/catalog-model';
 import { normalizeVaultPath, type VaultPath } from '../../domain/storage/vault-path';
+import {
+  editionTypeLabel,
+  isEditionMedium,
+  type EditionType
+} from '../../domain/editions/edition-project';
 import { ConfirmDiscardModal } from '../dialogs/confirm-discard-modal';
+import { ConfirmEditionArchiveModal } from '../dialogs/confirm-edition-archive-modal';
+import { EditionEditorModal } from '../dialogs/edition-editor-modal';
+import { EditionFormatModal } from '../dialogs/edition-format-modal';
+import { EditionRevisionModal } from '../dialogs/edition-revision-modal';
 import type { BookDraftStore, BookOverviewDraft } from '../state/book-draft-store';
 import {
   ENABLED_WORKSPACE_TABS,
@@ -38,7 +48,6 @@ export const BOOK_WORKSPACE_VIEW_TYPE = 'publishing-manager-book-workspace';
 
 const FUTURE_TABS = [
   'Workflow',
-  'Editions',
   'Metadata',
   'ISBNs',
   'Pricing',
@@ -56,6 +65,7 @@ export class BookWorkspaceView extends ItemView {
   private unsubscribe: (() => void) | undefined;
   private snapshot?: BookCatalogSnapshot;
   private selectedPath: VaultPath | undefined;
+  private selectedEditionId: string | undefined;
   private activeTab: WorkspaceTab = 'overview';
   private operationError: string | undefined;
 
@@ -64,6 +74,7 @@ export class BookWorkspaceView extends ItemView {
     leaf: WorkspaceLeaf,
     private readonly catalog: BookCatalog,
     private readonly books: BookProjectService,
+    private readonly editions: EditionProjectService,
     private readonly drafts: BookDraftStore,
     private readonly openDashboard: () => Promise<void>
   ) {
@@ -87,6 +98,7 @@ export class BookWorkspaceView extends ItemView {
   public override getState(): Record<string, unknown> {
     return {
       ...(this.selectedPath === undefined ? {} : { bookPath: this.selectedPath }),
+      ...(this.selectedEditionId === undefined ? {} : { editionId: this.selectedEditionId }),
       tab: this.activeTab
     };
   }
@@ -103,6 +115,7 @@ export class BookWorkspaceView extends ItemView {
         }
       }
       if (isWorkspaceTab(state.tab)) this.activeTab = state.tab;
+      if (typeof state.editionId === 'string') this.selectedEditionId = state.editionId;
     }
     result.history = true;
     if (this.snapshot !== undefined) this.render(this.snapshot);
@@ -113,6 +126,7 @@ export class BookWorkspaceView extends ItemView {
     this.unsubscribe = this.catalog.subscribe((snapshot) => {
       this.snapshot = snapshot;
       this.reconcileSelection(snapshot);
+      this.reconcileEditionSelection(snapshot);
       this.render(snapshot);
     });
   }
@@ -135,6 +149,18 @@ export class BookWorkspaceView extends ItemView {
     if (this.selectedPath !== undefined) this.drafts.forget(this.selectedPath);
     this.selectedPath =
       snapshot.books.find(({ archived }) => !archived)?.path ?? snapshot.books[0]?.path;
+  }
+
+  /** Keeps edition selection scoped to the chosen book and prefers active records. */
+  private reconcileEditionSelection(snapshot: BookCatalogSnapshot): void {
+    const book = snapshot.books.find(({ path }) => path === this.selectedPath);
+    if (book === undefined) {
+      this.selectedEditionId = undefined;
+      return;
+    }
+    const editions = this.catalog.editionsForBook(book.id);
+    if (editions.some(({ id }) => id === this.selectedEditionId)) return;
+    this.selectedEditionId = editions.find(({ archived }) => !archived)?.id ?? editions[0]?.id;
   }
 
   /** Renders explicit availability/empty state or the complete M1 workspace. */
@@ -167,6 +193,8 @@ export class BookWorkspaceView extends ItemView {
     const content = root.createDiv({ cls: 'pm-workspace-content' });
     if (this.activeTab === 'overview') {
       this.renderOverview(content, record, snapshot);
+    } else if (this.activeTab === 'editions') {
+      this.renderEditions(content, record);
     } else {
       this.renderDiagnostics(content, record, snapshot);
     }
@@ -209,23 +237,46 @@ export class BookWorkspaceView extends ItemView {
     lifecycle.addEventListener('click', () => void this.changeArchiveState(record));
 
     const context = header.createDiv({ cls: 'pm-context-grid' });
+    const bookEditions = this.catalog.editionsForBook(record.id);
+    const selectedEdition = bookEditions.find(({ id }) => id === this.selectedEditionId);
     renderContextItem(
       context,
       'Publication anchor',
-      '— Not set',
-      'Available after an edition exists.'
+      typeof selectedEdition?.fields['publication-date'] === 'string'
+        ? selectedEdition.fields['publication-date']
+        : '— Not set',
+      selectedEdition === undefined
+        ? 'Create an edition to set its publication date.'
+        : 'From the selected edition.'
     );
     renderContextItem(context, 'Readiness', '○ Not calculated', 'Readiness scoring begins in M5.');
     const edition = context.createDiv({ cls: 'pm-context-item' });
     edition.createSpan({ text: 'Edition' });
     const selector = edition.createEl('select', {
-      attr: {
-        disabled: 'true',
-        'aria-label': 'Edition selector unavailable until the next milestone'
-      }
+      attr: { 'aria-label': 'Selected edition context' }
     });
-    selector.createEl('option', { text: 'No editions yet' });
-    edition.createEl('small', { text: 'Edition management begins in the next milestone.' });
+    if (bookEditions.length === 0) {
+      selector.createEl('option', { text: 'No editions yet' });
+      selector.disabled = true;
+    } else {
+      for (const candidate of bookEditions) {
+        selector.createEl('option', {
+          value: candidate.id,
+          text: editionRecordLabel(candidate),
+          attr: candidate.id === this.selectedEditionId ? { selected: 'true' } : {}
+        });
+      }
+      selector.addEventListener('change', () => {
+        this.selectedEditionId = selector.value;
+        this.selectTab('editions');
+      });
+    }
+    edition.createEl('small', {
+      text:
+        selectedEdition === undefined
+          ? 'Edition management is available in the Editions tab.'
+          : `${String(selectedEdition.fields.medium)} · ${String(selectedEdition.fields.status)}`
+    });
   }
 
   /** Renders desktop tabs and an equivalent mobile picker over the same active state. */
@@ -364,6 +415,285 @@ export class BookWorkspaceView extends ItemView {
     renderBookActivity(aside, record, snapshot);
   }
 
+  /** Renders EDN-009 accessible master/detail edition management with mobile-safe cards. */
+  private renderEditions(parent: HTMLElement, book: CatalogRecord): void {
+    const bookEditions = this.catalog.editionsForBook(book.id);
+    const heading = parent.createDiv({ cls: 'pm-section-heading' });
+    const title = heading.createDiv();
+    title.createEl('p', { cls: 'pm-eyebrow', text: 'Editions and formats' });
+    title.createEl('h2', { text: 'Edition workspace' });
+    title.createEl('p', {
+      text: 'Manage stable edition identities, format-specific production details, revisions, comparisons, and archival.'
+    });
+    const add = heading.createEl('button', {
+      cls: 'pm-button pm-button--primary',
+      text: 'Add edition',
+      attr: { type: 'button' }
+    });
+    add.addEventListener('click', () => {
+      new EditionEditorModal(this.app, this.editions, book.id, undefined, (editionId) => {
+        this.selectedEditionId = editionId;
+        new Notice('Edition created.');
+      }).open();
+    });
+
+    if (bookEditions.length === 0) {
+      const empty = parent.createDiv({ cls: 'pm-empty-state' });
+      const icon = empty.createDiv({ cls: 'pm-empty-state__icon' });
+      setIcon(icon, 'layers');
+      empty.createEl('h3', { text: 'No editions yet' });
+      empty.createEl('p', {
+        text: 'Add a paperback, hardcover, ebook, audiobook, large-print, special, collector, box-set, or custom edition.'
+      });
+      return;
+    }
+
+    const selected =
+      bookEditions.find(({ id }) => id === this.selectedEditionId) ?? bookEditions[0];
+    if (selected === undefined) return;
+    const layout = parent.createDiv({ cls: 'pm-editions-layout' });
+    const master = layout.createEl('nav', {
+      cls: 'pm-edition-master pm-panel',
+      attr: { 'aria-label': 'Book editions' }
+    });
+    master.createEl('h3', { text: `Editions · ${bookEditions.length}` });
+    const list = master.createEl('ul', { cls: 'pm-edition-list' });
+    for (const edition of bookEditions) {
+      const item = list.createEl('li');
+      const button = item.createEl('button', {
+        cls: `pm-edition-card${edition.id === selected.id ? ' is-selected' : ''}`,
+        attr: {
+          type: 'button',
+          'aria-current': edition.id === selected.id ? 'true' : 'false'
+        }
+      });
+      button.createEl('strong', { text: editionRecordLabel(edition) });
+      button.createSpan({
+        text: edition.archived ? '◇ Archived' : `● ${capitalize(String(edition.fields.status))}`
+      });
+      button.createEl('small', {
+        text: `${capitalize(String(edition.fields.medium))} · ${this.catalog.formatsForEdition(edition.id).length} formats`
+      });
+      button.addEventListener('click', () => {
+        this.selectedEditionId = edition.id;
+        if (this.snapshot !== undefined) this.render(this.snapshot);
+      });
+    }
+
+    const detail = layout.createEl('article', {
+      cls: 'pm-edition-detail pm-panel',
+      attr: { 'aria-label': `${editionRecordLabel(selected)} details` }
+    });
+    this.renderEditionDetail(detail, book, selected, bookEditions);
+  }
+
+  /** Builds one edition detail card with conditional data, formats, comparison, and dependencies. */
+  private renderEditionDetail(
+    parent: HTMLElement,
+    book: CatalogRecord,
+    edition: CatalogRecord,
+    bookEditions: readonly CatalogRecord[]
+  ): void {
+    const heading = parent.createDiv({ cls: 'pm-section-heading' });
+    const title = heading.createDiv();
+    title.createEl('p', { cls: 'pm-eyebrow', text: `${String(edition.fields.medium)} edition` });
+    title.createEl('h3', { text: editionRecordLabel(edition) });
+    title.createSpan({
+      cls: `pm-status-chip pm-status-chip--${edition.archived ? 'archived' : String(edition.fields.status)}`,
+      text: edition.archived ? '◇ Archived edition' : `● ${String(edition.fields.status)} edition`
+    });
+    const actions = heading.createDiv({ cls: 'pm-action-row' });
+    const edit = editionAction(actions, 'Edit edition');
+    const revise = editionAction(actions, 'Create revision');
+    const open = editionAction(actions, 'Open Markdown');
+    const lifecycle = editionAction(
+      actions,
+      edition.archived ? 'Restore edition' : 'Archive edition'
+    );
+    edit.addEventListener('click', () => {
+      new EditionEditorModal(this.app, this.editions, book.id, edition, () => {
+        new Notice('Edition saved.');
+      }).open();
+    });
+    revise.addEventListener('click', () => {
+      new EditionRevisionModal(this.app, this.editions, edition.path, (editionId) => {
+        this.selectedEditionId = editionId;
+        new Notice('Reviewed revision created.');
+      }).open();
+    });
+    open.addEventListener('click', () => void this.openCanonicalNote(edition.path));
+    lifecycle.addEventListener('click', () => {
+      if (edition.archived) void this.changeEditionArchiveState(edition, false);
+      else {
+        new ConfirmEditionArchiveModal(
+          this.app,
+          this.editions.assessRemoval(edition.id),
+          () => void this.changeEditionArchiveState(edition, true)
+        ).open();
+      }
+    });
+
+    const details = parent.createEl('dl', { cls: 'pm-edition-facts' });
+    editionFact(details, 'Publication date', valueText(edition.fields['publication-date']));
+    editionFact(details, 'Cover', valueText(edition.fields.cover));
+    editionFact(details, 'Trim', trimText(edition));
+    editionFact(details, 'Page count', valueText(edition.fields['page-count']));
+    editionFact(details, 'Narrator', valueText(edition.fields.narrator));
+    editionFact(details, 'Duration', durationText(edition.fields['duration-minutes']));
+    editionFact(details, 'Retail links', mapText(edition.fields['retail-links']));
+    editionFact(details, 'Audio metadata', mapText(edition.fields['audio-metadata']));
+    editionFact(details, 'Notes', valueText(edition.fields.notes));
+
+    this.renderEditionFormats(parent, edition);
+    this.renderEditionComparison(parent, edition, bookEditions);
+    this.renderEditionDependants(parent, edition, bookEditions);
+  }
+
+  /** Renders semantic format/file cards and launches the conditional add-format workflow. */
+  private renderEditionFormats(parent: HTMLElement, edition: CatalogRecord): void {
+    const section = parent.createEl('section', { cls: 'pm-edition-subsection' });
+    const heading = section.createDiv({ cls: 'pm-section-heading' });
+    heading.createEl('h4', { text: 'Formats and files' });
+    const add = editionAction(heading, 'Add format');
+    const medium = edition.fields.medium;
+    add.toggleAttribute('disabled', typeof medium !== 'string' || !isEditionMedium(medium));
+    add.addEventListener('click', () => {
+      if (typeof medium !== 'string' || !isEditionMedium(medium)) return;
+      new EditionFormatModal(this.app, this.editions, edition.id, medium, () => {
+        new Notice('Edition format added.');
+      }).open();
+    });
+    const formats = this.catalog.formatsForEdition(edition.id);
+    if (formats.length === 0) {
+      section.createEl('p', {
+        cls: 'pm-muted',
+        text: 'No format records. Add each print, digital, or audio output with optional vault-file and accessibility evidence.'
+      });
+      return;
+    }
+    const list = section.createEl('ul', { cls: 'pm-format-list' });
+    for (const format of formats) {
+      const item = list.createEl('li');
+      item.createEl('strong', {
+        text:
+          typeof format.fields.label === 'string' ? format.fields.label : String(format.fields.kind)
+      });
+      item.createSpan({
+        text: `${capitalize(String(format.fields.category))} · ${String(format.fields.kind)}`
+      });
+      item.createEl('small', { text: valueText(format.fields['file-path']) });
+      item.createEl('p', {
+        text: `Accessibility: ${mapText(format.fields.accessibility)}`
+      });
+      const open = editionAction(item, 'Open format Markdown');
+      open.addEventListener('click', () => void this.openCanonicalNote(format.path));
+    }
+  }
+
+  /** Renders EDN-007 comparison as a labelled table with text equality cues. */
+  private renderEditionComparison(
+    parent: HTMLElement,
+    edition: CatalogRecord,
+    bookEditions: readonly CatalogRecord[]
+  ): void {
+    const section = parent.createEl('section', { cls: 'pm-edition-subsection' });
+    section.createEl('h4', { text: 'Compare editions and revisions' });
+    if (bookEditions.length < 2) {
+      section.createEl('p', {
+        cls: 'pm-muted',
+        text: 'Create another edition or revision to compare.'
+      });
+      return;
+    }
+    const label = section.createEl('label', { cls: 'pm-field' });
+    label.createSpan({ text: `Compare ${editionRecordLabel(edition)} with` });
+    const select = label.createEl('select');
+    for (const candidate of bookEditions.filter(({ id }) => id !== edition.id)) {
+      select.createEl('option', { value: candidate.id, text: editionRecordLabel(candidate) });
+    }
+    const region = section.createDiv({ attr: { 'aria-live': 'polite' } });
+    const render = () => {
+      region.empty();
+      try {
+        const comparison = this.editions.compare(edition.id, select.value);
+        const table = region.createEl('table', { cls: 'pm-comparison-table' });
+        const head = table.createEl('thead').createEl('tr');
+        for (const text of [
+          'Group',
+          'Field',
+          editionRecordLabel(comparison.left),
+          editionRecordLabel(comparison.right),
+          'Result'
+        ]) {
+          head.createEl('th', { text, attr: { scope: 'col' } });
+        }
+        const body = table.createEl('tbody');
+        for (const row of comparison.rows) {
+          const tableRow = body.createEl('tr');
+          tableRow.createEl('th', { text: capitalize(row.group), attr: { scope: 'row' } });
+          tableRow.createEl('td', { text: row.label });
+          tableRow.createEl('td', { text: row.left });
+          tableRow.createEl('td', { text: row.right });
+          tableRow.createEl('td', { text: row.equal ? '✓ Same' : '↔ Different' });
+        }
+      } catch (error) {
+        region.createDiv({
+          cls: 'pm-inline-alert',
+          text: error instanceof Error ? error.message : 'Comparison is unavailable.',
+          attr: { role: 'alert' }
+        });
+      }
+    };
+    select.addEventListener('change', render);
+    render();
+  }
+
+  /** Lists exact dependent records and offers explicit same-book reassignment one at a time. */
+  private renderEditionDependants(
+    parent: HTMLElement,
+    edition: CatalogRecord,
+    bookEditions: readonly CatalogRecord[]
+  ): void {
+    const section = parent.createEl('section', { cls: 'pm-edition-subsection' });
+    const assessment = this.editions.assessRemoval(edition.id);
+    section.createEl('h4', { text: `Dependent records · ${assessment.dependants.length}` });
+    section.createEl('p', { text: assessment.explanation });
+    if (assessment.dependants.length === 0) return;
+    const targets = bookEditions.filter(({ id, archived }) => id !== edition.id && !archived);
+    const list = section.createEl('ul', { cls: 'pm-dependant-list' });
+    for (const dependant of assessment.dependants) {
+      const item = list.createEl('li');
+      item.createEl('strong', { text: `${dependant.type} · ${dependant.id}` });
+      item.createEl('small', { text: dependant.path });
+      if (targets.length === 0) {
+        item.createEl('p', {
+          text: 'Create another active edition before reassigning this record.'
+        });
+        continue;
+      }
+      const row = item.createDiv({ cls: 'pm-action-row' });
+      const select = row.createEl('select', {
+        attr: { 'aria-label': `Target edition for ${dependant.id}` }
+      });
+      for (const target of targets) {
+        select.createEl('option', { value: target.id, text: editionRecordLabel(target) });
+      }
+      const reassign = editionAction(row, 'Reassign record');
+      reassign.addEventListener('click', () => {
+        reassign.disabled = true;
+        void this.editions
+          .reassignDependant(dependant.path, edition.id, select.value)
+          .then(() => new Notice('Dependent record reassigned.'))
+          .catch((error: unknown) => {
+            this.operationError =
+              error instanceof Error ? error.message : 'Dependent record could not be reassigned.';
+            reassign.disabled = false;
+            if (this.snapshot !== undefined) this.render(this.snapshot);
+          });
+      });
+    }
+  }
+
   /** Renders the read-mostly Diagnostics tab with path, field, explanation, and repair action. */
   private renderDiagnostics(
     parent: HTMLElement,
@@ -412,6 +742,20 @@ export class BookWorkspaceView extends ItemView {
         error instanceof Error ? error.message : 'Book overview could not be saved.';
     }
     if (this.snapshot !== undefined) this.render(this.snapshot);
+  }
+
+  /** Changes only edition archive state and keeps the selected identity for immediate review. */
+  private async changeEditionArchiveState(record: CatalogRecord, archived: boolean): Promise<void> {
+    this.operationError = undefined;
+    try {
+      if (archived) await this.editions.archive(record.path);
+      else await this.editions.restore(record.path);
+      new Notice(archived ? 'Edition archived with links retained.' : 'Edition restored.');
+    } catch (error) {
+      this.operationError =
+        error instanceof Error ? error.message : 'Edition lifecycle change failed.';
+      if (this.snapshot !== undefined) this.render(this.snapshot);
+    }
   }
 
   /** Archives/restores through application services and retains any unrelated overview draft. */
@@ -584,6 +928,73 @@ function diagnosticsFor(
   return diagnostics.filter(
     (diagnostic) => diagnostic.path === record.path || diagnostic.entityId === record.id
   );
+}
+
+/** Creates one consistent secondary action inside edition cards and subsections. */
+function editionAction(parent: HTMLElement, text: string): HTMLButtonElement {
+  return parent.createEl('button', {
+    cls: 'pm-button pm-button--secondary',
+    text,
+    attr: { type: 'button' }
+  });
+}
+
+/** Human label retains stable revision and archive context without using a filename as identity. */
+function editionRecordLabel(record: CatalogRecord): string {
+  const type = record.fields.type as EditionType;
+  const customType = record.fields['custom-type'];
+  const label = editionTypeLabel({
+    type,
+    ...(typeof customType === 'string' ? { customType } : {})
+  });
+  return `${label} · Revision ${String(record.fields.revision)}`;
+}
+
+/** Adds one term/description pair to the edition fact grid. */
+function editionFact(parent: HTMLDListElement, label: string, value: string): void {
+  const item = parent.createDiv({ cls: 'pm-edition-fact' });
+  item.createEl('dt', { text: label });
+  item.createEl('dd', { text: value });
+}
+
+/** Makes missing or structured projection values explicit for assistive technology. */
+function valueText(value: unknown): string {
+  if (value === undefined || value === null || value === '') return 'Not recorded';
+  if (typeof value === 'object') return mapText(value);
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return value.toString();
+  }
+  return 'Unsupported value';
+}
+
+/** Renders text maps in stable key order and rejects malformed external shapes visibly. */
+function mapText(value: unknown): string {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return 'Not recorded';
+  const entries = Object.entries(value).filter(
+    (entry): entry is [string, string] => typeof entry[1] === 'string'
+  );
+  return entries.length === 0
+    ? 'Not recorded'
+    : entries
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, entry]) => `${key}: ${entry}`)
+        .join('; ');
+}
+
+/** Displays complete trim evidence without silently converting persisted units. */
+function trimText(record: CatalogRecord): string {
+  const width = record.fields['trim-width'];
+  const height = record.fields['trim-height'];
+  const unit = record.fields['trim-unit'];
+  return typeof width !== 'string' || typeof height !== 'string' || typeof unit !== 'string'
+    ? 'Not recorded'
+    : `${width} × ${height} ${unit}`;
+}
+
+/** Displays whole-minute audio duration with a human-readable unit. */
+function durationText(value: unknown): string {
+  return typeof value === 'number' ? `${value} minutes` : 'Not recorded';
 }
 
 /** Uppercases only the first character for human labels. */

@@ -3,6 +3,7 @@ import { Plugin } from 'obsidian';
 import { GetFoundationStatus } from './application/foundation/get-foundation-status';
 import { BookProjectService } from './application/books/book-project-service';
 import { BookCatalog } from './application/catalog/book-catalog';
+import { EditionProjectService } from './application/editions/edition-project-service';
 import { ManagedFolderLayout } from './domain/storage/managed-folder-layout';
 import { ObsidianBookCatalogController } from './infrastructure/catalog/obsidian-book-catalog-controller';
 import { SilentLogger } from './infrastructure/diagnostics/silent-logger';
@@ -36,6 +37,7 @@ export default class PublishingManagerPlugin extends Plugin {
     );
     const catalog = new BookCatalog(repository, clock);
     const books = new BookProjectService(repository, catalog, layout, clock, ids);
+    const editions = new EditionProjectService(repository, catalog, layout, clock, ids);
     const drafts = new BookDraftStore();
     const catalogController = new ObsidianBookCatalogController(
       this.app.vault,
@@ -48,7 +50,9 @@ export default class PublishingManagerPlugin extends Plugin {
 
     registerFoundationCommand(this, getFoundationStatus);
     registerBookCommands(this, books);
-    registerPublishingViews(this, catalog, books, drafts, () => catalogController.initialize());
+    registerPublishingViews(this, catalog, books, editions, drafts, () =>
+      catalogController.initialize()
+    );
     this.addSettingTab(new PublishingManagerSettingsTab(this.app, this));
   }
 }

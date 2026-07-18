@@ -8,6 +8,7 @@ import { Notice, type Plugin, type WorkspaceLeaf } from 'obsidian';
 
 import type { BookProjectService } from '../../application/books/book-project-service';
 import type { BookCatalog } from '../../application/catalog/book-catalog';
+import type { EditionProjectService } from '../../application/editions/edition-project-service';
 import type { CatalogRecord } from '../../domain/catalog/catalog-model';
 import { normalizeVaultPath } from '../../domain/storage/vault-path';
 import { CreateBookModal } from '../dialogs/create-book-modal';
@@ -23,6 +24,7 @@ export function registerPublishingViews(
   plugin: Plugin,
   catalog: BookCatalog,
   books: BookProjectService,
+  editions: EditionProjectService,
   drafts: BookDraftStore,
   refreshCatalog: () => Promise<void>
 ): void {
@@ -55,7 +57,7 @@ export function registerPublishingViews(
   );
   plugin.registerView(
     BOOK_WORKSPACE_VIEW_TYPE,
-    (leaf) => new BookWorkspaceView(leaf, catalog, books, drafts, openDashboard)
+    (leaf) => new BookWorkspaceView(leaf, catalog, books, editions, drafts, openDashboard)
   );
 
   plugin.addRibbonIcon('library', 'Open publishing dashboard', () => void openDashboard());

@@ -23,6 +23,8 @@ export interface CatalogDiagnostic {
   readonly code:
     | 'catalog.duplicate-id'
     | 'catalog.invalid-book'
+    | 'catalog.invalid-edition'
+    | 'catalog.invalid-format'
     | 'catalog.malformed-envelope'
     | 'catalog.malformed-frontmatter'
     | 'catalog.malformed-schema'
@@ -53,7 +55,12 @@ export interface CatalogActivity {
 
 /** Deterministic next publishing step derived from valid active catalog state. */
 export interface NextMilestoneSummary {
-  readonly code: 'add-first-edition' | 'create-first-book' | 'repair-catalog';
+  readonly code:
+    | 'add-first-edition'
+    | 'add-first-format'
+    | 'create-first-book'
+    | 'manage-editions'
+    | 'repair-catalog';
   readonly title: string;
   readonly explanation: string;
 }
@@ -70,6 +77,8 @@ export type CatalogAvailability =
 export interface BookCatalogSnapshot {
   readonly availability: CatalogAvailability;
   readonly books: readonly CatalogRecord[];
+  readonly editions: readonly CatalogRecord[];
+  readonly formats: readonly CatalogRecord[];
   readonly diagnostics: readonly CatalogDiagnostic[];
   readonly recentActivity: readonly CatalogActivity[];
   readonly nextMilestone: NextMilestoneSummary;
