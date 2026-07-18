@@ -32,6 +32,10 @@ Publishing Manager supports public stable Obsidian releases from 1.8.0 onward on
 - Mobile-compatible and independent of other plugins.
 - User-owned Markdown records written only through supported Obsidian APIs.
 
+## Contributing
+
+Start with a Gitea issue and reference the permanent backlog ID. See [CONTRIBUTING.md](CONTRIBUTING.md) for branches, commits, pull requests, testing, and review requirements. Release preparation follows [RELEASING.md](RELEASING.md), and notable changes belong in [CHANGELOG.md](CHANGELOG.md).
+
 ## Scripts
 
 - `npm run dev` — watch development bundle
@@ -41,6 +45,7 @@ Publishing Manager supports public stable Obsidian releases from 1.8.0 onward on
 - `npm run test:fixtures` — deterministic small, target-scale, malformed, and upgrade fixture checks
 - `npm run test:coverage` — tests with coverage
 - `npm run check:forbidden` — production-source policy scan
+- `npm run check:conventions` — required contributor, issue, pull-request, commit, and release conventions
 - `npm run check:support` — manifest, version map, platform, and toolchain policy alignment
 
 ## License
