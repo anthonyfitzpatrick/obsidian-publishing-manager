@@ -8,6 +8,7 @@
 import { TFile, type Plugin, type TAbstractFile, type Vault } from 'obsidian';
 
 import type { BookCatalog } from '../../application/catalog/book-catalog';
+import type { AssetReferenceService } from '../../application/assets/asset-reference-service';
 import type { Logger } from '../../domain/foundation/logger';
 import { normalizeVaultPath, type VaultPath } from '../../domain/storage/vault-path';
 
@@ -18,7 +19,8 @@ export class ObsidianBookCatalogController {
     private readonly vault: Vault,
     private readonly root: VaultPath,
     private readonly catalog: BookCatalog,
-    private readonly logger: Logger
+    private readonly logger: Logger,
+    private readonly assets?: AssetReferenceService
   ) {}
 
   /** Registers event cleanup with the owning plugin before the first asynchronous catalog scan. */
@@ -32,6 +34,7 @@ export class ObsidianBookCatalogController {
     );
     plugin.registerEvent(
       this.vault.on('modify', (file) => {
+        this.assets?.notifyFileChanged();
         if (this.isManagedMarkdown(file)) {
           void this.reconcile(file.path, 'modified');
         }
@@ -39,6 +42,7 @@ export class ObsidianBookCatalogController {
     );
     plugin.registerEvent(
       this.vault.on('rename', (file, previousPath) => {
+        if (file instanceof TFile) void this.reconcileAssetRename(previousPath, file.path);
         const wasManaged = this.isManagedPath(previousPath);
         const isManaged = this.isManagedMarkdown(file);
         if (wasManaged && isManaged) {
@@ -52,11 +56,25 @@ export class ObsidianBookCatalogController {
     );
     plugin.registerEvent(
       this.vault.on('delete', (file) => {
+        this.assets?.notifyFileChanged();
         if (this.isManagedPath(file.path) && file.path.toLowerCase().endsWith('.md')) {
           this.catalog.remove(normalizeVaultPath(file.path));
         }
       })
     );
+  }
+
+  /** Lets arbitrary production-file moves update exact canonical references without copying data. */
+  private async reconcileAssetRename(previousPath: string, nextPath: string): Promise<void> {
+    try {
+      await this.assets?.handleRename(previousPath, nextPath);
+    } catch (error) {
+      this.logger.error('Asset reference rename reconciliation failed.', {
+        previousPath,
+        nextPath,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
   }
 
   /** Rebuilds lightweight state from all managed Markdown notes after plugin/app reload. */

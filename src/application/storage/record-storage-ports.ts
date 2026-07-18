@@ -40,6 +40,28 @@ export interface VaultTextPort {
   ensureFolder(path: VaultPath): Promise<void>;
 }
 
+/** Lightweight host evidence for an arbitrary existing vault file. */
+export interface VaultAssetEvidence {
+  readonly exists: boolean;
+  readonly modifiedTime?: string;
+  readonly size?: number;
+}
+
+/**
+ * Read-only arbitrary-file capability used by asset tracking. Metadata inspection is cheap;
+ * binary reads are separate so the application cannot accidentally fingerprint every file while
+ * rendering a dashboard. Paths have already passed the shared vault-path safety boundary.
+ */
+export interface VaultAssetPort {
+  inspect(path: VaultPath): Promise<VaultAssetEvidence>;
+  readBinary(path: VaultPath): Promise<ArrayBuffer>;
+}
+
+/** Cryptographic digest boundary keeps Web Crypto out of the domain and application layers. */
+export interface ContentFingerprintPort {
+  sha256(content: ArrayBuffer): Promise<string>;
+}
+
 /** Hydrated canonical record plus the exact revision required for the next optimistic save. */
 export interface LoadedManagedRecord {
   readonly path: VaultPath;

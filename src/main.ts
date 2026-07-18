@@ -4,6 +4,7 @@ import { GetFoundationStatus } from './application/foundation/get-foundation-sta
 import { BookProjectService } from './application/books/book-project-service';
 import { BookCatalog } from './application/catalog/book-catalog';
 import { EditionProjectService } from './application/editions/edition-project-service';
+import { AssetReferenceService } from './application/assets/asset-reference-service';
 import { ManagedFolderLayout } from './domain/storage/managed-folder-layout';
 import { ObsidianBookCatalogController } from './infrastructure/catalog/obsidian-book-catalog-controller';
 import { SilentLogger } from './infrastructure/diagnostics/silent-logger';
@@ -11,6 +12,10 @@ import { BrowserIdGenerator } from './infrastructure/platform/browser-id-generat
 import { SystemClock } from './infrastructure/platform/system-clock';
 import { ObsidianFrontmatterCodec } from './infrastructure/storage/obsidian-frontmatter-codec';
 import { ObsidianVaultTextPort } from './infrastructure/storage/obsidian-vault-text-port';
+import {
+  ObsidianVaultAssetPort,
+  WebCryptoContentFingerprintPort
+} from './infrastructure/storage/obsidian-vault-asset-port';
 import { VaultManagedRecordRepository } from './infrastructure/storage/vault-managed-record-repository';
 import { registerBookCommands } from './ui/commands/register-book-commands';
 import { registerFoundationCommand } from './ui/commands/register-foundation-command';
@@ -38,19 +43,29 @@ export default class PublishingManagerPlugin extends Plugin {
     const catalog = new BookCatalog(repository, clock);
     const books = new BookProjectService(repository, catalog, layout, clock, ids);
     const editions = new EditionProjectService(repository, catalog, layout, clock, ids);
+    const assets = new AssetReferenceService(
+      repository,
+      catalog,
+      layout,
+      new ObsidianVaultAssetPort(this.app.vault),
+      new WebCryptoContentFingerprintPort(),
+      clock,
+      ids
+    );
     const drafts = new BookDraftStore();
     const catalogController = new ObsidianBookCatalogController(
       this.app.vault,
       layout.rootPath(),
       catalog,
-      logger
+      logger,
+      assets
     );
     catalogController.register(this);
     await catalogController.initialize();
 
     registerFoundationCommand(this, getFoundationStatus);
     registerBookCommands(this, books);
-    registerPublishingViews(this, catalog, books, editions, drafts, () =>
+    registerPublishingViews(this, catalog, books, editions, assets, drafts, () =>
       catalogController.initialize()
     );
     this.addSettingTab(new PublishingManagerSettingsTab(this.app, this));

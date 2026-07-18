@@ -289,6 +289,20 @@
   background: color-mix(in srgb, var(--text-muted) 12%, transparent);
 }
 
+.pm-status-chip--current {
+  background: color-mix(in srgb, var(--color-green) 12%, transparent);
+}
+
+.pm-status-chip--stale,
+.pm-status-chip--missing {
+  background: color-mix(in srgb, var(--color-red) 10%, transparent);
+}
+
+.pm-status-chip--unknown,
+.pm-status-chip--externally-managed {
+  background: color-mix(in srgb, var(--color-yellow) 12%, transparent);
+}
+
 .pm-diagnostic-list,
 .pm-activity-list {
   display: grid;
@@ -558,6 +572,34 @@
 .pm-dependant-list {
   display: grid;
   gap: 10px;
+}
+
+/* Asset cards retain long paths/evidence and expose actions in the same order on mobile. */
+.pm-asset-list {
+  display: grid;
+  gap: 12px;
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+}
+
+.pm-asset-card {
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 9px;
+  display: grid;
+  gap: 10px;
+  overflow-wrap: anywhere;
+  padding: 13px;
+}
+
+.pm-asset-card small,
+.pm-asset-evidence .pm-muted {
+  color: var(--text-muted);
+}
+
+.pm-asset-evidence ul {
+  margin-block: 9px;
 }
 
 .pm-format-list > li,

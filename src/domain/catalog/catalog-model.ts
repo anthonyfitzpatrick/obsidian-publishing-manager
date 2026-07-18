@@ -79,6 +79,7 @@ export interface BookCatalogSnapshot {
   readonly books: readonly CatalogRecord[];
   readonly editions: readonly CatalogRecord[];
   readonly formats: readonly CatalogRecord[];
+  readonly assets: readonly CatalogRecord[];
   readonly diagnostics: readonly CatalogDiagnostic[];
   readonly recentActivity: readonly CatalogActivity[];
   readonly nextMilestone: NextMilestoneSummary;

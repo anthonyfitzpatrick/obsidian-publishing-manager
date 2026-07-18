@@ -18,7 +18,12 @@ import {
 import type { BookProjectService } from '../../application/books/book-project-service';
 import type { BookCatalog } from '../../application/catalog/book-catalog';
 import type { EditionProjectService } from '../../application/editions/edition-project-service';
+import type {
+  AssetReferenceService,
+  AssetInspection
+} from '../../application/assets/asset-reference-service';
 import { BOOK_STATUSES, type BookStatus } from '../../domain/books/book-project';
+import { ManualCancellationToken } from '../../domain/foundation/cancellation';
 import type {
   BookCatalogSnapshot,
   CatalogDiagnostic,
@@ -35,6 +40,7 @@ import { ConfirmEditionArchiveModal } from '../dialogs/confirm-edition-archive-m
 import { EditionEditorModal } from '../dialogs/edition-editor-modal';
 import { EditionFormatModal } from '../dialogs/edition-format-modal';
 import { EditionRevisionModal } from '../dialogs/edition-revision-modal';
+import { LinkAssetModal, RelinkAssetModal } from '../dialogs/link-asset-modal';
 import type { BookDraftStore, BookOverviewDraft } from '../state/book-draft-store';
 import {
   ENABLED_WORKSPACE_TABS,
@@ -53,7 +59,6 @@ const FUTURE_TABS = [
   'Pricing',
   'Distribution',
   'Sales',
-  'Assets',
   'Launch',
   'Reviews',
   'Notes',
@@ -63,6 +68,7 @@ const FUTURE_TABS = [
 /** Native book workspace with per-book draft continuity and immutable catalog subscriptions. */
 export class BookWorkspaceView extends ItemView {
   private unsubscribe: (() => void) | undefined;
+  private unsubscribeAssets: (() => void) | undefined;
   private snapshot?: BookCatalogSnapshot;
   private selectedPath: VaultPath | undefined;
   private selectedEditionId: string | undefined;
@@ -75,12 +81,203 @@ export class BookWorkspaceView extends ItemView {
     private readonly catalog: BookCatalog,
     private readonly books: BookProjectService,
     private readonly editions: EditionProjectService,
+    private readonly assets: AssetReferenceService,
     private readonly drafts: BookDraftStore,
     private readonly openDashboard: () => Promise<void>
   ) {
     super(leaf);
     this.icon = 'book-open';
     this.navigation = true;
+  }
+
+  /**
+   * Renders book-scoped links and fills each evidence card asynchronously. Inspection reads file
+   * metadata only; content buttons create an explicit cancellable fingerprint operation.
+   */
+  private renderAssets(parent: HTMLElement, book: CatalogRecord): void {
+    const section = parent.createEl('section', { cls: 'pm-panel pm-assets-page' });
+    const heading = section.createDiv({ cls: 'pm-section-heading' });
+    const title = heading.createDiv();
+    title.createEl('p', { cls: 'pm-eyebrow', text: 'Existing vault files · never copied' });
+    title.createEl('h2', { text: 'Production assets' });
+    const link = heading.createEl('button', {
+      cls: 'pm-button pm-button--primary',
+      text: 'Link existing asset',
+      attr: { type: 'button' }
+    });
+    const editions = this.catalog.editionsForBook(book.id);
+    const formats = editions.flatMap((edition) => this.catalog.formatsForEdition(edition.id));
+    link.addEventListener('click', () =>
+      new LinkAssetModal(this.app, this.assets, book, editions, formats, () => undefined).open()
+    );
+    section.createEl('p', {
+      text: 'Freshness is derived from live existence and comparison evidence. Matching modified time and size are useful but cannot prove identical content; SHA-256 verification reads the entire file only when you explicitly request it.'
+    });
+
+    const records = this.catalog
+      .recordsOfType('asset-reference')
+      .filter((record) => record.fields['book-id'] === book.id);
+    if (records.length === 0) {
+      section.createDiv({
+        cls: 'pm-empty-state',
+        text: 'No linked assets. Link a cover, EPUB, DOCX, HTML, Markdown, XML, print file, press kit, media image, or author photo.'
+      });
+    } else {
+      const list = section.createEl('ul', { cls: 'pm-asset-list' });
+      for (const record of records) {
+        const item = list.createEl('li', { cls: 'pm-asset-card' });
+        const itemHeading = item.createDiv({ cls: 'pm-section-heading' });
+        const labels = itemHeading.createDiv();
+        labels.createEl('strong', { text: assetRoleLabel(String(record.fields.role)) });
+        labels.createEl('small', { text: String(record.fields.path) });
+        const actions = itemHeading.createDiv({ cls: 'pm-action-row' });
+        const relink = editionAction(actions, 'Relink');
+        relink.addEventListener('click', () =>
+          new RelinkAssetModal(
+            this.app,
+            this.assets,
+            record.path,
+            String(record.fields.path),
+            () => undefined
+          ).open()
+        );
+        const open = editionAction(actions, 'Open reference note');
+        open.addEventListener('click', () => void this.openCanonicalNote(record.path));
+        const evidence = item.createDiv({
+          cls: 'pm-asset-evidence',
+          attr: { 'aria-live': 'polite' }
+        });
+        evidence.setText('Inspecting vault metadata…');
+        void this.assets
+          .inspect(record)
+          .then((inspection) => this.renderAssetInspection(evidence, inspection))
+          .catch((cause: unknown) =>
+            evidence.setText(
+              cause instanceof Error ? cause.message : 'Asset evidence is unavailable.'
+            )
+          );
+        const fingerprintActions = item.createDiv({ cls: 'pm-action-row' });
+        const capture = editionAction(
+          fingerprintActions,
+          record.fields.fingerprint === undefined
+            ? 'Capture SHA-256 fingerprint'
+            : 'Replace fingerprint baseline'
+        );
+        const verify = editionAction(fingerprintActions, 'Verify fingerprint now');
+        verify.toggleAttribute('disabled', record.fields.fingerprint === undefined);
+        const runFingerprint = (mode: 'capture' | 'verify') => {
+          const token = new ManualCancellationToken();
+          capture.disabled = true;
+          verify.disabled = true;
+          const cancel = editionAction(fingerprintActions, 'Cancel fingerprinting');
+          cancel.addEventListener('click', () => {
+            token.cancel();
+            cancel.disabled = true;
+          });
+          evidence.setText('Reading this file to compute SHA-256…');
+          const operation =
+            mode === 'capture'
+              ? this.assets.captureFingerprint(record.path, token).then(() => undefined)
+              : this.assets
+                  .verifyFingerprint(record, token)
+                  .then((inspection) => this.renderAssetInspection(evidence, inspection));
+          void operation
+            .catch((cause: unknown) =>
+              evidence.setText(cause instanceof Error ? cause.message : 'Fingerprinting failed.')
+            )
+            .finally(() => {
+              cancel.remove();
+              capture.disabled = false;
+              verify.disabled = record.fields.fingerprint === undefined;
+            });
+        };
+        capture.addEventListener('click', () => runFingerprint('capture'));
+        verify.addEventListener('click', () => runFingerprint('verify'));
+        const metadata = editionAction(fingerprintActions, 'Accept current metadata baseline');
+        metadata.addEventListener('click', () => {
+          metadata.disabled = true;
+          void this.assets.acceptCurrentMetadata(record.path).catch((cause: unknown) => {
+            evidence.setText(
+              cause instanceof Error ? cause.message : 'Metadata baseline could not be updated.'
+            );
+            metadata.disabled = false;
+          });
+        });
+      }
+    }
+    this.renderAssetRepairPreview(section, book.id);
+  }
+
+  /** Renders text-labelled evidence so every state remains understandable without badge color. */
+  private renderAssetInspection(parent: HTMLElement, inspection: AssetInspection): void {
+    parent.empty();
+    parent.createEl('strong', {
+      cls: `pm-status-chip pm-status-chip--${inspection.assessment.state}`,
+      text: assetRoleLabel(inspection.assessment.state)
+    });
+    const evidence = parent.createEl('ul');
+    for (const line of inspection.assessment.evidence) evidence.createEl('li', { text: line });
+    parent.createEl('p', {
+      cls: 'pm-muted',
+      text: `Limitation: ${inspection.assessment.limitation}`
+    });
+  }
+
+  /** Builds AST-008 folder repair previews without applying a hidden multi-record mutation. */
+  private renderAssetRepairPreview(parent: HTMLElement, bookId: string): void {
+    const details = parent.createEl('details', { cls: 'pm-edition-subsection' });
+    details.createEl('summary', { text: 'Bulk path-repair preview' });
+    details.createEl('p', {
+      text: 'Preview how a moved folder would affect every matching reference. No record changes until you open and relink an individual reviewed result.'
+    });
+    const fields = details.createDiv({ cls: 'pm-form-grid' });
+    const previous = createInputField(fields, 'Previous folder prefix', 'text', '');
+    const next = createInputField(fields, 'New folder prefix', 'text', '');
+    const preview = details.createEl('button', {
+      cls: 'pm-button pm-button--secondary',
+      text: 'Preview repairs',
+      attr: { type: 'button' }
+    });
+    const results = details.createDiv({ attr: { 'aria-live': 'polite' } });
+    preview.addEventListener('click', () => {
+      preview.disabled = true;
+      results.setText('Checking proposed targets…');
+      void this.assets
+        .previewPathRepair(bookId, previous.value, next.value)
+        .then((items) => {
+          results.empty();
+          if (items.length === 0)
+            results.createEl('p', { text: 'No linked paths match that previous prefix.' });
+          const list = results.createEl('ul', { cls: 'pm-asset-list' });
+          for (const item of items) {
+            const row = list.createEl('li', { cls: 'pm-asset-card' });
+            row.createEl('strong', { text: assetRoleLabel(item.status) });
+            row.createEl('p', {
+              text: `${item.currentPath} → ${item.proposedPath ?? 'invalid path'}`
+            });
+            row.createEl('small', { text: item.explanation });
+            if (item.status === 'ready' && item.proposedPath !== undefined) {
+              const relink = editionAction(row, 'Review and relink');
+              relink.addEventListener('click', () =>
+                new RelinkAssetModal(
+                  this.app,
+                  this.assets,
+                  item.recordPath,
+                  item.currentPath,
+                  () => undefined,
+                  item.proposedPath as string
+                ).open()
+              );
+            }
+          }
+        })
+        .catch((cause: unknown) =>
+          results.setText(cause instanceof Error ? cause.message : 'Repair preview failed.')
+        )
+        .finally(() => {
+          preview.disabled = false;
+        });
+    });
   }
 
   /** Identifies this view to Obsidian workspace persistence. */
@@ -129,11 +326,15 @@ export class BookWorkspaceView extends ItemView {
       this.reconcileEditionSelection(snapshot);
       this.render(snapshot);
     });
+    this.unsubscribeAssets = this.assets.subscribe(() => {
+      if (this.snapshot !== undefined && this.activeTab === 'assets') this.render(this.snapshot);
+    });
   }
 
   /** Preserves drafts in the shared store while releasing only this view's subscription and DOM. */
   protected override async onClose(): Promise<void> {
     this.unsubscribe?.();
+    this.unsubscribeAssets?.();
     this.unsubscribe = undefined;
     this.contentEl.empty();
   }
@@ -195,6 +396,8 @@ export class BookWorkspaceView extends ItemView {
       this.renderOverview(content, record, snapshot);
     } else if (this.activeTab === 'editions') {
       this.renderEditions(content, record);
+    } else if (this.activeTab === 'assets') {
+      this.renderAssets(content, record);
     } else {
       this.renderDiagnostics(content, record, snapshot);
     }
@@ -937,6 +1140,14 @@ function editionAction(parent: HTMLElement, text: string): HTMLButtonElement {
     text,
     attr: { type: 'button' }
   });
+}
+
+/** Converts stable role/state vocabulary to visible labels without changing persisted values. */
+function assetRoleLabel(value: string): string {
+  return value
+    .split('-')
+    .map((part) => capitalize(part))
+    .join(' ');
 }
 
 /** Human label retains stable revision and archive context without using a filename as identity. */

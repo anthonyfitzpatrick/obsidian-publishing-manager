@@ -129,9 +129,15 @@ export const RECORD_SCHEMAS = {
   'asset-reference': schema('asset-reference', {
     'book-id': relation('book', true),
     'edition-id': relation('edition', false),
+    'format-id': relation('format', false),
     path: requiredString(),
-    kind: requiredString(),
-    fingerprint: optionalString()
+    role: requiredString(),
+    'modified-time': { kind: 'datetime', required: false },
+    size: { kind: 'integer', required: false },
+    fingerprint: optionalString(),
+    'source-fingerprint': optionalString(),
+    notes: optionalString(),
+    'externally-managed': { kind: 'boolean', required: false }
   }),
   'history-event': schema('history-event', {
     'entity-id': requiredString(),

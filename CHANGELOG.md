@@ -17,6 +17,7 @@ All notable changes to Publishing Manager are recorded here using Keep a Changel
 - M1 catalog and book vertical slice with focused create/edit/archive/restore commands, reload-safe identity, incremental vault-event reconciliation, stable series ordering, activity/next-step summaries, and actionable diagnostics.
 - M1 native Dashboard and Book Workspace with graphical catalog summaries, Overview editing, runtime draft preservation and confirmed discard, explicit availability states, responsive single-column behavior, and accessible keyboard/non-color interaction.
 - M2 Editions and Formats section with nine stable/custom types, conditional print/digital/audio data, canonical format/file records, previewed revisions, comparison, non-destructive archival/reassignment, and an accessible responsive Editions workspace.
+- M2 Assets section and full milestone completion with reference-only existing-file links, stable roles/evidence, exact rename and missing-file behavior, five explained freshness states, opt-in cancellable cached SHA-256 fingerprints, validated relinking, non-mutating path-repair previews, and an accessible responsive Assets workspace.
 
 ## [0.1.0] - 2026-07-18
 

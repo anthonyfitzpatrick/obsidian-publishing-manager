@@ -6,6 +6,7 @@
  */
 
 import type { Clock } from '../../domain/foundation/clock';
+import { validateAssetReference } from '../../domain/assets/asset-reference';
 import { validateBookProject } from '../../domain/books/book-project';
 import {
   validateEditionFormat,
@@ -207,11 +208,21 @@ export class BookCatalog {
     const formats = [...this.recordsByPath.values()]
       .filter((record) => record.type === 'format' && !hasPathError(record.path, diagnostics))
       .sort(compareFormats);
+    const assets = [...this.recordsByPath.values()]
+      .filter(
+        (record) => record.type === 'asset-reference' && !hasPathError(record.path, diagnostics)
+      )
+      .sort((left, right) =>
+        `${String(left.fields.role)}:${left.id}`.localeCompare(
+          `${String(right.fields.role)}:${right.id}`
+        )
+      );
     return {
       availability: this.availability,
       books,
       editions,
       formats,
+      assets,
       diagnostics,
       recentActivity: [...this.recentActivity],
       nextMilestone: nextMilestoneFor(books, editions, formats, diagnostics)
@@ -434,6 +445,20 @@ function inspectRecord(record: CatalogRecord): readonly CatalogDiagnostic[] {
         field: String(diagnostic.field),
         message: diagnostic.message,
         suggestedAction: 'Open this format and correct the highlighted file or metadata field.'
+      }))
+    );
+  }
+  if (record.type === 'asset-reference' && schemaDiagnostics.length === 0) {
+    diagnostics.push(
+      ...validateAssetReference(record.fields).map((diagnostic) => ({
+        code: 'catalog.malformed-schema' as const,
+        severity: 'error' as const,
+        path: record.path,
+        entityId: record.id,
+        field: String(diagnostic.field),
+        message: diagnostic.message,
+        suggestedAction:
+          'Open this asset reference and correct the highlighted link or evidence field.'
       }))
     );
   }

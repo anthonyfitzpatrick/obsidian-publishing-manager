@@ -4,7 +4,7 @@
  */
 
 /** Tabs backed by implemented data rather than placeholders pretending to be functional. */
-export const ENABLED_WORKSPACE_TABS = ['overview', 'editions', 'diagnostics'] as const;
+export const ENABLED_WORKSPACE_TABS = ['overview', 'editions', 'assets', 'diagnostics'] as const;
 
 /** Enabled workspace tab identifier persisted in Obsidian view state. */
 export type WorkspaceTab = (typeof ENABLED_WORKSPACE_TABS)[number];
