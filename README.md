@@ -38,6 +38,7 @@ Publishing Manager supports public stable Obsidian releases from 1.8.0 onward on
 - `npm run build` — validate and create production `main.js`
 - `npm run check` — formatting, lint, types, forbidden APIs, and tests
 - `npm run test` — deterministic unit tests
+- `npm run test:fixtures` — deterministic small, target-scale, malformed, and upgrade fixture checks
 - `npm run test:coverage` — tests with coverage
 - `npm run check:forbidden` — production-source policy scan
 - `npm run check:support` — manifest, version map, platform, and toolchain policy alignment
