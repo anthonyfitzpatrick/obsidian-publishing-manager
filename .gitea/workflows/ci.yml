@@ -8,12 +8,26 @@ on:
 jobs:
   verify:
     runs-on: macos-arm64
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
-      - run: npm run check
-      - run: npm run build
+      - name: Check out repository
+        env:
+          CI_REPOSITORY_TOKEN: ${{ github.token }}
+        run: |
+          git init .
+          git remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          basic_auth="$(printf 'x-access-token:%s' "$CI_REPOSITORY_TOKEN" | base64)"
+          git -c "http.extraHeader=Authorization: Basic $basic_auth" fetch --depth=1 origin "$GITHUB_SHA"
+          git checkout --detach FETCH_HEAD
+      - name: Verify native Node toolchain
+        run: |
+          node --version
+          npm --version
+          node -e "const major = Number(process.versions.node.split('.')[0]); if (major < 24) process.exit(1)"
+      - name: Install dependencies
+        run: npm ci
+      - name: Run quality checks
+        run: npm run check
+      - name: Build plugin
+        run: npm run build
