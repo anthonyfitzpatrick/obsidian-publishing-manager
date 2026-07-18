@@ -61,12 +61,18 @@ export class ObsidianBookCatalogController {
 
   /** Rebuilds lightweight state from all managed Markdown notes after plugin/app reload. */
   public async initialize(): Promise<void> {
-    const paths = this.vault
-      .getMarkdownFiles()
-      .map((file) => file.path)
-      .filter((path) => this.isManagedPath(path))
-      .map((path) => normalizeVaultPath(path));
-    await this.catalog.initialize(paths);
+    try {
+      const paths = this.vault
+        .getMarkdownFiles()
+        .map((file) => file.path)
+        .filter((path) => this.isManagedPath(path))
+        .map((path) => normalizeVaultPath(path));
+      await this.catalog.initialize(paths);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Catalog rebuild failed.';
+      this.catalog.markError(message);
+      this.logger.error('Catalog initialization failed.', { error: message });
+    }
   }
 
   /** Safely reconciles one event without allowing an async rejection to escape Obsidian. */

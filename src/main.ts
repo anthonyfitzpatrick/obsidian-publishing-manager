@@ -14,6 +14,8 @@ import { VaultManagedRecordRepository } from './infrastructure/storage/vault-man
 import { registerBookCommands } from './ui/commands/register-book-commands';
 import { registerFoundationCommand } from './ui/commands/register-foundation-command';
 import { PublishingManagerSettingsTab } from './ui/settings/publishing-manager-settings-tab';
+import { BookDraftStore } from './ui/state/book-draft-store';
+import { registerPublishingViews } from './ui/views/register-publishing-views';
 
 export default class PublishingManagerPlugin extends Plugin {
   /**
@@ -34,6 +36,7 @@ export default class PublishingManagerPlugin extends Plugin {
     );
     const catalog = new BookCatalog(repository, clock);
     const books = new BookProjectService(repository, catalog, layout, clock, ids);
+    const drafts = new BookDraftStore();
     const catalogController = new ObsidianBookCatalogController(
       this.app.vault,
       layout.rootPath(),
@@ -45,6 +48,7 @@ export default class PublishingManagerPlugin extends Plugin {
 
     registerFoundationCommand(this, getFoundationStatus);
     registerBookCommands(this, books);
+    registerPublishingViews(this, catalog, books, drafts, () => catalogController.initialize());
     this.addSettingTab(new PublishingManagerSettingsTab(this.app, this));
   }
 }

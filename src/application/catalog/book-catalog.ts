@@ -11,6 +11,7 @@ import {
   type BookCatalogSnapshot,
   type CatalogActivity,
   type CatalogActivityAction,
+  type CatalogAvailability,
   type CatalogDiagnostic,
   type CatalogRecord,
   type NextMilestoneSummary
@@ -31,6 +32,7 @@ export class BookCatalog {
   private readonly directDiagnosticsByPath = new Map<VaultPath, readonly CatalogDiagnostic[]>();
   private readonly recentActivity: CatalogActivity[] = [];
   private readonly subscribers = new Set<BookCatalogSubscriber>();
+  private availability: CatalogAvailability = { state: 'loading' };
 
   /** Binds inspection to a deterministic clock; neither dependency grants write capability. */
   public constructor(
@@ -40,11 +42,29 @@ export class BookCatalog {
 
   /** Rebuilds the disposable projection without manufacturing user activity on plugin reload. */
   public async initialize(paths: readonly VaultPath[]): Promise<void> {
+    this.availability = {
+      state: 'rebuilding',
+      message: 'Rebuilding the local catalog from managed Markdown records.'
+    };
+    this.publish();
     this.recordsByPath.clear();
     this.directDiagnosticsByPath.clear();
     for (const path of [...paths].sort()) {
       await this.inspectPath(path);
     }
+    this.availability = { state: 'ready' };
+    this.publish();
+  }
+
+  /** Marks catalog access unavailable while retaining any last safe partial projection. */
+  public markUnavailable(message: string): void {
+    this.availability = { state: 'unavailable', message };
+    this.publish();
+  }
+
+  /** Marks an unexpected catalog failure separately from expected record diagnostics. */
+  public markError(message: string): void {
+    this.availability = { state: 'error', message };
     this.publish();
   }
 
@@ -141,6 +161,7 @@ export class BookCatalog {
       .filter((record) => record.type === 'book' && !hasPathError(record.path, diagnostics))
       .sort(compareBooks);
     return {
+      availability: this.availability,
       books,
       diagnostics,
       recentActivity: [...this.recentActivity],

@@ -58,8 +58,17 @@ export interface NextMilestoneSummary {
   readonly explanation: string;
 }
 
+/** Explicit catalog lifecycle prevents empty, loading, and failure states from being conflated. */
+export type CatalogAvailability =
+  | { readonly state: 'loading' }
+  | { readonly state: 'rebuilding'; readonly message: string }
+  | { readonly state: 'ready' }
+  | { readonly state: 'unavailable'; readonly message: string }
+  | { readonly state: 'error'; readonly message: string };
+
 /** Immutable state delivered to subscribers after one reconciled catalog change. */
 export interface BookCatalogSnapshot {
+  readonly availability: CatalogAvailability;
   readonly books: readonly CatalogRecord[];
   readonly diagnostics: readonly CatalogDiagnostic[];
   readonly recentActivity: readonly CatalogActivity[];

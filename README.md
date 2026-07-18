@@ -6,7 +6,7 @@ The product specification and project backlog in the Publishing Manager Obsidian
 
 ## Current state
 
-Milestone M0 foundation is complete. M1 schema/storage and catalog/book sections are complete: canonical records, safe conflict-aware persistence, create/edit/archive/restore commands, reload-safe book identity, incremental vault reconciliation, series ordering, activity/next-step summaries, and actionable diagnostics. The final M1 section begins with UI-001, the Dashboard and Book Workspace views.
+Milestones M0 and M1 are complete. The live plugin now provides canonical records, conflict-aware persistence, book lifecycle/catalog reconciliation, and native graphical Dashboard and Book Workspace views with draft continuity, responsive states, diagnostics, and accessible keyboard interaction. M2 begins with edition types, lifecycle, formats, and referenced assets.
 
 See [M0_EXIT_REVIEW.md](M0_EXIT_REVIEW.md) for the milestone decision and evidence.
 
