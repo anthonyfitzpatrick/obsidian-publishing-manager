@@ -17,6 +17,16 @@ Use a short-lived branch named `<kind>/<backlog-id>-<slug>`, for example `featur
 
 Keep changes independently reviewable. Separate unrelated cleanup, dependency updates, schema changes, and product behavior. Never rewrite or discard another contributor's uncommitted work.
 
+## Code and documentation commentary
+
+All handwritten code must be accompanied by verbose, human-readable commentary. A future maintainer must be able to understand purpose, architectural role, reasoning, invariants, inputs/outputs, side effects, failure modes, cancellation, compatibility assumptions, and non-obvious edge cases without reconstructing them from syntax or issue history.
+
+Each source file begins with module commentary. Exported/public contracts receive documentation comments. Non-obvious algorithms, branches, normalization, conflict handling, migrations, safety checks, and tests include adjacent explanatory commentary. Comments explain intent and decisions rather than narrating syntax.
+
+Generated bundles/declarations, lockfiles, vendored code, and machine formats that cannot contain comments are exempt from hand annotation; document their generator, purpose, regeneration path, and constraints in the nearest handwritten source or companion Markdown file. Commentary is maintained with the code. Missing, superficial, misleading, or stale commentary blocks merge.
+
+Documentation supplies the same human context: audience and outcome, rationale, operation, relationships, assumptions, boundaries, failure/recovery behavior, and examples or edge cases where useful. The authoritative detailed standard is `STYLE_GUIDE.md` in the Publishing Manager Obsidian documentation space.
+
 ## Commit messages
 
 Use `<BACKLOG-ID> <imperative summary>` for planned work:
@@ -50,7 +60,7 @@ A pull request is merge-ready when CI is green, requested changes are resolved, 
 
 ## Review standard
 
-Reviewers check correctness, domain clarity, module boundaries, offline operation, mobile behavior, accessibility, deterministic behavior, performance, migration safety, preservation of unknown metadata, error recovery, and test quality. Blocking feedback states the violated invariant or acceptance criterion and the evidence needed to resolve it.
+Reviewers check correctness, domain clarity, commentary quality, module boundaries, offline operation, mobile behavior, accessibility, deterministic behavior, performance, migration safety, preservation of unknown metadata, error recovery, and test quality. Blocking feedback states the violated invariant, missing commentary, or acceptance criterion and the evidence needed to resolve it.
 
 ## Releases
 
