@@ -1,0 +1,9 @@
+node_modules/
+coverage/
+main.js
+*.map
+data.json
+.DS_Store
+.idea/
+.vscode/
+test-vault/

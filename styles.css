@@ -1,0 +1,8 @@
+/* Publishing Manager styles must remain scoped and use Obsidian theme variables. */
+.publishing-manager {
+  color: var(--text-normal);
+}
+
+.publishing-manager__status {
+  color: var(--text-muted);
+}

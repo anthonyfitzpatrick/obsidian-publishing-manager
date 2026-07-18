@@ -1,0 +1,9 @@
+{
+  "id": "publishing-manager",
+  "name": "Publishing Manager",
+  "version": "0.1.0",
+  "minAppVersion": "1.8.0",
+  "description": "Manage books from completed draft through worldwide publication.",
+  "author": "Anthony Fitzpatrick",
+  "isDesktopOnly": false
+}
