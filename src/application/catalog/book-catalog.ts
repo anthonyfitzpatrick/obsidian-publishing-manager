@@ -12,6 +12,7 @@ import {
   validateEditionFormat,
   validateEditionProject
 } from '../../domain/editions/edition-project';
+import { validateWorkflowProject, validateWorkflowTask } from '../../domain/workflows/workflow';
 import {
   type BookCatalogSnapshot,
   type CatalogActivity,
@@ -217,12 +218,20 @@ export class BookCatalog {
           `${String(right.fields.role)}:${right.id}`
         )
       );
+    const workflows = [...this.recordsByPath.values()]
+      .filter((record) => record.type === 'workflow' && !hasPathError(record.path, diagnostics))
+      .sort((left, right) => left.id.localeCompare(right.id));
+    const tasks = [...this.recordsByPath.values()]
+      .filter((record) => record.type === 'task' && !hasPathError(record.path, diagnostics))
+      .sort((left, right) => left.id.localeCompare(right.id));
     return {
       availability: this.availability,
       books,
       editions,
       formats,
       assets,
+      workflows,
+      tasks,
       diagnostics,
       recentActivity: [...this.recentActivity],
       nextMilestone: nextMilestoneFor(books, editions, formats, diagnostics)
@@ -459,6 +468,33 @@ function inspectRecord(record: CatalogRecord): readonly CatalogDiagnostic[] {
         message: diagnostic.message,
         suggestedAction:
           'Open this asset reference and correct the highlighted link or evidence field.'
+      }))
+    );
+  }
+  if (record.type === 'workflow' && schemaDiagnostics.length === 0) {
+    diagnostics.push(
+      ...validateWorkflowProject(record.fields).map((diagnostic) => ({
+        code: 'catalog.invalid-workflow' as const,
+        severity: 'error' as const,
+        path: record.path,
+        entityId: record.id,
+        field: diagnostic.field,
+        message: diagnostic.message,
+        suggestedAction: 'Open this workflow and repair the highlighted model or stage field.'
+      }))
+    );
+  }
+  if (record.type === 'task' && schemaDiagnostics.length === 0) {
+    diagnostics.push(
+      ...validateWorkflowTask(record.fields).map((diagnostic) => ({
+        code: 'catalog.invalid-task' as const,
+        severity: 'error' as const,
+        path: record.path,
+        entityId: record.id,
+        field: diagnostic.field,
+        message: diagnostic.message,
+        suggestedAction:
+          'Open this task and repair the highlighted workflow, timing, checklist, or dependency field.'
       }))
     );
   }

@@ -5,6 +5,7 @@ import { BookProjectService } from './application/books/book-project-service';
 import { BookCatalog } from './application/catalog/book-catalog';
 import { EditionProjectService } from './application/editions/edition-project-service';
 import { AssetReferenceService } from './application/assets/asset-reference-service';
+import { WorkflowProjectService } from './application/workflows/workflow-project-service';
 import { ManagedFolderLayout } from './domain/storage/managed-folder-layout';
 import { ObsidianBookCatalogController } from './infrastructure/catalog/obsidian-book-catalog-controller';
 import { SilentLogger } from './infrastructure/diagnostics/silent-logger';
@@ -19,6 +20,7 @@ import {
 import { VaultManagedRecordRepository } from './infrastructure/storage/vault-managed-record-repository';
 import { registerBookCommands } from './ui/commands/register-book-commands';
 import { registerFoundationCommand } from './ui/commands/register-foundation-command';
+import { registerWorkflowCommands } from './ui/commands/register-workflow-commands';
 import { PublishingManagerSettingsTab } from './ui/settings/publishing-manager-settings-tab';
 import { BookDraftStore } from './ui/state/book-draft-store';
 import { registerPublishingViews } from './ui/views/register-publishing-views';
@@ -52,6 +54,7 @@ export default class PublishingManagerPlugin extends Plugin {
       clock,
       ids
     );
+    const workflows = new WorkflowProjectService(repository, catalog, layout, clock, ids);
     const drafts = new BookDraftStore();
     const catalogController = new ObsidianBookCatalogController(
       this.app.vault,
@@ -65,6 +68,7 @@ export default class PublishingManagerPlugin extends Plugin {
 
     registerFoundationCommand(this, getFoundationStatus);
     registerBookCommands(this, books);
+    registerWorkflowCommands(this, catalog, workflows);
     registerPublishingViews(this, catalog, books, editions, assets, drafts, () =>
       catalogController.initialize()
     );

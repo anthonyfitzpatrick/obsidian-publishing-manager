@@ -15,6 +15,7 @@ export const MANAGED_RECORD_TYPES = [
   'platform-target',
   'metadata-set',
   'isbn',
+  'workflow',
   'task',
   'launch',
   'review',

@@ -32,6 +32,8 @@ function snapshot(
     editions: [],
     formats: [],
     assets: [],
+    workflows: [],
+    tasks: [],
     diagnostics: Array.from({ length: diagnostics }, (_, index) => ({
       code: 'catalog.malformed-schema' as const,
       severity: 'error' as const,
