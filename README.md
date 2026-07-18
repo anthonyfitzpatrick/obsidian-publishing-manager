@@ -20,6 +20,10 @@ npm run build
 
 Use `npm run dev` for a watch build. Copy or link `main.js`, `manifest.json`, and `styles.css` into a test vault at `.obsidian/plugins/publishing-manager/`.
 
+## Supported platforms
+
+Publishing Manager supports public stable Obsidian releases from 1.8.0 onward on macOS, Windows, Linux, iOS, and Android. Development and CI use Node.js 24 as the reproducible build baseline. See [SUPPORT.md](SUPPORT.md) for the compatibility and release-test policy.
+
 ## Engineering constraints
 
 - No network access, telemetry, analytics, accounts, subscriptions, or cloud service.
@@ -36,6 +40,7 @@ Use `npm run dev` for a watch build. Copy or link `main.js`, `manifest.json`, an
 - `npm run test` — deterministic unit tests
 - `npm run test:coverage` — tests with coverage
 - `npm run check:forbidden` — production-source policy scan
+- `npm run check:support` — manifest, version map, platform, and toolchain policy alignment
 
 ## License
 

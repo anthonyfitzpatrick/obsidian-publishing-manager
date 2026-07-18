@@ -7,9 +7,10 @@
   "private": true,
   "scripts": {
     "dev": "node esbuild.config.mjs",
-    "build": "npm run typecheck && npm run check:forbidden && node esbuild.config.mjs production",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm run check:forbidden && npm run test",
+    "build": "npm run typecheck && npm run check:support && npm run check:forbidden && node esbuild.config.mjs production",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run check:support && npm run check:forbidden && npm run test",
     "check:forbidden": "node scripts/check-forbidden-apis.mjs",
+    "check:support": "node scripts/check-support-policy.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",

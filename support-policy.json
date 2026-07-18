@@ -1,0 +1,17 @@
+{
+  "obsidian": {
+    "minimumAppVersion": "1.8.0",
+    "releaseChannel": "public-stable",
+    "desktopPlatforms": ["macOS", "Windows", "Linux"],
+    "mobilePlatforms": ["iOS", "Android"]
+  },
+  "toolchain": {
+    "nodeMajor": 24,
+    "packageManager": "npm"
+  },
+  "runtime": {
+    "nodeApis": false,
+    "electronApis": false,
+    "networkApis": false
+  }
+}
