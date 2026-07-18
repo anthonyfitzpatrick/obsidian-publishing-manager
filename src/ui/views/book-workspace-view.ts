@@ -1,5 +1,5 @@
 /**
- * Renders the M2 Book Workspace around one valid catalog record. The persistent header supplies
+ * Renders the M3 Book Workspace around one valid catalog record. The persistent header supplies
  * identity, series, status, publication/readiness placeholders, edition context, and lifecycle
  * commands. Overview editing uses the shared draft store; navigation never discards input, while
  * explicit discard requires confirmation. Responsive desktop/mobile navigation and keyboard tabs
@@ -22,6 +22,7 @@ import type {
   AssetReferenceService,
   AssetInspection
 } from '../../application/assets/asset-reference-service';
+import type { WorkflowProjectService } from '../../application/workflows/workflow-project-service';
 import { BOOK_STATUSES, type BookStatus } from '../../domain/books/book-project';
 import { ManualCancellationToken } from '../../domain/foundation/cancellation';
 import type {
@@ -41,6 +42,7 @@ import { EditionEditorModal } from '../dialogs/edition-editor-modal';
 import { EditionFormatModal } from '../dialogs/edition-format-modal';
 import { EditionRevisionModal } from '../dialogs/edition-revision-modal';
 import { LinkAssetModal, RelinkAssetModal } from '../dialogs/link-asset-modal';
+import { createWorkflowWorkspaceState, renderWorkflowWorkspace } from './workflow-workspace';
 import type { BookDraftStore, BookOverviewDraft } from '../state/book-draft-store';
 import {
   ENABLED_WORKSPACE_TABS,
@@ -53,7 +55,6 @@ import {
 export const BOOK_WORKSPACE_VIEW_TYPE = 'publishing-manager-book-workspace';
 
 const FUTURE_TABS = [
-  'Workflow',
   'Metadata',
   'ISBNs',
   'Pricing',
@@ -82,6 +83,7 @@ export class BookWorkspaceView extends ItemView {
     private readonly books: BookProjectService,
     private readonly editions: EditionProjectService,
     private readonly assets: AssetReferenceService,
+    private readonly workflows: WorkflowProjectService,
     private readonly drafts: BookDraftStore,
     private readonly openDashboard: () => Promise<void>
   ) {
@@ -89,6 +91,9 @@ export class BookWorkspaceView extends ItemView {
     this.icon = 'book-open';
     this.navigation = true;
   }
+
+  /** Runtime-only workflow view choices never become a competing canonical workflow record. */
+  private readonly workflowState = createWorkflowWorkspaceState();
 
   /**
    * Renders book-scoped links and fills each evidence card asynchronously. Inspection reads file
@@ -394,6 +399,18 @@ export class BookWorkspaceView extends ItemView {
     const content = root.createDiv({ cls: 'pm-workspace-content' });
     if (this.activeTab === 'overview') {
       this.renderOverview(content, record, snapshot);
+    } else if (this.activeTab === 'workflow') {
+      renderWorkflowWorkspace({
+        parent: content,
+        book: record,
+        snapshot,
+        workflows: this.workflows,
+        state: this.workflowState,
+        rerender: () => {
+          if (this.snapshot !== undefined) this.render(this.snapshot);
+        },
+        openNote: (path) => this.openCanonicalNote(path)
+      });
     } else if (this.activeTab === 'editions') {
       this.renderEditions(content, record);
     } else if (this.activeTab === 'assets') {

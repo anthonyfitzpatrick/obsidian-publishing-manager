@@ -9,6 +9,7 @@ import type {
   LoadedManagedRecord,
   ManagedRecordRepositoryPort
 } from '../storage/record-storage-ports';
+import type { JournaledOperationRunner } from '../storage/operation-journal';
 import type { CatalogRecord } from '../../domain/catalog/catalog-model';
 import type { Clock } from '../../domain/foundation/clock';
 import type { IdGenerator } from '../../domain/foundation/id-generator';
@@ -107,6 +108,36 @@ export interface EditTaskInput extends TaskCoreInput {
   readonly checklist: Checklist;
 }
 
+/** Fields intentionally supported by WFL-012 batch edit; dependency graphs remain single-inspector edits. */
+export interface BatchTaskPatch {
+  readonly status?: TaskStatus;
+  readonly priority?: TaskPriority;
+  readonly stageId?: string;
+  readonly owner?: string;
+  readonly deadline?: string;
+}
+
+/** One preview row carries both before/after values so confirmation is meaningful without mutation. */
+export interface BatchTaskPreviewRow {
+  readonly path: VaultPath;
+  readonly before: WorkflowTask;
+  readonly after: WorkflowTask;
+}
+
+/** Preview names excluded completed records and is the immutable input to the journaled apply step. */
+export interface BatchTaskPreview {
+  readonly workflowId: string;
+  readonly rows: readonly BatchTaskPreviewRow[];
+  readonly excludedTaskIds: readonly string[];
+}
+
+/** Explicit WFL-014 evidence is stored separately from task status and can be revoked manually. */
+export interface RetailerActionConfirmation {
+  readonly confirmed: boolean;
+  readonly confirmedAt?: string;
+  readonly note?: string;
+}
+
 /** Typed cycle failure retains the exact closed path without forcing UI to parse prose. */
 export class WorkflowProjectServiceError extends Error {
   public constructor(
@@ -134,7 +165,8 @@ export class WorkflowProjectService {
     private readonly catalog: BookCatalog,
     private readonly layout: ManagedFolderLayout,
     private readonly clock: Clock,
-    private readonly ids: IdGenerator
+    private readonly ids: IdGenerator,
+    private readonly journals?: JournaledOperationRunner
   ) {}
 
   /** Copies the bundled template into one independent canonical workflow for a valid book. */
@@ -338,6 +370,29 @@ export class WorkflowProjectService {
     return { path, task: hydrateWorkflowTask(saved) };
   }
 
+  /** Adds one stable required checklist item through the same validated single-task write path. */
+  public async addChecklistItem(path: VaultPath, text: string): Promise<WorkflowTaskResult> {
+    const loaded = await this.requireTask(path);
+    const task = hydrateWorkflowTask(loaded);
+    return this.editTask(
+      path,
+      editInputFromTask({
+        ...task,
+        checklist: {
+          items: [
+            ...task.checklist.items.map((item) => ({ ...item })),
+            {
+              id: `check-${safeOpaque(this.ids.generate())}`,
+              text,
+              required: true,
+              done: false
+            }
+          ]
+        }
+      })
+    );
+  }
+
   public assessTask(taskId: string): TaskBlockerAssessment {
     const task = this.requireTaskProjection(taskId);
     return assessTaskBlockers(task, this.tasksForWorkflow(task.workflowId));
@@ -384,6 +439,131 @@ export class WorkflowProjectService {
   ): TemplateMergePreview {
     const workflow = hydrateCatalogWorkflow(this.requireWorkflowRecord(workflowId));
     return previewTemplateMerge(workflow.stages, workflow.templateBaseline, incoming);
+  }
+
+  /** Title-only capture inherits book/workflow/stage and all documented safe task defaults. */
+  public async quickCapture(
+    workflowId: string,
+    stageId: string,
+    title: string
+  ): Promise<WorkflowTaskResult> {
+    return this.createTask({ workflowId, stageId, title });
+  }
+
+  /**
+   * Produces a complete WFL-012 before/after preview. Done and cancelled tasks are excluded unless
+   * the user deliberately includes them; no dependency or checklist data can be changed in bulk.
+   */
+  public previewBatchEdit(
+    workflowId: string,
+    taskIds: readonly string[],
+    patch: BatchTaskPatch,
+    includeCompleted = false
+  ): BatchTaskPreview {
+    const workflow = hydrateCatalogWorkflow(this.requireWorkflowRecord(workflowId));
+    if (
+      patch.stageId !== undefined &&
+      !workflow.stages.items.some(({ id, status }) => id === patch.stageId && status !== 'archived')
+    )
+      throw new WorkflowProjectServiceError('stage-invalid', 'Choose one active target stage.');
+    const selected = new Set(taskIds);
+    const records = this.catalog
+      .recordsOfType('task')
+      .filter((record) => record.fields['workflow-id'] === workflowId && selected.has(record.id));
+    const rows: BatchTaskPreviewRow[] = [];
+    const excludedTaskIds: string[] = [];
+    for (const record of records) {
+      const before = hydrateCatalogTask(record);
+      if (!includeCompleted && (before.status === 'done' || before.status === 'cancelled')) {
+        excludedTaskIds.push(before.id);
+        continue;
+      }
+      const after = { ...before, ...definedBatchPatch(patch) };
+      rows.push({ path: record.path, before, after });
+    }
+    return {
+      workflowId,
+      rows: rows.sort((left, right) => left.before.id.localeCompare(right.before.id)),
+      excludedTaskIds: excludedTaskIds.sort()
+    };
+  }
+
+  /** Applies only a confirmed preview through durable idempotent task steps and returns its journal ID. */
+  public async applyBatchEdit(
+    preview: BatchTaskPreview,
+    journalId = `workflow-batch-${safeOpaque(this.ids.generate())}`
+  ): Promise<string> {
+    if (this.journals === undefined)
+      throw new WorkflowProjectServiceError(
+        'workflow-invalid',
+        'Durable batch editing is unavailable until its operation journal is configured.'
+      );
+    const steps = preview.rows.map((row) => ({
+      id: row.before.id,
+      description: `Apply reviewed batch changes to “${row.before.title}”.`,
+      apply: async () => {
+        const beforeRevision = this.catalog.recordById(row.before.id)?.sourceRevision;
+        const saved = await this.editTask(row.path, editInputFromTask(row.after));
+        const afterRevision = this.catalog.recordById(saved.task.id)?.sourceRevision;
+        return {
+          ...(beforeRevision === undefined ? {} : { beforeRevision }),
+          ...(afterRevision === undefined ? {} : { afterRevision })
+        };
+      }
+    }));
+    await this.journals.run(journalId, 'workflow-task-batch-edit', steps, () => this.now());
+    return journalId;
+  }
+
+  /** Reads explicit retailer evidence; task completion can never manufacture these keys. */
+  public retailerConfirmation(task: WorkflowTask): RetailerActionConfirmation {
+    const confirmed = task.linkedMetadata['retailer-action-confirmed'] === 'true';
+    return {
+      confirmed,
+      ...(confirmed && task.linkedMetadata['retailer-action-confirmed-at'] !== undefined
+        ? { confirmedAt: task.linkedMetadata['retailer-action-confirmed-at'] }
+        : {}),
+      ...(task.linkedMetadata['retailer-action-note'] === undefined
+        ? {}
+        : { note: task.linkedMetadata['retailer-action-note'] })
+    };
+  }
+
+  /**
+   * Confirms or revokes external retailer evidence only after a direct user action. The method is
+   * limited to retailer-facing stage categories and deliberately leaves task/stage status alone.
+   */
+  public async confirmRetailerAction(
+    path: VaultPath,
+    confirmed: boolean,
+    note?: string
+  ): Promise<WorkflowTaskResult> {
+    const loaded = await this.requireTask(path);
+    const task = hydrateWorkflowTask(loaded);
+    const workflow = hydrateCatalogWorkflow(this.requireWorkflowRecord(task.workflowId));
+    const stage = workflow.stages.items.find(({ id }) => id === task.stageId);
+    if (
+      stage === undefined ||
+      !['retail-upload', 'retail-review', 'preorder', 'published'].includes(stage.category)
+    )
+      throw new WorkflowProjectServiceError(
+        'task-invalid',
+        'External retailer confirmation is available only in retailer-facing workflow stages.'
+      );
+    const linkedMetadata = { ...task.linkedMetadata };
+    if (confirmed) {
+      linkedMetadata['retailer-action-confirmed'] = 'true';
+      linkedMetadata['retailer-action-confirmed-at'] = this.now();
+      linkedMetadata['retailer-action-source'] = 'manual-user-confirmation';
+      if (note?.trim()) linkedMetadata['retailer-action-note'] = note.trim();
+      else delete linkedMetadata['retailer-action-note'];
+    } else {
+      delete linkedMetadata['retailer-action-confirmed'];
+      delete linkedMetadata['retailer-action-confirmed-at'];
+      delete linkedMetadata['retailer-action-source'];
+      delete linkedMetadata['retailer-action-note'];
+    }
+    return this.editTask(path, editInputFromTask({ ...task, linkedMetadata }));
   }
 
   private async saveStages(
@@ -545,8 +725,8 @@ function fakeEnvelope(record: CatalogRecord, type: 'task' | 'workflow') {
     pmId: record.id,
     pmType: type,
     pmSchema: record.schemaVersion,
-    createdAt: '2000-01-01T00:00:00.000Z',
-    updatedAt: '2000-01-01T00:00:00.000Z',
+    createdAt: record.createdAt ?? '2000-01-01T00:00:00.000Z',
+    updatedAt: record.updatedAt ?? '2000-01-01T00:00:00.000Z',
     ...(record.archived ? { archivedAt: '2000-01-01T00:00:00.000Z' } : {})
   } as const;
 }
@@ -584,6 +764,40 @@ function optionalStageFields(input: EditStageInput): Partial<WorkflowStage> {
     ...(input.plannedEnd === undefined ? {} : { plannedEnd: input.plannedEnd }),
     ...(input.actualStart === undefined ? {} : { actualStart: input.actualStart }),
     ...(input.actualEnd === undefined ? {} : { actualEnd: input.actualEnd })
+  };
+}
+
+/** Omits absent batch fields so a preview never clears data the user did not select. */
+function definedBatchPatch(patch: BatchTaskPatch): Partial<WorkflowTask> {
+  return {
+    ...(patch.status === undefined ? {} : { status: patch.status }),
+    ...(patch.priority === undefined ? {} : { priority: patch.priority }),
+    ...(patch.stageId === undefined ? {} : { stageId: patch.stageId }),
+    ...(patch.owner === undefined ? {} : { owner: patch.owner }),
+    ...(patch.deadline === undefined ? {} : { deadline: patch.deadline })
+  };
+}
+
+/** Converts a hydrated task back to the complete explicit editor contract without losing evidence. */
+function editInputFromTask(task: WorkflowTask): EditTaskInput {
+  return {
+    workflowId: task.workflowId,
+    stageId: task.stageId,
+    ...(task.editionId === undefined ? {} : { editionId: task.editionId }),
+    title: task.title,
+    status: task.status,
+    priority: task.priority,
+    required: task.required,
+    ...(task.deadline === undefined ? {} : { deadline: task.deadline }),
+    ...(task.estimateMinutes === undefined ? {} : { estimateMinutes: task.estimateMinutes }),
+    ...(task.actualMinutes === undefined ? {} : { actualMinutes: task.actualMinutes }),
+    ...(task.owner === undefined ? {} : { owner: task.owner }),
+    ...(task.notes === undefined ? {} : { notes: task.notes }),
+    attachments: [...task.attachments],
+    checklist: { items: task.checklist.items.map((item) => ({ ...item })) },
+    dependsOn: [...task.dependsOn],
+    manualBlockers: [...task.manualBlockers],
+    linkedMetadata: { ...task.linkedMetadata }
   };
 }
 /** Explicit undefined values remove optional fields through the lossless repository patch API. */

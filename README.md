@@ -6,7 +6,7 @@ The product specification and project backlog in the Publishing Manager Obsidian
 
 ## Current state
 
-Milestones M0, M1, and M2 are complete, and the M3 workflow-engine section is delivered. The live plugin provides canonical records, conflict-aware persistence, book lifecycle/catalog reconciliation, a native graphical Dashboard, and a Book Workspace with Overview, Editions, Assets, and Diagnostics. M3 adds versioned workflow/task models, the complete sixteen-stage default template, independent per-book instances, editable/branchable stages, complete task evidence, exact dependency-cycle rejection, explained blockers, guarded stage completion, and non-mutating three-way template-update previews. Until the Workflow tab ships in WFL-010, the command palette can create a default workflow for the active canonical book.
+Milestones M0 through M3 are complete. The live plugin provides canonical records, conflict-aware persistence, book lifecycle/catalog reconciliation, a native graphical Dashboard, and a Book Workspace with Overview, Workflow, Editions, Assets, and Diagnostics. M3 adds versioned workflow/task models, the complete sixteen-stage default, independent per-book instances, editable/branchable stages, complete task evidence, exact dependency-cycle rejection, explained blockers, guarded completion, merge previews, accessible list/board modes, a full inspector, title-only capture, journal-backed batch editing, attention queries, and separate manual retailer confirmation.
 
 The authoritative milestone and section reviews live in the Publishing Manager Obsidian documentation space.
 

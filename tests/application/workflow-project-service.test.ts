@@ -3,6 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { BookProjectService } from '../../src/application/books/book-project-service';
 import { BookCatalog } from '../../src/application/catalog/book-catalog';
 import { WorkflowProjectService } from '../../src/application/workflows/workflow-project-service';
+import {
+  JournaledOperationRunner,
+  type OperationJournal,
+  type OperationJournalStore
+} from '../../src/application/storage/operation-journal';
 import type { Clock } from '../../src/domain/foundation/clock';
 import type { IdGenerator } from '../../src/domain/foundation/id-generator';
 import { cloneStages, DEFAULT_WORKFLOW_TEMPLATE } from '../../src/domain/workflows/workflow';
@@ -23,6 +28,17 @@ class SequenceIds implements IdGenerator {
   }
 }
 
+/** In-memory durable boundary lets the service test prove batch checkpoint semantics without I/O. */
+class MemoryJournalStore implements OperationJournalStore {
+  public readonly journals = new Map<string, OperationJournal>();
+  public async load(id: string): Promise<OperationJournal | undefined> {
+    return this.journals.get(id);
+  }
+  public async save(journal: OperationJournal): Promise<void> {
+    this.journals.set(journal.id, structuredClone(journal));
+  }
+}
+
 async function harness() {
   const vault = new MemoryVaultTextPort();
   const repository = new VaultManagedRecordRepository(vault, new JsonTestFrontmatterCodec());
@@ -31,7 +47,15 @@ async function harness() {
   const layout = new ManagedFolderLayout({ root: 'Publishing Manager' });
   const catalog = new BookCatalog(repository, clock);
   const books = new BookProjectService(repository, catalog, layout, clock, ids);
-  const workflows = new WorkflowProjectService(repository, catalog, layout, clock, ids);
+  const journalStore = new MemoryJournalStore();
+  const workflows = new WorkflowProjectService(
+    repository,
+    catalog,
+    layout,
+    clock,
+    ids,
+    new JournaledOperationRunner(journalStore)
+  );
   await catalog.initialize([]);
   const book = await books.create({
     title: 'Workflow Test',
@@ -39,7 +63,7 @@ async function harness() {
     status: 'active'
   });
   const workflow = await workflows.instantiateDefault(book.book.id);
-  return { vault, repository, catalog, books, workflows, book, workflow };
+  return { vault, repository, catalog, books, workflows, journalStore, book, workflow };
 }
 
 describe('workflow project service', () => {
@@ -178,5 +202,76 @@ describe('workflow project service', () => {
       (catalog.recordById(workflow.workflow.id)?.fields.stages as { items: { label: string }[] })
         .items[0]?.label
     ).toBe('My Planning');
+  });
+
+  it('previews batch changes, excludes completed work, and applies reviewed rows through a journal', async () => {
+    const { workflows, workflow, journalStore } = await harness();
+    const open = await workflows.quickCapture(workflow.workflow.id, 'stage-planning', 'Open task');
+    const done = await workflows.quickCapture(
+      workflow.workflow.id,
+      'stage-planning',
+      'Completed task'
+    );
+    await workflows.editTask(done.path, {
+      workflowId: workflow.workflow.id,
+      stageId: 'stage-planning',
+      title: done.task.title,
+      status: 'done',
+      priority: 'normal',
+      required: true,
+      attachments: [],
+      checklist: done.task.checklist,
+      dependsOn: [],
+      manualBlockers: [],
+      linkedMetadata: {}
+    });
+    const preview = workflows.previewBatchEdit(workflow.workflow.id, [open.task.id, done.task.id], {
+      priority: 'urgent',
+      owner: 'Production'
+    });
+    expect(preview.rows.map(({ before }) => before.id)).toEqual([open.task.id]);
+    expect(preview.excludedTaskIds).toEqual([done.task.id]);
+    const journalId = await workflows.applyBatchEdit(preview, 'workflow-batch-test-0001');
+    expect(journalStore.journals.get(journalId)?.state).toBe('completed');
+    expect(
+      workflows.tasksForWorkflow(workflow.workflow.id).find(({ id }) => id === open.task.id)
+    ).toMatchObject({ priority: 'urgent', owner: 'Production' });
+  });
+
+  it('keeps retailer confirmation separate from task completion and records only manual evidence', async () => {
+    const { workflows, workflow } = await harness();
+    const created = await workflows.quickCapture(
+      workflow.workflow.id,
+      'stage-retail-upload',
+      'Upload files'
+    );
+    await workflows.editTask(created.path, {
+      workflowId: workflow.workflow.id,
+      stageId: 'stage-retail-upload',
+      title: created.task.title,
+      status: 'done',
+      priority: 'normal',
+      required: true,
+      attachments: [],
+      checklist: created.task.checklist,
+      dependsOn: [],
+      manualBlockers: [],
+      linkedMetadata: {}
+    });
+    const completed = workflows.tasksForWorkflow(workflow.workflow.id)[0]!;
+    expect(workflows.retailerConfirmation(completed).confirmed).toBe(false);
+    const confirmed = await workflows.confirmRetailerAction(
+      created.path,
+      true,
+      'Verified in retailer portal.'
+    );
+    expect(confirmed.task.status).toBe('done');
+    expect(workflows.retailerConfirmation(confirmed.task)).toMatchObject({
+      confirmed: true,
+      note: 'Verified in retailer portal.'
+    });
+    expect(confirmed.task.linkedMetadata['retailer-action-source']).toBe(
+      'manual-user-confirmation'
+    );
   });
 });

@@ -385,6 +385,8 @@ function toCatalogRecord(loaded: LoadedManagedRecord): CatalogRecord {
     schemaVersion: loaded.envelope.pmSchema,
     archived: loaded.envelope.archivedAt !== undefined,
     sourceRevision: loaded.sourceRevision,
+    createdAt: loaded.envelope.createdAt,
+    updatedAt: loaded.envelope.updatedAt,
     fields: loaded.fields
   };
 }
@@ -396,8 +398,8 @@ function inspectRecord(record: CatalogRecord): readonly CatalogDiagnostic[] {
       pmId: record.id,
       pmType: record.type,
       pmSchema: record.schemaVersion,
-      createdAt: '2000-01-01T00:00:00.000Z',
-      updatedAt: '2000-01-01T00:00:00.000Z',
+      createdAt: record.createdAt ?? '2000-01-01T00:00:00.000Z',
+      updatedAt: record.updatedAt ?? '2000-01-01T00:00:00.000Z',
       ...(record.archived ? { archivedAt: '2000-01-01T00:00:00.000Z' } : {})
     },
     fields: record.fields

@@ -15,6 +15,9 @@ export interface CatalogRecord {
   readonly schemaVersion: number;
   readonly archived: boolean;
   readonly sourceRevision: string;
+  /** Canonical envelope timestamps support activity and stalled-work queries without reading bodies. */
+  readonly createdAt?: string;
+  readonly updatedAt?: string;
   readonly fields: Readonly<Record<string, unknown>>;
 }
 

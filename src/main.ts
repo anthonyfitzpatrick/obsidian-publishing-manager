@@ -6,6 +6,7 @@ import { BookCatalog } from './application/catalog/book-catalog';
 import { EditionProjectService } from './application/editions/edition-project-service';
 import { AssetReferenceService } from './application/assets/asset-reference-service';
 import { WorkflowProjectService } from './application/workflows/workflow-project-service';
+import { JournaledOperationRunner } from './application/storage/operation-journal';
 import { ManagedFolderLayout } from './domain/storage/managed-folder-layout';
 import { ObsidianBookCatalogController } from './infrastructure/catalog/obsidian-book-catalog-controller';
 import { SilentLogger } from './infrastructure/diagnostics/silent-logger';
@@ -18,6 +19,7 @@ import {
   WebCryptoContentFingerprintPort
 } from './infrastructure/storage/obsidian-vault-asset-port';
 import { VaultManagedRecordRepository } from './infrastructure/storage/vault-managed-record-repository';
+import { VaultOperationJournalStore } from './infrastructure/storage/vault-operation-journal-store';
 import { registerBookCommands } from './ui/commands/register-book-commands';
 import { registerFoundationCommand } from './ui/commands/register-foundation-command';
 import { registerWorkflowCommands } from './ui/commands/register-workflow-commands';
@@ -38,10 +40,9 @@ export default class PublishingManagerPlugin extends Plugin {
     const getFoundationStatus = new GetFoundationStatus(clock, ids);
 
     const layout = new ManagedFolderLayout({ root: 'Publishing Manager' });
-    const repository = new VaultManagedRecordRepository(
-      new ObsidianVaultTextPort(this.app.vault),
-      new ObsidianFrontmatterCodec()
-    );
+    const vaultText = new ObsidianVaultTextPort(this.app.vault);
+    const frontmatter = new ObsidianFrontmatterCodec();
+    const repository = new VaultManagedRecordRepository(vaultText, frontmatter);
     const catalog = new BookCatalog(repository, clock);
     const books = new BookProjectService(repository, catalog, layout, clock, ids);
     const editions = new EditionProjectService(repository, catalog, layout, clock, ids);
@@ -54,7 +55,19 @@ export default class PublishingManagerPlugin extends Plugin {
       clock,
       ids
     );
-    const workflows = new WorkflowProjectService(repository, catalog, layout, clock, ids);
+    // WFL-012 batch edits reuse the same durable, human-readable journal boundary as migrations.
+    // A crash can therefore resume pending task steps instead of silently leaving a partial batch.
+    const workflowJournals = new JournaledOperationRunner(
+      new VaultOperationJournalStore('Publishing Manager/System/Journals', vaultText, frontmatter)
+    );
+    const workflows = new WorkflowProjectService(
+      repository,
+      catalog,
+      layout,
+      clock,
+      ids,
+      workflowJournals
+    );
     const drafts = new BookDraftStore();
     const catalogController = new ObsidianBookCatalogController(
       this.app.vault,
@@ -69,7 +82,7 @@ export default class PublishingManagerPlugin extends Plugin {
     registerFoundationCommand(this, getFoundationStatus);
     registerBookCommands(this, books);
     registerWorkflowCommands(this, catalog, workflows);
-    registerPublishingViews(this, catalog, books, editions, assets, drafts, () =>
+    registerPublishingViews(this, catalog, books, editions, assets, workflows, drafts, () =>
       catalogController.initialize()
     );
     this.addSettingTab(new PublishingManagerSettingsTab(this.app, this));

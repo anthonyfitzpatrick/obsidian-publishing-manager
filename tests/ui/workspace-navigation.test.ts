@@ -1,6 +1,7 @@
 /**
- * Proves UI-007 keyboard tab behavior independently of DOM focus implementation. Arrow keys wrap,
- * Home/End jump predictably, and persisted state accepts only implemented enabled tabs.
+ * Proves UI-007/WFL-010 keyboard tab behavior independently of DOM focus implementation. Arrow
+ * keys include the newly enabled Workflow tab, Home/End jump predictably, and persisted state
+ * accepts only implemented enabled tabs.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -9,7 +10,8 @@ import { isWorkspaceTab, nextWorkspaceTab } from '../../src/ui/view-models/works
 
 describe('workspace keyboard navigation', () => {
   it('wraps arrow navigation across enabled tabs', () => {
-    expect(nextWorkspaceTab('overview', 'ArrowRight')).toBe('editions');
+    expect(nextWorkspaceTab('overview', 'ArrowRight')).toBe('workflow');
+    expect(nextWorkspaceTab('workflow', 'ArrowRight')).toBe('editions');
     expect(nextWorkspaceTab('editions', 'ArrowRight')).toBe('assets');
     expect(nextWorkspaceTab('assets', 'ArrowRight')).toBe('diagnostics');
     expect(nextWorkspaceTab('diagnostics', 'ArrowRight')).toBe('overview');
@@ -22,6 +24,7 @@ describe('workspace keyboard navigation', () => {
     expect(isWorkspaceTab('overview')).toBe(true);
     expect(isWorkspaceTab('editions')).toBe(true);
     expect(isWorkspaceTab('assets')).toBe(true);
-    expect(isWorkspaceTab('workflow')).toBe(false);
+    expect(isWorkspaceTab('workflow')).toBe(true);
+    expect(isWorkspaceTab('metadata')).toBe(false);
   });
 });

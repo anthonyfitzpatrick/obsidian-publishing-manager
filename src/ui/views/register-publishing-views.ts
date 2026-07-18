@@ -10,6 +10,7 @@ import type { BookProjectService } from '../../application/books/book-project-se
 import type { BookCatalog } from '../../application/catalog/book-catalog';
 import type { EditionProjectService } from '../../application/editions/edition-project-service';
 import type { AssetReferenceService } from '../../application/assets/asset-reference-service';
+import type { WorkflowProjectService } from '../../application/workflows/workflow-project-service';
 import type { CatalogRecord } from '../../domain/catalog/catalog-model';
 import { normalizeVaultPath } from '../../domain/storage/vault-path';
 import { CreateBookModal } from '../dialogs/create-book-modal';
@@ -27,6 +28,7 @@ export function registerPublishingViews(
   books: BookProjectService,
   editions: EditionProjectService,
   assets: AssetReferenceService,
+  workflows: WorkflowProjectService,
   drafts: BookDraftStore,
   refreshCatalog: () => Promise<void>
 ): void {
@@ -59,7 +61,17 @@ export function registerPublishingViews(
   );
   plugin.registerView(
     BOOK_WORKSPACE_VIEW_TYPE,
-    (leaf) => new BookWorkspaceView(leaf, catalog, books, editions, assets, drafts, openDashboard)
+    (leaf) =>
+      new BookWorkspaceView(
+        leaf,
+        catalog,
+        books,
+        editions,
+        assets,
+        workflows,
+        drafts,
+        openDashboard
+      )
   );
 
   plugin.addRibbonIcon('library', 'Open publishing dashboard', () => void openDashboard());
