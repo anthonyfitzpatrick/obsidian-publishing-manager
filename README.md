@@ -6,7 +6,9 @@ The product specification and project backlog in the Publishing Manager Obsidian
 
 ## Current state
 
-Milestone M0 foundation work is in progress. The plugin currently provides the build, test, architecture, and platform-safety foundation for later product features.
+Milestone M0 foundation is complete. The plugin provides the build, test, architecture, platform-safety, repository, CI, fixture, and disposable-vault foundation for product development. Milestone M1 begins with the canonical record envelope and versioned publishing schemas.
+
+See [M0_EXIT_REVIEW.md](M0_EXIT_REVIEW.md) for the milestone decision and evidence.
 
 ## Development
 

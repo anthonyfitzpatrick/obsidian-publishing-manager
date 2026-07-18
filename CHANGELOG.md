@@ -11,6 +11,8 @@ All notable changes to Publishing Manager are recorded here using Keep a Changel
 - Docker-free persistent native macOS Gitea runner configuration.
 - Fictional deterministic small, target-scale, malformed, and upgrade fixture suites.
 - Contributor, issue, pull-request, commit, and release conventions.
+- Disposable fictional developer test-vault generation and safety checks.
+- M0 exit review evidence confirming the foundation milestone is complete.
 
 ## [0.1.0] - 2026-07-18
 
