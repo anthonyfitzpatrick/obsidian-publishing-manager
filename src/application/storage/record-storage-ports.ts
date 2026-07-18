@@ -78,4 +78,20 @@ export interface ManagedRecordRepositoryPort {
     patch: ManagedRecordPatch,
     updatedAt: string
   ): Promise<LoadedManagedRecord>;
+  /** Changes only archival envelope state while retaining identity and user-owned note content. */
+  setArchivedAt(
+    loaded: LoadedManagedRecord,
+    archivedAt: string | undefined,
+    updatedAt: string
+  ): Promise<LoadedManagedRecord>;
+}
+
+/**
+ * Narrow read-only inspection capability for catalog and migration preflight. It accepts a
+ * supported envelope without requiring the current field schema, allowing future or damaged
+ * records to become actionable diagnostics instead of disappearing from the catalog.
+ */
+export interface ManagedRecordInspectionPort {
+  /** Loads envelope, complete field bag, body, and source revision without current-schema coercion. */
+  inspect(path: VaultPath): Promise<LoadedManagedRecord>;
 }

@@ -54,6 +54,11 @@ export class ManagedFolderLayout {
     return joinVaultPath(this.root, this.folders[type]);
   }
 
+  /** Exposes the validated managed root for catalog scanning and event filtering. */
+  public rootPath(): VaultPath {
+    return this.root;
+  }
+
   /**
    * Chooses a readable Markdown filename that cannot overwrite any known existing path. The
    * caller supplies the existing set from its repository/index so this domain service remains

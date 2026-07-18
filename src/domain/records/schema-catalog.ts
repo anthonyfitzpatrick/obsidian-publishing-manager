@@ -51,6 +51,7 @@ export const RECORD_SCHEMAS = {
     status: requiredString(),
     'primary-language': requiredString(),
     'series-id': relation('series', false),
+    'series-position': { kind: 'integer', required: false },
     summary: optionalString()
   }),
   edition: schema('edition', {

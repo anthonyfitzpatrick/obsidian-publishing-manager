@@ -7,6 +7,7 @@
 
 import type {
   LoadedManagedRecord,
+  ManagedRecordInspectionPort,
   ManagedRecordPatch,
   ManagedRecordRepositoryPort,
   MarkdownFrontmatterCodec,
@@ -37,7 +38,9 @@ export class ManagedRecordRepositoryError extends Error {
 }
 
 /** Repository that enforces DAT-004 through DAT-006 at every persistence boundary. */
-export class VaultManagedRecordRepository implements ManagedRecordRepositoryPort {
+export class VaultManagedRecordRepository
+  implements ManagedRecordRepositoryPort, ManagedRecordInspectionPort
+{
   /** Binds platform-free record semantics to an Obsidian text port and frontmatter codec. */
   public constructor(
     private readonly vault: VaultTextPort,
@@ -58,6 +61,11 @@ export class VaultManagedRecordRepository implements ManagedRecordRepositoryPort
   public async loadForMigration(path: VaultPath): Promise<LoadedManagedRecord> {
     const source = await this.vault.read(path);
     return this.hydrate(path, source, false);
+  }
+
+  /** Catalog-facing alias names the read-only intent without exposing migration vocabulary. */
+  public async inspect(path: VaultPath): Promise<LoadedManagedRecord> {
+    return this.loadForMigration(path);
   }
 
   /** Creates a collision-safe new note after validating its complete v1 contract. */
@@ -122,6 +130,51 @@ export class VaultManagedRecordRepository implements ManagedRecordRepositoryPort
         ),
         body: nextBody
       });
+    });
+    return this.hydrate(loaded.path, result);
+  }
+
+  /**
+   * Archives or restores one record by changing only its envelope. The same optimistic transform
+   * protects external edits, and an unchanged archive state remains a semantic no-op.
+   */
+  public async setArchivedAt(
+    loaded: LoadedManagedRecord,
+    archivedAt: string | undefined,
+    updatedAt: string
+  ): Promise<LoadedManagedRecord> {
+    const result = await this.vault.process(loaded.path, (currentSource) => {
+      if (fingerprintSource(currentSource) !== loaded.sourceRevision) {
+        throw new ManagedRecordRepositoryError(
+          'record-conflict',
+          `Record changed outside Publishing Manager: ${loaded.path}. Reload before changing archival state.`
+        );
+      }
+
+      const currentDocument = this.codec.parse(currentSource);
+      const envelope = requireEnvelope(currentDocument.frontmatter);
+      if (envelope.archivedAt === archivedAt) {
+        return currentSource;
+      }
+      const activeEnvelope: ManagedRecordEnvelope = {
+        pmId: envelope.pmId,
+        pmType: envelope.pmType,
+        pmSchema: envelope.pmSchema,
+        createdAt: envelope.createdAt,
+        updatedAt
+      };
+      const nextEnvelope: ManagedRecordEnvelope = {
+        ...activeEnvelope,
+        ...(archivedAt === undefined ? {} : { archivedAt })
+      };
+      const frontmatter: Record<string, unknown> = {
+        ...currentDocument.frontmatter,
+        ...serializeEnvelope(nextEnvelope)
+      };
+      if (archivedAt === undefined) {
+        delete frontmatter['pm-archived'];
+      }
+      return this.codec.serialize({ frontmatter, body: currentDocument.body });
     });
     return this.hydrate(loaded.path, result);
   }
