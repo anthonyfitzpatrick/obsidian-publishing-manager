@@ -6,7 +6,7 @@ The product specification and project backlog in the Publishing Manager Obsidian
 
 ## Current state
 
-Milestone M0 foundation is complete. The plugin provides the build, test, architecture, platform-safety, repository, CI, fixture, and disposable-vault foundation for product development. Milestone M1 begins with the canonical record envelope and versioned publishing schemas.
+Milestone M0 foundation is complete. In M1, DAT-001 through DAT-010 now provide the canonical record envelope, all 15 version-one schemas, safe vault paths, Obsidian-only repositories, lossless and conflict-aware persistence, operation journals, migrations, managed layout, and disposable derived indexes. The next delivery item is BOOK-001, the first book-creation vertical slice.
 
 See [M0_EXIT_REVIEW.md](M0_EXIT_REVIEW.md) for the milestone decision and evidence.
 

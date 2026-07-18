@@ -1,0 +1,178 @@
+/**
+ * Declares version-one schemas for every DAT-002 record family. These descriptors intentionally
+ * define storage-level field contracts rather than all future business rules: later milestones
+ * may add richer validators without changing the envelope or pretending unfinished features are
+ * implemented. The catalog is versioned, deterministic, and suitable for migration preflight.
+ */
+
+import { CURRENT_RECORD_SCHEMA_VERSION } from './record-envelope';
+import { MANAGED_RECORD_TYPES, type ManagedRecordType } from './record-types';
+
+/** Primitive and structured value categories understood by storage validation. */
+export type SchemaValueKind =
+  'boolean' | 'date' | 'datetime' | 'decimal' | 'integer' | 'object' | 'string' | 'string-list';
+
+/** Field-level storage contract; domain-specific semantics are layered on later. */
+export interface RecordFieldDefinition {
+  readonly kind: SchemaValueKind;
+  readonly required: boolean;
+  readonly relationship?: ManagedRecordType;
+}
+
+/** Versioned descriptor used by validation, diagnostics, migrations, and schema fingerprints. */
+export interface RecordSchemaDefinition {
+  readonly type: ManagedRecordType;
+  readonly version: number;
+  readonly fields: Readonly<Record<string, RecordFieldDefinition>>;
+}
+
+const requiredString = (): RecordFieldDefinition => ({
+  kind: 'string',
+  required: true
+});
+const optionalString = (): RecordFieldDefinition => ({
+  kind: 'string',
+  required: false
+});
+const relation = (relationship: ManagedRecordType, required: boolean): RecordFieldDefinition => ({
+  kind: 'string',
+  required,
+  relationship
+});
+
+/** Canonical v1 schema catalog. Keys match the persisted `pm-type` discriminator exactly. */
+export const RECORD_SCHEMAS = {
+  series: schema('series', {
+    name: requiredString(),
+    'ordering-policy': optionalString()
+  }),
+  book: schema('book', {
+    title: requiredString(),
+    status: requiredString(),
+    'primary-language': requiredString(),
+    'series-id': relation('series', false),
+    summary: optionalString()
+  }),
+  edition: schema('edition', {
+    'book-id': relation('book', true),
+    type: requiredString(),
+    revision: { kind: 'integer', required: true },
+    status: requiredString(),
+    'publication-date': { kind: 'date', required: false }
+  }),
+  format: schema('format', {
+    'edition-id': relation('edition', true),
+    kind: requiredString(),
+    'asset-reference-id': relation('asset-reference', false)
+  }),
+  'platform-target': schema('platform-target', {
+    'edition-id': relation('edition', true),
+    platform: requiredString(),
+    territory: requiredString(),
+    'publication-location': requiredString(),
+    status: requiredString()
+  }),
+  'metadata-set': schema('metadata-set', {
+    'book-id': relation('book', true),
+    'edition-id': relation('edition', false),
+    values: { kind: 'object', required: true }
+  }),
+  isbn: schema('isbn', {
+    value: requiredString(),
+    status: requiredString(),
+    'edition-id': relation('edition', false),
+    publisher: optionalString(),
+    imprint: optionalString()
+  }),
+  task: schema('task', {
+    'book-id': relation('book', true),
+    title: requiredString(),
+    status: requiredString(),
+    'depends-on': {
+      kind: 'string-list',
+      required: false,
+      relationship: 'task'
+    }
+  }),
+  launch: schema('launch', {
+    'book-id': relation('book', true),
+    'edition-id': relation('edition', false),
+    'publication-date': { kind: 'date', required: true },
+    milestones: { kind: 'object', required: true }
+  }),
+  review: schema('review', {
+    'book-id': relation('book', true),
+    'edition-id': relation('edition', false),
+    source: requiredString(),
+    date: { kind: 'date', required: true },
+    rating: { kind: 'decimal', required: false }
+  }),
+  'asset-reference': schema('asset-reference', {
+    'book-id': relation('book', true),
+    'edition-id': relation('edition', false),
+    path: requiredString(),
+    kind: requiredString(),
+    fingerprint: optionalString()
+  }),
+  'history-event': schema('history-event', {
+    'entity-id': requiredString(),
+    'entity-type': requiredString(),
+    action: requiredString(),
+    timestamp: { kind: 'datetime', required: true },
+    summary: requiredString()
+  }),
+  'sales-source': schema('sales-source', {
+    label: requiredString(),
+    kind: requiredString(),
+    defaults: { kind: 'object', required: false }
+  }),
+  'sales-line': schema('sales-line', {
+    'source-id': relation('sales-source', true),
+    'isbn-id': relation('isbn', true),
+    'edition-id': relation('edition', true),
+    'platform-target-id': relation('platform-target', true),
+    country: requiredString(),
+    units: { kind: 'integer', required: true },
+    currency: requiredString(),
+    amount: { kind: 'decimal', required: false }
+  }),
+  'sales-correction': schema('sales-correction', {
+    'sales-line-id': relation('sales-line', true),
+    kind: requiredString(),
+    reason: requiredString(),
+    timestamp: { kind: 'datetime', required: true },
+    adjustment: { kind: 'object', required: true }
+  })
+} as const satisfies Record<ManagedRecordType, RecordSchemaDefinition>;
+
+/** Retrieves a schema without allowing unknown record types to fall through silently. */
+export function getRecordSchema(type: ManagedRecordType): RecordSchemaDefinition {
+  return RECORD_SCHEMAS[type];
+}
+
+/** Deterministic signature invalidates derived indexes when a storage contract changes. */
+export function getSchemaCatalogFingerprint(): string {
+  const canonical = MANAGED_RECORD_TYPES.map((type) => RECORD_SCHEMAS[type]);
+  return stableFingerprint(JSON.stringify(canonical));
+}
+
+/** Constructs a v1 descriptor while keeping every catalog entry structurally identical. */
+function schema(
+  type: ManagedRecordType,
+  fields: Readonly<Record<string, RecordFieldDefinition>>
+): RecordSchemaDefinition {
+  return { type, version: CURRENT_RECORD_SCHEMA_VERSION, fields };
+}
+
+/**
+ * Small deterministic non-cryptographic fingerprint for cache invalidation. It is not used for
+ * security or user identity; its only promise is stable output for identical catalog text.
+ */
+function stableFingerprint(value: string): string {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `schema-${(hash >>> 0).toString(16).padStart(8, '0')}`;
+}

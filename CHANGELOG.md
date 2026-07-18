@@ -13,6 +13,7 @@ All notable changes to Publishing Manager are recorded here using Keep a Changel
 - Contributor, issue, pull-request, commit, and release conventions.
 - Disposable fictional developer test-vault generation and safety checks.
 - M0 exit review evidence confirming the foundation milestone is complete.
+- M1 schema and storage kernel covering versioned publishing records, safe paths, Obsidian-only repositories, lossless conflict-aware writes, resumable journals and migrations, managed layout, and rebuildable derived indexes.
 
 ## [0.1.0] - 2026-07-18
 
