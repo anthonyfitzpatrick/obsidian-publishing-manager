@@ -10,6 +10,13 @@
   color: var(--text-normal);
   container-type: inline-size;
   padding: clamp(16px, 3vw, 32px);
+  padding-block-end: calc(clamp(16px, 3vw, 32px) + env(safe-area-inset-bottom));
+  scroll-padding-block-end: calc(40vh + env(safe-area-inset-bottom));
+}
+
+/* Focused fields and reviewed actions scroll above a mobile virtual keyboard and safe area. */
+.publishing-manager :is(input, textarea, select, .pm-form > .pm-action-row) {
+  scroll-margin-block-end: calc(40vh + env(safe-area-inset-bottom));
 }
 
 .publishing-manager h1,
@@ -993,6 +1000,60 @@
 
   .pm-action-row .pm-button {
     flex: 1 1 150px;
+  }
+
+  /* Primary form actions remain reachable while the virtual keyboard reduces the visual viewport. */
+  .pm-form > .pm-action-row {
+    background: var(--background-primary);
+    bottom: env(safe-area-inset-bottom);
+    padding-block: var(--size-4-2);
+    position: sticky;
+    z-index: var(--layer-popover);
+  }
+
+  .publishing-manager textarea {
+    max-height: 40vh;
+  }
+
+  /* Wide semantic tables become labelled row cards without duplicating content or actions. */
+  .pm-mobile-table,
+  .pm-mobile-table tbody,
+  .pm-mobile-table tr,
+  .pm-mobile-table :is(th, td) {
+    display: block;
+    width: 100%;
+  }
+
+  .pm-mobile-table {
+    width: 100%;
+  }
+
+  .pm-mobile-table thead {
+    display: none;
+  }
+
+  .pm-mobile-table tr {
+    background: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-m);
+    margin-block-end: var(--size-4-3);
+    padding: var(--size-4-2);
+  }
+
+  .pm-mobile-table :is(th, td) {
+    border: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    padding: var(--size-2-3);
+    white-space: normal;
+  }
+
+  .pm-mobile-table :is(th, td)::before {
+    color: var(--text-muted);
+    content: attr(data-label);
+    display: block;
+    font-size: var(--font-ui-smaller);
+    font-weight: var(--font-semibold);
   }
 
   .pm-summary-grid,

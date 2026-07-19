@@ -32,6 +32,9 @@ export class ManuscriptCompilerIntegrationView extends ItemView {
   private linkPreview: CompilerOutputLinkPreview | undefined;
   private requestCancellation: ManualCancellationToken | undefined;
   private requestPending = false;
+  private readonly cancelWhenHidden = (): void => {
+    if (document.visibilityState === 'hidden') this.requestCancellation?.cancel();
+  };
 
   public constructor(
     leaf: WorkspaceLeaf,
@@ -50,6 +53,7 @@ export class ManuscriptCompilerIntegrationView extends ItemView {
     return 'Compiler integration';
   }
   protected override async onOpen(): Promise<void> {
+    document.addEventListener('visibilitychange', this.cancelWhenHidden);
     this.unsubscribeCatalog = this.catalog.subscribe((snapshot) => {
       this.snapshot = snapshot;
       this.reconcileScope();
@@ -62,6 +66,9 @@ export class ManuscriptCompilerIntegrationView extends ItemView {
     await this.refreshCapability();
   }
   protected override async onClose(): Promise<void> {
+    document.removeEventListener('visibilitychange', this.cancelWhenHidden);
+    this.requestCancellation?.cancel();
+    this.requestCancellation = undefined;
     this.unsubscribeCatalog?.();
     this.unsubscribeCatalog = undefined;
     this.unsubscribeResults?.();

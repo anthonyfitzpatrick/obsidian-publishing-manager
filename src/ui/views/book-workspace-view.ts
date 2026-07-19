@@ -90,6 +90,10 @@ export class BookWorkspaceView extends ItemView {
   private activeTab: WorkspaceTab = 'overview';
   private operationError: string | undefined;
   private readinessEvaluation: ReadinessEvaluation | undefined;
+  private readonly activeCancellations = new Set<ManualCancellationToken>();
+  private readonly cancelWhenHidden = (): void => {
+    if (document.visibilityState === 'hidden') this.cancelInterruptibleWork();
+  };
 
   /** Receives state/services and dashboard navigation without importing persistence adapters. */
   public constructor(
@@ -213,6 +217,7 @@ export class BookWorkspaceView extends ItemView {
         verify.toggleAttribute('disabled', record.fields.fingerprint === undefined);
         const runFingerprint = (mode: 'capture' | 'verify') => {
           const token = new ManualCancellationToken();
+          this.activeCancellations.add(token);
           capture.disabled = true;
           verify.disabled = true;
           const cancel = editionAction(fingerprintActions, 'Cancel fingerprinting');
@@ -232,6 +237,7 @@ export class BookWorkspaceView extends ItemView {
               evidence.setText(cause instanceof Error ? cause.message : 'Fingerprinting failed.')
             )
             .finally(() => {
+              this.activeCancellations.delete(token);
               cancel.remove();
               capture.disabled = false;
               verify.disabled = record.fields.fingerprint === undefined;
@@ -366,6 +372,7 @@ export class BookWorkspaceView extends ItemView {
 
   /** Subscribes while open and selects the first active book only when state has no valid choice. */
   protected override async onOpen(): Promise<void> {
+    document.addEventListener('visibilitychange', this.cancelWhenHidden);
     this.unsubscribe = this.catalog.subscribe((snapshot) => {
       this.snapshot = snapshot;
       this.reconcileSelection(snapshot);
@@ -381,6 +388,8 @@ export class BookWorkspaceView extends ItemView {
 
   /** Preserves drafts in the shared store while releasing only this view's subscription and DOM. */
   protected override async onClose(): Promise<void> {
+    document.removeEventListener('visibilitychange', this.cancelWhenHidden);
+    this.cancelInterruptibleWork();
     this.unsubscribe?.();
     this.unsubscribeAssets?.();
     this.unsubscribe = undefined;
@@ -1013,7 +1022,9 @@ export class BookWorkspaceView extends ItemView {
       region.empty();
       try {
         const comparison = this.editions.compare(edition.id, select.value);
-        const table = region.createEl('table', { cls: 'pm-comparison-table' });
+        const table = region.createEl('table', {
+          cls: 'pm-comparison-table pm-mobile-table'
+        });
         const head = table.createEl('thead').createEl('tr');
         for (const text of [
           'Group',
@@ -1027,11 +1038,23 @@ export class BookWorkspaceView extends ItemView {
         const body = table.createEl('tbody');
         for (const row of comparison.rows) {
           const tableRow = body.createEl('tr');
-          tableRow.createEl('th', { text: capitalize(row.group), attr: { scope: 'row' } });
-          tableRow.createEl('td', { text: row.label });
-          tableRow.createEl('td', { text: row.left });
-          tableRow.createEl('td', { text: row.right });
-          tableRow.createEl('td', { text: row.equal ? '✓ Same' : '↔ Different' });
+          tableRow.createEl('th', {
+            text: capitalize(row.group),
+            attr: { scope: 'row', 'data-label': 'Group' }
+          });
+          tableRow.createEl('td', { text: row.label, attr: { 'data-label': 'Field' } });
+          tableRow.createEl('td', {
+            text: row.left,
+            attr: { 'data-label': editionRecordLabel(comparison.left) }
+          });
+          tableRow.createEl('td', {
+            text: row.right,
+            attr: { 'data-label': editionRecordLabel(comparison.right) }
+          });
+          tableRow.createEl('td', {
+            text: row.equal ? '✓ Same' : '↔ Different',
+            attr: { 'data-label': 'Result' }
+          });
         }
       } catch (error) {
         region.createDiv({
@@ -1218,6 +1241,12 @@ export class BookWorkspaceView extends ItemView {
     event.preventDefault();
     const next = nextWorkspaceTab(tab, event.key as 'ArrowLeft' | 'ArrowRight' | 'End' | 'Home');
     this.selectTab(next, 'tab');
+  }
+
+  /** Cancels in-memory long work when a mobile view closes or the host enters the background. */
+  private cancelInterruptibleWork(): void {
+    for (const cancellation of this.activeCancellations) cancellation.cancel();
+    this.activeCancellations.clear();
   }
 }
 

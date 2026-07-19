@@ -78,17 +78,21 @@ function renderImport(parent: HTMLElement, context: IsbnWorkspaceContext): void 
   const result = context.state.importPreview;
   if (result === undefined) return;
   details.createEl('p', { text: `${result.ready} ready · ${result.rejected} rejected` });
-  const table = details.createEl('table');
+  const table = details.createEl('table', { cls: 'pm-mobile-table' });
   const head = table.createEl('thead').createEl('tr');
   for (const label of ['Row', 'Input', 'Normalized', 'Result'])
     head.createEl('th', { text: label });
   const body = table.createEl('tbody');
   for (const row of result.rows) {
     const tr = body.createEl('tr');
-    tr.createEl('td', { text: String(row.row) });
-    tr.createEl('td', { text: row.input });
-    tr.createEl('td', { text: row.normalized ?? '—' });
-    tr.createEl('td', { text: `${row.status}: ${row.message}` });
+    const values = [
+      ['Row', String(row.row)],
+      ['Input', row.input],
+      ['Normalized', row.normalized ?? '—'],
+      ['Result', `${row.status}: ${row.message}`]
+    ] as const;
+    for (const [label, value] of values)
+      tr.createEl('td', { text: value, attr: { 'data-label': label } });
   }
   if (result.ready > 0) {
     const apply = details.createEl('button', {

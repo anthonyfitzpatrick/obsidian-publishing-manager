@@ -6,6 +6,8 @@ All notable changes to Publishing Manager are recorded here using Keep a Changel
 
 ### Added
 
+- M9 MOB-001 through MOB-004: complete mobile surface inventory, labelled card projections for every wide table, safe-area and virtual-keyboard action clearance, background/close cancellation for long in-memory work, and a permanent mobile build gate.
+
 - M9 A11Y-001 through A11Y-004: build-enforced semantic controls and tab behavior, repaired focus after re-render/navigation, assertive focused error summaries, theme-relative visible focus, text-labelled status, narrow-pane reflow, reduced-motion behavior, and 44 CSS-pixel labelled targets.
 
 - M9 PRV-001 through PRV-004: machine-readable canonical/plugin/session/reference/integration data inventory; default every-source diagnostic redaction including settings recovery paths; privacy architecture enforcement; and disposable-vault disable/uninstall preservation evidence.

@@ -102,18 +102,22 @@ function renderPreview(
   const section = parent.createEl('section', { cls: 'pm-panel' });
   section.createEl('h3', { text: `Review ${preview.templateId} v${preview.templateVersion}` });
   section.createEl('p', { text: `Critical path: ${preview.criticalPath.join(' → ')}` });
-  const table = section.createEl('table', { cls: 'pm-table' });
+  const table = section.createEl('table', { cls: 'pm-table pm-mobile-table' });
   const head = table.createEl('thead').createEl('tr');
   for (const label of ['Milestone', 'Previous', 'Proposed', 'Action', 'Evidence'])
     head.createEl('th', { text: label });
   const body = table.createEl('tbody');
   for (const row of preview.rows) {
     const tr = body.createEl('tr');
-    tr.createEl('td', { text: `${row.code} · ${row.label}` });
-    tr.createEl('td', { text: row.previousDate ?? 'New' });
-    tr.createEl('td', { text: row.proposedDate });
-    tr.createEl('td', { text: row.action });
-    tr.createEl('td', { text: row.conflict ?? (row.past ? 'Date is in the past' : 'Ready') });
+    const values = [
+      ['Milestone', `${row.code} · ${row.label}`],
+      ['Previous', row.previousDate ?? 'New'],
+      ['Proposed', row.proposedDate],
+      ['Action', row.action],
+      ['Evidence', row.conflict ?? (row.past ? 'Date is in the past' : 'Ready')]
+    ] as const;
+    for (const [label, value] of values)
+      tr.createEl('td', { text: value, attr: { 'data-label': label } });
   }
   const apply = section.createEl('button', {
     cls: 'pm-button pm-button--primary',

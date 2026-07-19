@@ -464,14 +464,14 @@ function renderPortfolioTable(
   const heading = section.createDiv({ cls: 'pm-section-heading' });
   heading.createDiv().createEl('h2', { text: 'Book portfolio' });
   heading.createSpan({ cls: 'pm-count-badge', text: `${model.portfolio.length} books` });
-  const table = section.createEl('table', { cls: 'pm-dashboard-table' });
+  const table = section.createEl('table', { cls: 'pm-dashboard-table pm-mobile-table' });
   const head = table.createEl('thead').createEl('tr');
   for (const column of columns) head.createEl('th', { text: column, attr: { scope: 'col' } });
   const body = table.createEl('tbody');
   for (const row of model.portfolio) {
     const tr = body.createEl('tr');
     for (const column of columns) {
-      const cell = tr.createEl('td');
+      const cell = tr.createEl('td', { attr: { 'data-label': dashboardColumnLabel(column) } });
       if (column === 'book') {
         const open = cell.createEl('button', {
           cls: 'pm-text-button',
@@ -490,6 +490,14 @@ function renderPortfolioTable(
       else if (column === 'platform-state') cell.setText(row.platformState);
     }
   }
+}
+
+/** Supplies the visible mobile-card label for every configurable portfolio column. */
+function dashboardColumnLabel(column: string): string {
+  return column
+    .split('-')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
 }
 
 function renderTimeline(
