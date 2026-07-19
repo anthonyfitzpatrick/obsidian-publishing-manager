@@ -256,7 +256,19 @@ function fixture(
       }
     }
   );
-  return { calls, service };
+  return {
+    calls,
+    service,
+    setEnabled: (enabledNow: boolean) => {
+      settings = {
+        ...settings,
+        integrations: {
+          ...settings.integrations,
+          enabledCapabilities: enabledNow ? [METADATA_VISUALS_CAPABILITY_ID] : []
+        }
+      };
+    }
+  };
 }
 
 describe('Metadata Visuals provider', () => {
@@ -295,6 +307,17 @@ describe('Metadata Visuals provider', () => {
         request('catalog-summary-request', { contractVersion: 2, consumerVersion: 'bad' })
       )
     ).resolves.toMatchObject({ kind: 'provider-error', code: 'invalid-request' });
+    await expect(
+      fixture(true).service.handle(
+        request('catalog-summary-request', { padding: 'x'.repeat(5_000) })
+      )
+    ).resolves.toMatchObject({ kind: 'provider-error', code: 'invalid-request' });
+    const cyclic = request('catalog-summary-request') as Record<string, unknown>;
+    cyclic.self = cyclic;
+    await expect(fixture(true).service.handle(cyclic)).resolves.toMatchObject({
+      kind: 'provider-error',
+      code: 'invalid-request'
+    });
   });
 
   it('exposes one bounded normalized catalog summary without paths or private fields', async () => {
@@ -496,5 +519,19 @@ describe('Metadata Visuals provider', () => {
         snapshot()
       )
     ).toBeUndefined();
+  });
+
+  it('re-evaluates access on every request and stops projection immediately when disabled', async () => {
+    const state = fixture(true);
+    await expect(
+      state.service.handle(request('book-snapshot-request', { bookId: 'pm-book-visual-0001' }))
+    ).resolves.toMatchObject({ kind: 'book-snapshot' });
+    expect(state.calls.metadata).toBe(1);
+    state.setEnabled(false);
+    expect(state.service.descriptor().enabled).toBe(false);
+    await expect(
+      state.service.handle(request('book-snapshot-request', { bookId: 'pm-book-visual-0001' }))
+    ).resolves.toMatchObject({ kind: 'provider-error', code: 'disabled' });
+    expect(state.calls.metadata).toBe(1);
   });
 });

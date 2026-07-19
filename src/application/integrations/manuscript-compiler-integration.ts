@@ -20,6 +20,10 @@ import type {
 export const COMPILER_CONTRACT = 'publishing-manager.manuscript-compiler' as const;
 export const COMPILER_CONTRACT_VERSION = 1 as const;
 export const COMPILER_CAPABILITY_ID = 'manuscript-compiler' as const;
+export const COMPILER_MAX_DESCRIPTOR_BYTES = 8_192;
+export const COMPILER_MAX_REQUEST_BYTES = 4_096;
+export const COMPILER_MAX_ACKNOWLEDGEMENT_BYTES = 4_096;
+export const COMPILER_MAX_RESULT_BYTES = 16_384;
 export const COMPILER_EXPORT_FORMATS = ['docx', 'odt', 'epub', 'html', 'markdown', 'xml'] as const;
 export type CompilerExportFormat = (typeof COMPILER_EXPORT_FORMATS)[number];
 
@@ -270,12 +274,15 @@ export class ManuscriptCompilerIntegrationService {
       editionId: edition.id,
       formats
     };
+    const byteCount = jsonBytes(request);
+    if (byteCount > COMPILER_MAX_REQUEST_BYTES)
+      throw new Error('Compiler request exceeds the 4 KiB local contract limit.');
     return {
       request,
       descriptorFingerprint: negotiation.descriptorFingerprint,
       providerId: negotiation.descriptor.providerId,
       providerVersion: negotiation.descriptor.providerVersion,
-      byteCount: new TextEncoder().encode(JSON.stringify(request)).byteLength,
+      byteCount,
       exchangedFields: negotiation.exchangedFields,
       consequences: [
         'Publishing Manager sends stable IDs and requested format names through a local event only.',
@@ -421,6 +428,8 @@ function parseDescriptor(
   | { readonly ok: false; readonly reasons: readonly string[] } {
   const item = object(value);
   const reasons: string[] = [];
+  if (jsonBytes(value) > COMPILER_MAX_DESCRIPTOR_BYTES)
+    reasons.push('Capability descriptor exceeds the 8 KiB local contract limit.');
   if (item.contract !== COMPILER_CONTRACT) reasons.push('Contract identifier is not recognized.');
   if (item.contractVersion !== COMPILER_CONTRACT_VERSION)
     reasons.push(`Contract version must be ${COMPILER_CONTRACT_VERSION}.`);
@@ -462,6 +471,8 @@ function parseAcknowledgement(
   correlationId: string,
   providerId: string
 ): CompilerRequestAcknowledgement {
+  if (jsonBytes(value) > COMPILER_MAX_ACKNOWLEDGEMENT_BYTES)
+    throw new Error('Compiler acknowledgement exceeds the 4 KiB local contract limit.');
   const item = object(value);
   if (
     item.contract !== COMPILER_CONTRACT ||
@@ -488,8 +499,7 @@ function parseAcknowledgement(
 }
 
 function parseResult(value: unknown, accepted: AcceptedCompilerRequest): CompilerExportResult {
-  const serialized = JSON.stringify(value);
-  if (serialized === undefined || new TextEncoder().encode(serialized).byteLength > 16_384)
+  if (jsonBytes(value) > COMPILER_MAX_RESULT_BYTES)
     throw new Error('Compiler result exceeds the 16 KiB evidence limit.');
   const item = object(value);
   if (
@@ -653,4 +663,16 @@ function object(value: unknown): Record<string, unknown> {
 }
 function boundedText(value: unknown, maximum: number): string {
   return typeof value === 'string' ? value.trim().slice(0, maximum) : '';
+}
+
+/** Measures JSON data without trusting provider prototypes or allowing cyclic object graphs. */
+function jsonBytes(value: unknown): number {
+  try {
+    const serialized = JSON.stringify(value);
+    return serialized === undefined
+      ? Number.POSITIVE_INFINITY
+      : new TextEncoder().encode(serialized).byteLength;
+  } catch {
+    return Number.POSITIVE_INFINITY;
+  }
 }

@@ -6,7 +6,7 @@ The product specification and project backlog in the Publishing Manager Obsidian
 
 ## Current state
 
-Milestones M0 through M7 are complete. M8 Optional plugin integrations is current at 14/18 items. Compiler and Metadata Visuals are complete. Metadata Visuals adds navigation-only deep links, explicit opt-in access, per-field-group controls/disclosure, and complete absence/disable fallback without mutation or consumer dependencies.
+Milestones M0 through M7 are complete. All 18 M8 Optional plugin integration delivery items are implemented and await exit review. Compiler and Metadata Visuals use bounded, versioned, data-only local events with explicit opt-in controls, hostile/mid-session-disable handling, static repository/private-plugin boundaries, and no production network capability.
 
 ## Licence boundary
 

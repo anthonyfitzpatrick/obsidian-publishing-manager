@@ -3,6 +3,7 @@
  * Consumers must explicitly dispatch the versioned events and receive cloned data-only responses.
  */
 import type { MetadataVisualsProviderService } from '../../application/integrations/metadata-visuals-provider';
+import { METADATA_VISUALS_MAX_REQUEST_BYTES } from '../../application/integrations/metadata-visuals-provider';
 
 export const METADATA_VISUALS_DISCOVERY_EVENT = 'publishing-manager:metadata-visuals:discover:v1';
 export const METADATA_VISUALS_QUERY_EVENT = 'publishing-manager:metadata-visuals:query:v1';
@@ -24,19 +25,41 @@ export class BrowserMetadataVisualsProviderTransport {
   public start(): () => void {
     const discover = (event: Event): void => {
       if (!(event instanceof CustomEvent)) return;
-      const detail = discoveryDetail(event.detail);
+      let detail: DiscoveryDetail | undefined;
+      try {
+        detail = discoveryDetail(event.detail);
+      } catch {
+        return;
+      }
       if (detail === undefined) return;
-      detail.respond(structuredClone(this.provider.descriptor()));
+      // A consumer-owned callback is outside our trust boundary; it must not interrupt the host.
+      try {
+        detail.respond(structuredClone(this.provider.descriptor()));
+      } catch {
+        return;
+      }
     };
     const query = (event: Event): void => {
       if (!(event instanceof CustomEvent)) return;
-      const detail = queryDetail(event.detail);
+      let detail: QueryDetail | undefined;
+      try {
+        detail = queryDetail(event.detail);
+      } catch {
+        return;
+      }
       if (detail === undefined) return;
       // A current readiness evaluation may complete asynchronously. The event carries only data,
       // and the consumer receives a cloned response after the application service finishes.
       void this.provider
-        .handle(detail.payload)
-        .then((response) => detail.respond(structuredClone(response)));
+        .handle(boundedRequestData(detail.payload))
+        .then((response) => {
+          try {
+            detail.respond(structuredClone(response));
+          } catch {
+            return;
+          }
+        })
+        .catch(() => undefined);
     };
     window.addEventListener(METADATA_VISUALS_DISCOVERY_EVENT, discover);
     window.addEventListener(METADATA_VISUALS_QUERY_EVENT, query);
@@ -44,6 +67,21 @@ export class BrowserMetadataVisualsProviderTransport {
       window.removeEventListener(METADATA_VISUALS_DISCOVERY_EVENT, discover);
       window.removeEventListener(METADATA_VISUALS_QUERY_EVENT, query);
     };
+  }
+}
+
+/** Rejects live objects/getters and oversized requests before invoking the application provider. */
+function boundedRequestData(value: unknown): unknown {
+  try {
+    const serialized = JSON.stringify(value);
+    if (
+      serialized === undefined ||
+      new TextEncoder().encode(serialized).byteLength > METADATA_VISUALS_MAX_REQUEST_BYTES
+    )
+      return { invalidConsumerRequest: true };
+    return JSON.parse(serialized) as unknown;
+  } catch {
+    return { invalidConsumerRequest: true };
   }
 }
 

@@ -7,10 +7,11 @@
   "private": true,
   "scripts": {
     "dev": "node esbuild.config.mjs",
-    "build": "npm run typecheck && npm run check:support && npm run check:forbidden && node esbuild.config.mjs production",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm run check:conventions && npm run check:test-vault && npm run check:support && npm run check:forbidden && npm run test",
+    "build": "npm run typecheck && npm run check:support && npm run check:forbidden && npm run check:integrations && node esbuild.config.mjs production",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run check:conventions && npm run check:test-vault && npm run check:support && npm run check:forbidden && npm run check:integrations && npm run test",
     "check:conventions": "node scripts/check-repository-conventions.mjs",
     "check:forbidden": "node scripts/check-forbidden-apis.mjs",
+    "check:integrations": "node scripts/check-integration-boundaries.mjs",
     "check:support": "node scripts/check-support-policy.mjs",
     "check:test-vault": "node scripts/check-test-vault-workflow.mjs",
     "format": "prettier --write .",

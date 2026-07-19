@@ -8,6 +8,11 @@ const forbidden = [
   ['Node filesystem', /(?:from\s+|import\s*\()['"](?:fs|fs\/promises)['"]/u],
   ['Electron', /(?:from\s+|import\s*\()['"]electron['"]/u],
   ['External process', /(?:from\s+|import\s*\()['"]child_process['"]/u],
+  [
+    'Network module import',
+    /(?:from\s+|import\s*\()['"](?:node:)?(?:http|https|net|tls|dns|dgram)(?:\/[^'"]*)?['"]/u
+  ],
+  ['Network client import', /(?:from\s+|import\s*\()['"](?:axios|got|undici|node-fetch)['"]/u],
   ['Network fetch', /\bfetch\s*\(/u],
   ['XML HTTP request', /\bXMLHttpRequest\b/u],
   ['WebSocket', /\bWebSocket\b/u],

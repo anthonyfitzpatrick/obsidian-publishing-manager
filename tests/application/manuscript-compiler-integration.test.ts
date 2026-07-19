@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   COMPILER_CONTRACT,
   COMPILER_CONTRACT_VERSION,
+  COMPILER_MAX_REQUEST_BYTES,
   ManuscriptCompilerIntegrationService,
   type CompilerCapabilityTransport,
   type CompilerExportRequest,
@@ -197,6 +198,10 @@ describe('Manuscript Compiler integration', () => {
     expect(incompatible.state).toBe('incompatible');
     if (incompatible.state === 'incompatible')
       expect(incompatible.reasons.join(' ')).toContain('Contract version');
+    state.transport.descriptors = [descriptor({ padding: 'x'.repeat(9_000) })];
+    const oversized = await state.service.negotiate();
+    expect(oversized.state).toBe('incompatible');
+    if (oversized.state === 'incompatible') expect(oversized.reasons.join(' ')).toContain('8 KiB');
   });
 
   it('requires explicit enablement and preserves unrelated integration preferences', async () => {
@@ -234,6 +239,7 @@ describe('Manuscript Compiler integration', () => {
     expect(preview.request.correlationId).toBe('pm-compile-correlation-0001');
     expect(preview.request.formats).toEqual(['docx', 'epub']);
     const serialized = JSON.stringify(preview.request);
+    expect(preview.byteCount).toBeLessThanOrEqual(COMPILER_MAX_REQUEST_BYTES);
     expect(serialized).not.toContain('Private title');
     expect(serialized).not.toContain('Private prose');
     expect(serialized).not.toContain('Publishing Manager/');
@@ -436,5 +442,43 @@ describe('Manuscript Compiler integration', () => {
     await expect(
       reloaded.service.acceptResult(result(preview.request.correlationId))
     ).rejects.toThrow('accepted matching request in this session');
+  });
+
+  it('rejects oversized acknowledgement and result data and fails closed when disabled mid-session', async () => {
+    const state = fixture();
+    state.transport.descriptors = [descriptor()];
+    await state.service.setEnabled(true);
+    const preview = await state.service.previewRequest({
+      bookId: 'pm-book-0001',
+      editionId: 'pm-edition-0001',
+      formats: ['docx']
+    });
+    state.transport.acknowledgement = {
+      contract: COMPILER_CONTRACT,
+      contractVersion: 1,
+      kind: 'request-accepted',
+      correlationId: preview.request.correlationId,
+      providerId: 'manuscript-compiler',
+      padding: 'x'.repeat(5_000)
+    };
+    await expect(state.service.applyRequest(preview)).rejects.toThrow('4 KiB');
+
+    state.transport.acknowledgement = {
+      contract: COMPILER_CONTRACT,
+      contractVersion: 1,
+      kind: 'request-accepted',
+      correlationId: preview.request.correlationId,
+      providerId: 'manuscript-compiler'
+    };
+    await state.service.applyRequest(preview);
+    await expect(
+      state.service.acceptResult(
+        result(preview.request.correlationId, { padding: 'x'.repeat(17_000) })
+      )
+    ).rejects.toThrow('16 KiB');
+    await state.service.setEnabled(false);
+    await expect(state.service.acceptResult(result(preview.request.correlationId))).rejects.toThrow(
+      'Enable'
+    );
   });
 });
