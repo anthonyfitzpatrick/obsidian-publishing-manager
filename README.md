@@ -6,7 +6,7 @@ The product specification and project backlog in the Publishing Manager Obsidian
 
 ## Current state
 
-Milestones M0 through M8 are complete. M9 Hardening is current at 2/24. SEC-001/SEC-002 add a cross-feature threat model, validation inventory, hostile parsed-data limits, stricter path/date/identity/enum/URL constraints, and a permanent security build gate.
+Milestones M0 through M8 are complete. M9 Hardening is current at 5/24. SEC-001–SEC-005 add the cross-feature threat and validation model, hostile parsed-data limits, text-only rendering, full-destination external confirmation, blocked-network test/production monitoring, and exact dependency/release-package gates.
 
 ## Licence boundary
 
@@ -50,12 +50,15 @@ Start with a Gitea issue and reference the permanent backlog ID. See [CONTRIBUTI
 
 - `npm run dev` — watch development bundle
 - `npm run build` — validate and create production `main.js`
-- `npm run check` — formatting, lint, types, forbidden APIs, and tests
+- `npm run check` — formatting, lint, types, policy gates, normal tests, and blocked-network tests
 - `npm run test` — deterministic unit tests
+- `npm run test:offline` — the complete test suite with browser network primitives blocked
 - `npm run test:fixtures` — deterministic small, target-scale, malformed, and upgrade fixture checks
 - `npm run test:vault` — production build plus a new disposable Obsidian test vault
 - `npm run test:coverage` — tests with coverage
 - `npm run check:forbidden` — production-source policy scan
+- `npm run check:offline-bundle` — production-bundle initialization under blocked-network monitoring
+- `npm run check:package` — exact release-asset, production-dependency, prohibited-import, and checksum audit
 - `npm run check:conventions` — required contributor, issue, pull-request, commit, and release conventions
 - `npm run check:test-vault` — disposable test-vault safety and installation workflow
 - `npm run check:support` — manifest, version map, platform, and toolchain policy alignment

@@ -106,6 +106,21 @@
   opacity: 0.55;
 }
 
+/* External navigation remains a deliberate two-step action with a readable full destination. */
+.pm-external-link-review {
+  display: inline-flex;
+  margin: var(--size-2-2) 0;
+}
+
+.pm-external-destination {
+  display: block;
+  margin: var(--size-4-2) 0;
+  padding: var(--size-4-3);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  user-select: text;
+}
+
 .pm-button__icon,
 .pm-button__icon svg {
   height: 17px;

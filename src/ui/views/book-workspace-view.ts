@@ -458,6 +458,7 @@ export class BookWorkspaceView extends ItemView {
       this.renderEditions(content, record);
     } else if (this.activeTab === 'metadata') {
       renderMetadataWorkspace({
+        app: this.app,
         parent: content,
         book: record,
         ...(this.selectedEditionId === undefined
@@ -494,6 +495,7 @@ export class BookWorkspaceView extends ItemView {
       });
     } else if (this.activeTab === 'distribution') {
       renderDistributionWorkspace({
+        app: this.app,
         parent: content,
         book: record,
         snapshot,
@@ -553,6 +555,7 @@ export class BookWorkspaceView extends ItemView {
       });
     } else if (this.activeTab === 'reviews') {
       renderReviewsWorkspace({
+        app: this.app,
         parent: content,
         book: record,
         snapshot,

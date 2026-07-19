@@ -21,6 +21,25 @@ for (const file of files) {
     if (pattern.test(content)) violations.push(`${relative}: ${label}`);
 }
 
+const approvedExternalLinkRenderer = path.normalize(
+  path.resolve('src/ui/security/confirmed-external-link.ts')
+);
+for (const file of files) {
+  if (path.normalize(file) === approvedExternalLinkRenderer) continue;
+  const content = await readFile(file, 'utf8');
+  if (/createEl\(\s*['"]a['"]/u.test(content))
+    violations.push(
+      `${path.relative(process.cwd(), file)}: external anchors must use createConfirmedExternalLink`
+    );
+}
+
+const approvedRenderer = await readFile(approvedExternalLinkRenderer, 'utf8');
+for (const marker of ['safeExternalHttpUrl', 'Complete destination:', "rel: 'noopener noreferrer'"])
+  if (!approvedRenderer.includes(marker))
+    violations.push(
+      'src/ui/security/confirmed-external-link.ts: destination validation/disclosure boundary is incomplete'
+    );
+
 const requiredBoundaries = [
   [
     'src/domain/records/schema-validation.ts',

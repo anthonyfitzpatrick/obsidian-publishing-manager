@@ -1,6 +1,6 @@
 /** Native REV-001/REV-002 permission-aware entry and chronological filtered review log. */
-import { Notice } from 'obsidian';
-import { safeExternalHttpUrl } from '../../domain/security/untrusted-data';
+import { Notice, type App } from 'obsidian';
+import { createConfirmedExternalLink } from '../security/confirmed-external-link';
 import type { ReviewProjectService } from '../../application/reviews/review-project-service';
 import type { BookCatalogSnapshot, CatalogRecord } from '../../domain/catalog/catalog-model';
 import type {
@@ -53,6 +53,7 @@ export function createReviewsWorkspaceState(): ReviewsWorkspaceState {
 }
 
 export function renderReviewsWorkspace(context: {
+  app: App;
   parent: HTMLElement;
   book: CatalogRecord;
   snapshot: BookCatalogSnapshot;
@@ -270,13 +271,8 @@ function renderReviewList(
     row.createEl('strong', {
       text: `${text(review.fields.date, 'Unknown date')} · ${text(review.fields.source, 'Unknown source')} · rating ${text(review.fields.rating, '—')}`
     });
-    const link = safeExternalHttpUrl(review.fields['source-link']);
-    if (link !== undefined)
-      row.createEl('a', {
-        text: ' Open source',
-        href: link,
-        attr: { target: '_blank', rel: 'noopener noreferrer' }
-      });
+    if (review.fields['source-link'] !== undefined)
+      createConfirmedExternalLink(row, context.app, 'Open source', review.fields['source-link']);
     row.createEl('p', {
       text: `Permission: ${text(review.fields['permission-status'], 'unknown')} · Follow-up: ${text(review.fields['follow-up-status'], 'none')}${typeof review.fields['follow-up-date'] === 'string' ? ` on ${review.fields['follow-up-date']}` : ''}`
     });

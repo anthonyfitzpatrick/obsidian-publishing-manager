@@ -5,11 +5,12 @@
  * surface contains no network lookup and accurately identifies the BISAC licensing limitation.
  */
 
-import { Notice } from 'obsidian';
+import { Notice, type App } from 'obsidian';
 
 import type { MetadataProjectService } from '../../application/metadata/metadata-project-service';
 import { METADATA_CLASSIFICATION_VERSIONS } from '../../application/metadata/metadata-project-service';
 import type { BookCatalogSnapshot, CatalogRecord } from '../../domain/catalog/catalog-model';
+import { createConfirmedExternalLink } from '../security/confirmed-external-link';
 import {
   METADATA_COMPLETENESS_PROFILES,
   METADATA_FIELD_KEYS,
@@ -34,6 +35,7 @@ export function createMetadataWorkspaceState(): MetadataWorkspaceState {
 
 /** Complete renderer input keeps storage and Obsidian services outside this presentation module. */
 export interface MetadataWorkspaceContext {
+  readonly app: App;
   readonly parent: HTMLElement;
   readonly book: CatalogRecord;
   readonly selectedEditionId?: string;
@@ -71,7 +73,7 @@ export function renderMetadataWorkspace(context: MetadataWorkspaceContext): void
   if (selectedEdition !== undefined)
     renderMetadataEditor(page, context, 'edition', project.editionRecord, selectedEdition.id);
   renderDescriptionExport(page, context, selectedEdition?.id, project.effective);
-  renderClassificationBoundary(page);
+  renderClassificationBoundary(page, context.app);
 }
 
 /** Profile selector and text-equivalent coverage indicator avoid claiming universal completeness. */
@@ -192,7 +194,7 @@ function renderMetadataEditor(
     } else if (key.includes('description')) {
       inputs.set(key, textarea(form, fieldLabel(key), textValue(values[key])));
     } else if (key === 'regional-subject-codes') {
-      renderRegionalCodeExplainer(form);
+      renderRegionalCodeExplainer(form, context.app);
       inputs.set(
         key,
         textarea(
@@ -252,7 +254,7 @@ function renderMetadataEditor(
  * Places purpose and workflow beside the input so a user never has to infer why trade subject
  * codes exist or how an externally selected code returns to their canonical local metadata.
  */
-function renderRegionalCodeExplainer(parent: HTMLElement): void {
+function renderRegionalCodeExplainer(parent: HTMLElement, app: App): void {
   const explainer = parent.createEl('aside', { cls: 'pm-field--wide pm-classification-explainer' });
   explainer.createEl('strong', { text: 'Why subject codes matter' });
   explainer.createEl('p', {
@@ -271,7 +273,7 @@ function renderRegionalCodeExplainer(parent: HTMLElement): void {
   });
   const sources = explainer.createEl('ul');
   for (const source of CLASSIFICATION_OFFICIAL_SOURCES)
-    officialSource(sources, source.label, source.href);
+    officialSource(sources, app, source.label, source.href);
 }
 
 /** Plain-text preview is derived on demand and cannot overwrite the Markdown source. */
@@ -307,7 +309,7 @@ function renderDescriptionExport(
 }
 
 /** Classification disclosure records current regional practice and exact licensing boundaries. */
-function renderClassificationBoundary(parent: HTMLElement): void {
+function renderClassificationBoundary(parent: HTMLElement, app: App): void {
   const details = parent.createEl('details', { cls: 'pm-panel' });
   details.createEl('summary', { text: 'Classification reference versions and limits' });
   details.createEl('p', {
@@ -315,19 +317,15 @@ function renderClassificationBoundary(parent: HTMLElement): void {
   });
   const sources = details.createEl('ul');
   for (const source of CLASSIFICATION_OFFICIAL_SOURCES)
-    officialSource(sources, source.label, source.href);
+    officialSource(sources, app, source.label, source.href);
   details.createEl('pre', {
     text: 'Examples:\nGB | thema | FJH | primary | Crime fiction\nAU | thema | FJH | primary\nFR | clil | 3430 | secondary | User-supplied label\nDE | wgs | 1121 | primary | User-supplied label'
   });
 }
 
 /** External references are user-initiated, visibly named, and isolated from the plugin runtime. */
-function officialSource(parent: HTMLUListElement, label: string, href: string): void {
-  parent.createEl('li').createEl('a', {
-    text: label,
-    href,
-    attr: { target: '_blank', rel: 'noopener noreferrer' }
-  });
+function officialSource(parent: HTMLUListElement, app: App, label: string, href: string): void {
+  createConfirmedExternalLink(parent.createEl('li'), app, label, href);
 }
 
 function valuesFromInputs(

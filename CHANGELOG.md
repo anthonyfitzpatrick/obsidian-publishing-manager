@@ -6,6 +6,8 @@ All notable changes to Publishing Manager are recorded here using Keep a Changel
 
 ### Added
 
+- M9 SEC-003 through SEC-005: one confirmation-only renderer that displays each complete validated external destination before navigation, direct-anchor enforcement, a complete blocked-network test run, monitored production-bundle initialization, and an exact three-asset zero-production-dependency package audit.
+
 - M9 SEC-001 and SEC-002: cross-feature threat model, shared plain-data/prototype/resource preflight, bounded managed Markdown/frontmatter, stricter schema/path/date/timestamp/relationship/enum/URL constraints, credential-free HTTP(S) rendering, hostile fixtures, and a permanent security build gate.
 
 - M8 exit review passed all 18 optional-integration items, 53 test files/179 tests, coverage, production build, empty audited production dependency tree, release-asset checksums, and disposable-vault installation; M9 Hardening is current.
