@@ -6,7 +6,7 @@ The product specification and project backlog in the Publishing Manager Obsidian
 
 ## Current state
 
-Milestones M0 through M7 are complete. All 18 M8 Optional plugin integration delivery items are implemented and await exit review. Compiler and Metadata Visuals use bounded, versioned, data-only local events with explicit opt-in controls, hostile/mid-session-disable handling, static repository/private-plugin boundaries, and no production network capability.
+Milestones M0 through M8 are complete. M8 passed 18/18 with bounded, versioned, data-only Compiler and Metadata Visuals contracts, explicit opt-in controls, hostile/mid-session-disable handling, static repository/private-plugin boundaries, and no production network capability. M9 Hardening is current at 0/24.
 
 ## Licence boundary
 
