@@ -24,17 +24,20 @@ import type {
   WorkflowProjectService
 } from '../../application/workflows/workflow-project-service';
 import { queryWorkflowAttention } from '../../application/workflows/workflow-queries';
+import { pageCollection, pagedCollectionWindow } from '../view-models/paged-collection';
 
 /** Runtime-only view choices; canonical records remain authoritative and selection is disposable. */
 export interface WorkflowWorkspaceState {
   mode: 'board' | 'list';
   selectedTaskId?: string;
   readonly batchTaskIds: Set<string>;
+  /** Zero-based task page shared by list and board so changing mode retains the same evidence. */
+  taskPage: number;
 }
 
 /** Creates a fresh view state without leaking selection between Book Workspace leaves. */
 export function createWorkflowWorkspaceState(): WorkflowWorkspaceState {
-  return { mode: 'list', batchTaskIds: new Set<string>() };
+  return { mode: 'list', batchTaskIds: new Set<string>(), taskPage: 0 };
 }
 
 /** Dependencies kept explicit so the renderer can be tested and cannot acquire hidden I/O. */
@@ -66,16 +69,58 @@ export function renderWorkflowWorkspace(context: WorkflowWorkspaceContext): void
   const stages = [...workflow.stages.items].sort(
     (left, right) => left.order - right.order || left.id.localeCompare(right.id)
   );
+  const ordered = orderedTasks(tasks, stages);
+  const pageSize = 50;
+  const window = pagedCollectionWindow(ordered.length, context.state.taskPage, pageSize);
+  context.state.taskPage = window.page;
+  const visibleTasks = pageCollection(ordered, window);
   const page = context.parent.createEl('section', { cls: 'pm-workflow-page' });
   renderWorkflowHeader(page, context, record, workflow.name, stages, tasks);
+  renderTaskPageNavigation(page, context, window.offset, pageSize, tasks.length);
   renderAttention(page, tasks);
   renderQuickCapture(page, context, workflow.id, stages);
   renderAddStage(page, context, record, stages);
-  if (context.state.mode === 'list') renderWorkflowList(page, context, record, stages, tasks);
-  else renderWorkflowBoard(page, context, record, stages, tasks);
+  if (context.state.mode === 'list')
+    renderWorkflowList(page, context, record, stages, tasks, visibleTasks);
+  else renderWorkflowBoard(page, context, record, stages, tasks, visibleTasks);
   renderBatchEditor(page, context, workflow.id, stages, tasks);
   const selected = tasks.find(({ id }) => id === context.state.selectedTaskId);
   if (selected !== undefined) renderTaskInspector(page, context, record, stages, tasks, selected);
+}
+
+/** One shared page controls both task projections and keeps at most fifty task cards in the DOM. */
+function renderTaskPageNavigation(
+  parent: HTMLElement,
+  context: WorkflowWorkspaceContext,
+  offset: number,
+  pageSize: number,
+  total: number
+): void {
+  if (total === 0) return;
+  const navigation = parent.createDiv({ cls: 'pm-pagination' });
+  const previous = navigation.createEl('button', {
+    cls: 'pm-button pm-button--secondary',
+    text: 'Previous task page',
+    attr: { type: 'button' }
+  });
+  previous.disabled = context.state.taskPage === 0;
+  previous.addEventListener('click', () => {
+    context.state.taskPage = Math.max(0, context.state.taskPage - 1);
+    context.rerender();
+  });
+  navigation.createSpan({
+    text: `Tasks ${offset + 1}–${Math.min(offset + pageSize, total)} of ${total}`
+  });
+  const next = navigation.createEl('button', {
+    cls: 'pm-button pm-button--secondary',
+    text: 'Next task page',
+    attr: { type: 'button' }
+  });
+  next.disabled = offset + pageSize >= total;
+  next.addEventListener('click', () => {
+    context.state.taskPage += 1;
+    context.rerender();
+  });
 }
 
 /** Empty state makes workflow creation available in the tab and explains the one-instance rule. */
@@ -149,7 +194,7 @@ function renderAttention(parent: HTMLElement, tasks: readonly WorkflowTask[]): v
     text: `Workload and attention · ${attention.overdue.length} overdue · ${attention.stalled.length} stalled`
   });
   const grid = details.createDiv({ cls: 'pm-workflow-attention-grid' });
-  for (const owner of attention.owners) {
+  for (const owner of attention.owners.slice(0, 50)) {
     const card = grid.createEl('article', { cls: 'pm-workload-card' });
     card.createEl('strong', { text: owner.owner });
     card.createEl('p', {
@@ -157,6 +202,11 @@ function renderAttention(parent: HTMLElement, tasks: readonly WorkflowTask[]): v
     });
     card.createEl('small', { text: `${formatMinutes(owner.estimateMinutes)} estimated` });
   }
+  if (attention.owners.length > 50)
+    details.createEl('p', {
+      cls: 'pm-muted',
+      text: `${attention.owners.length - 50} additional owners are omitted from this summary; task pages retain their exact evidence.`
+    });
   renderAttentionTasks(details, 'Overdue tasks', attention.overdue);
   renderAttentionTasks(details, 'Active but unchanged for 14 days', attention.stalled);
 }
@@ -173,9 +223,14 @@ function renderAttentionTasks(
     return;
   }
   const list = parent.createEl('ul');
-  for (const task of tasks)
+  for (const task of tasks.slice(0, 50))
     list.createEl('li', {
       text: `${task.title} · ${task.owner ?? 'Unassigned'} · ${task.deadline ?? `updated ${task.updatedAt.slice(0, 10)}`}`
+    });
+  if (tasks.length > 50)
+    parent.createEl('p', {
+      cls: 'pm-muted',
+      text: `${tasks.length - 50} additional matching tasks are available through the paged list or board.`
     });
 }
 
@@ -281,7 +336,8 @@ function renderWorkflowList(
   context: WorkflowWorkspaceContext,
   workflowRecord: CatalogRecord,
   stages: readonly WorkflowStage[],
-  tasks: readonly WorkflowTask[]
+  tasks: readonly WorkflowTask[],
+  visibleTasks: readonly WorkflowTask[]
 ): void {
   const list = parent.createEl('ul', { cls: 'pm-workflow-task-list' });
   for (const stage of stages) {
@@ -289,12 +345,14 @@ function renderWorkflowList(
     group.createEl('h3', { text: `${stage.order}. ${stage.label}` });
     group.createEl('small', { text: `${stage.status} · ${stage.completionMode}` });
     renderStageEditor(group, context, workflowRecord, stage, stages);
-    const staged = orderedTasks(
-      tasks.filter(({ stageId }) => stageId === stage.id),
-      stages
-    );
+    const totalForStage = tasks.filter(({ stageId }) => stageId === stage.id).length;
+    const staged = visibleTasks.filter(({ stageId }) => stageId === stage.id);
+    group.createEl('p', { text: `${totalForStage} total tasks` });
     if (staged.length === 0)
-      group.createEl('p', { cls: 'pm-muted', text: 'No tasks in this stage.' });
+      group.createEl('p', {
+        cls: 'pm-muted',
+        text: 'No tasks from this stage on the current page.'
+      });
     for (const task of staged) {
       const item = group.createDiv({ cls: 'pm-workflow-task-row' });
       renderBatchCheckbox(item, context, task);
@@ -313,7 +371,8 @@ function renderWorkflowBoard(
   context: WorkflowWorkspaceContext,
   workflowRecord: CatalogRecord,
   stages: readonly WorkflowStage[],
-  tasks: readonly WorkflowTask[]
+  tasks: readonly WorkflowTask[],
+  visibleTasks: readonly WorkflowTask[]
 ): void {
   const board = parent.createDiv({
     cls: 'pm-workflow-board',
@@ -324,10 +383,16 @@ function renderWorkflowBoard(
       cls: 'pm-workflow-column',
       attr: { 'aria-label': `${stage.label} stage` }
     });
-    const staged = tasks.filter(({ stageId }) => stageId === stage.id);
-    column.createEl('h3', { text: `${stage.order}. ${stage.label} · ${staged.length}` });
+    const totalForStage = tasks.filter(({ stageId }) => stageId === stage.id).length;
+    const staged = visibleTasks.filter(({ stageId }) => stageId === stage.id);
+    column.createEl('h3', { text: `${stage.order}. ${stage.label} · ${totalForStage}` });
     column.createEl('small', { text: `${stage.status} · ${stage.completionMode}` });
     renderStageEditor(column, context, workflowRecord, stage, stages);
+    if (staged.length === 0)
+      column.createEl('p', {
+        cls: 'pm-muted',
+        text: 'No tasks from this stage on the current page.'
+      });
     for (const task of staged) {
       const card = column.createEl('article', { cls: 'pm-workflow-card' });
       renderBatchCheckbox(card, context, task);

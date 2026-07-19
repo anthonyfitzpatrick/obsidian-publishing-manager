@@ -12,6 +12,7 @@ import type {
   IsbnTransactionPreview
 } from '../../application/isbn/isbn-project-service';
 import type { BookCatalogSnapshot, CatalogRecord } from '../../domain/catalog/catalog-model';
+import { pageCollection, pagedCollectionWindow } from '../view-models/paged-collection';
 
 export interface IsbnWorkspaceState {
   importText: string;
@@ -20,10 +21,12 @@ export interface IsbnWorkspaceState {
   editionId?: string;
   formatId?: string;
   correctionReason: string;
+  /** Zero-based disposable page; the complete canonical ISBN pool remains in the catalog. */
+  poolPage: number;
 }
 
 export function createIsbnWorkspaceState(): IsbnWorkspaceState {
-  return { importText: '', correctionReason: '' };
+  return { importText: '', correctionReason: '', poolPage: 0 };
 }
 
 export interface IsbnWorkspaceContext {
@@ -170,14 +173,19 @@ function renderAssignmentSelectors(parent: HTMLElement, context: IsbnWorkspaceCo
 }
 
 function renderPool(parent: HTMLElement, context: IsbnWorkspaceContext): void {
+  const pageSize = 50;
+  const total = context.snapshot.isbns.length;
+  const window = pagedCollectionWindow(total, context.state.poolPage, pageSize);
+  context.state.poolPage = window.page;
+  const visible = pageCollection(context.snapshot.isbns, window);
   const section = parent.createEl('section', { cls: 'pm-panel' });
-  section.createEl('h3', { text: `ISBN pool · ${context.snapshot.isbns.length}` });
-  if (context.snapshot.isbns.length === 0) {
+  section.createEl('h3', { text: `ISBN pool · ${total}` });
+  if (total === 0) {
     section.createEl('p', { cls: 'pm-muted', text: 'No ISBNs. Add one above.' });
     return;
   }
   const grid = section.createDiv({ cls: 'pm-isbn-grid' });
-  for (const record of context.snapshot.isbns) {
+  for (const record of visible) {
     const card = grid.createEl('article', { cls: 'pm-isbn-card' });
     card.createEl('strong', { text: String(record.fields.value) });
     if (typeof record.fields['isbn-10'] === 'string')
@@ -193,6 +201,41 @@ function renderPool(parent: HTMLElement, context: IsbnWorkspaceContext): void {
     for (const action of actionsFor(String(record.fields.status)))
       transactionButton(actions, context, record, action);
   }
+  renderPoolNavigation(section, context, window.offset, pageSize, total);
+}
+
+/** Keeps ISBN DOM bounded while retaining exact, keyboard-operable access to the complete pool. */
+function renderPoolNavigation(
+  parent: HTMLElement,
+  context: IsbnWorkspaceContext,
+  offset: number,
+  pageSize: number,
+  total: number
+): void {
+  const navigation = parent.createDiv({ cls: 'pm-pagination' });
+  const previous = navigation.createEl('button', {
+    cls: 'pm-button pm-button--secondary',
+    text: 'Previous identifier page',
+    attr: { type: 'button' }
+  });
+  previous.disabled = context.state.poolPage === 0;
+  previous.addEventListener('click', () => {
+    context.state.poolPage = Math.max(0, context.state.poolPage - 1);
+    context.rerender();
+  });
+  navigation.createSpan({
+    text: `ISBNs ${offset + 1}–${Math.min(offset + pageSize, total)} of ${total}`
+  });
+  const next = navigation.createEl('button', {
+    cls: 'pm-button pm-button--secondary',
+    text: 'Next identifier page',
+    attr: { type: 'button' }
+  });
+  next.disabled = offset + pageSize >= total;
+  next.addEventListener('click', () => {
+    context.state.poolPage += 1;
+    context.rerender();
+  });
 }
 
 function transactionButton(
