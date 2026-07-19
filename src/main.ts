@@ -23,6 +23,7 @@ import { HistoryRecordingRepository } from './application/history/history-record
 import { TemplateProjectService } from './application/templates/template-project-service';
 import { PublishingExportService } from './application/exports/publishing-export-service';
 import { PublishingSettingsService } from './application/settings/publishing-settings-service';
+import { DiagnosticsService } from './application/diagnostics/diagnostics-service';
 import { JournaledOperationRunner } from './application/storage/operation-journal';
 import { ManagedFolderLayout } from './domain/storage/managed-folder-layout';
 import { ObsidianBookCatalogController } from './infrastructure/catalog/obsidian-book-catalog-controller';
@@ -46,6 +47,7 @@ import { BookDraftStore } from './ui/state/book-draft-store';
 import { registerPublishingViews } from './ui/views/register-publishing-views';
 import { registerTemplateLibraryView } from './ui/views/template-library-view';
 import { registerPublishingExportView } from './ui/views/publishing-export-view';
+import { registerDiagnosticsView } from './ui/views/diagnostics-view';
 
 export default class PublishingManagerPlugin extends Plugin {
   /**
@@ -161,6 +163,11 @@ export default class PublishingManagerPlugin extends Plugin {
     );
     catalogController.register(this);
     await catalogController.initialize();
+    // Diagnostics owns only read projections, one local text-export port, and the same derived
+    // catalog refresh callback as the Dashboard. It cannot save or delete canonical records.
+    const diagnostics = new DiagnosticsService(catalog, settings, vaultText, layout, clock, () =>
+      catalogController.initialize()
+    );
 
     registerFoundationCommand(this, getFoundationStatus);
     registerBookCommands(this, books);
@@ -189,6 +196,7 @@ export default class PublishingManagerPlugin extends Plugin {
     );
     registerTemplateLibraryView(this, catalog, templates);
     registerPublishingExportView(this, catalog, exports);
+    registerDiagnosticsView(this, diagnostics);
     this.addSettingTab(
       new PublishingManagerSettingsTab(
         this.app,
