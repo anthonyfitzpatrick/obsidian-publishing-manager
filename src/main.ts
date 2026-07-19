@@ -21,6 +21,7 @@ import { HistoryPreferencesService } from './application/history/history-prefere
 import { HistoryProjectService } from './application/history/history-project-service';
 import { HistoryRecordingRepository } from './application/history/history-recording-repository';
 import { TemplateProjectService } from './application/templates/template-project-service';
+import { PublishingExportService } from './application/exports/publishing-export-service';
 import { JournaledOperationRunner } from './application/storage/operation-journal';
 import { ManagedFolderLayout } from './domain/storage/managed-folder-layout';
 import { ObsidianBookCatalogController } from './infrastructure/catalog/obsidian-book-catalog-controller';
@@ -42,6 +43,7 @@ import { PublishingManagerSettingsTab } from './ui/settings/publishing-manager-s
 import { BookDraftStore } from './ui/state/book-draft-store';
 import { registerPublishingViews } from './ui/views/register-publishing-views';
 import { registerTemplateLibraryView } from './ui/views/template-library-view';
+import { registerPublishingExportView } from './ui/views/publishing-export-view';
 
 export default class PublishingManagerPlugin extends Plugin {
   /**
@@ -131,6 +133,19 @@ export default class PublishingManagerPlugin extends Plugin {
       clock,
       ids
     );
+    // Export planning consumes the same canonical catalog, readiness, sales, and calendar
+    // projections as the interactive workspaces. The coordinator receives only a text-write port,
+    // so it cannot read or duplicate linked binary production assets.
+    const exports = new PublishingExportService(
+      catalog,
+      canonicalRepository,
+      readiness,
+      sales,
+      calendar,
+      vaultText,
+      layout,
+      clock
+    );
     const drafts = new BookDraftStore();
     const catalogController = new ObsidianBookCatalogController(
       this.app.vault,
@@ -168,6 +183,7 @@ export default class PublishingManagerPlugin extends Plugin {
       () => catalogController.initialize()
     );
     registerTemplateLibraryView(this, catalog, templates);
+    registerPublishingExportView(this, catalog, exports);
     this.addSettingTab(
       new PublishingManagerSettingsTab(this.app, this, classificationLicenses, historyPreferences)
     );

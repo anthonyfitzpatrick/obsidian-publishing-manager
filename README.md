@@ -6,7 +6,7 @@ The product specification and project backlog in the Publishing Manager Obsidian
 
 ## Current state
 
-Milestones M0 through M6 are complete. M7 Repeatability is current at 5/22 items. Its Templates section provides eight versioned, data-only template families, safe copy-before-edit behavior, required-variable previews, bounded portable JSON import, and deterministic local JSON export. The Exports section is next.
+Milestones M0 through M6 are complete. M7 Repeatability is current at 13/22 items. Templates and Exports are complete: the plugin provides safe versioned templates plus previewed Markdown dossiers, seven CSV tables, versioned JSON project graphs, and local ICS schedules. Settings and diagnostics are next.
 
 ## Licence boundary
 
