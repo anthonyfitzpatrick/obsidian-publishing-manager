@@ -8,6 +8,7 @@ export const ENABLED_WORKSPACE_TABS = [
   'overview',
   'workflow',
   'editions',
+  'metadata',
   'assets',
   'diagnostics'
 ] as const;

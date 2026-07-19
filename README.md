@@ -6,7 +6,7 @@ The product specification and project backlog in the Publishing Manager Obsidian
 
 ## Current state
 
-Milestones M0 through M3 are complete. The live plugin provides canonical records, conflict-aware persistence, book lifecycle/catalog reconciliation, a native graphical Dashboard, and a Book Workspace with Overview, Workflow, Editions, Assets, and Diagnostics. M3 adds versioned workflow/task models, the complete sixteen-stage default, independent per-book instances, editable/branchable stages, complete task evidence, exact dependency-cycle rejection, explained blockers, guarded completion, merge previews, accessible list/board modes, a full inspector, title-only capture, journal-backed batch editing, attention queries, and separate manual retailer confirmation.
+Milestones M0 through M3 are complete. The live plugin provides canonical records, conflict-aware persistence, book lifecycle/catalog reconciliation, a native graphical Dashboard, and a Book Workspace with Overview, Workflow, Editions, Metadata, Assets, and Diagnostics. M4 metadata adds structured book defaults, explicit edition overrides, effective-value provenance, versioned coverage profiles, deterministic Markdown/plain-text descriptions, and grouped responsive editing. The complete BISAC list is not bundled until the required incorporation license is recorded; the plugin performs no classification network lookup.
 
 The authoritative milestone and section reviews live in the Publishing Manager Obsidian documentation space.
 

@@ -94,7 +94,10 @@ export const RECORD_SCHEMAS = {
   'metadata-set': schema('metadata-set', {
     'book-id': relation('book', true),
     'edition-id': relation('edition', false),
-    values: { kind: 'object', required: true }
+    scope: requiredString(),
+    values: { kind: 'object', required: true },
+    'bisac-version': requiredString(),
+    'thema-version': requiredString()
   }),
   isbn: schema('isbn', {
     value: requiredString(),

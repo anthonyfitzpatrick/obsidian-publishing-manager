@@ -6,6 +6,7 @@ import { BookCatalog } from './application/catalog/book-catalog';
 import { EditionProjectService } from './application/editions/edition-project-service';
 import { AssetReferenceService } from './application/assets/asset-reference-service';
 import { WorkflowProjectService } from './application/workflows/workflow-project-service';
+import { MetadataProjectService } from './application/metadata/metadata-project-service';
 import { JournaledOperationRunner } from './application/storage/operation-journal';
 import { ManagedFolderLayout } from './domain/storage/managed-folder-layout';
 import { ObsidianBookCatalogController } from './infrastructure/catalog/obsidian-book-catalog-controller';
@@ -68,6 +69,7 @@ export default class PublishingManagerPlugin extends Plugin {
       ids,
       workflowJournals
     );
+    const metadata = new MetadataProjectService(repository, catalog, layout, clock, ids);
     const drafts = new BookDraftStore();
     const catalogController = new ObsidianBookCatalogController(
       this.app.vault,
@@ -82,8 +84,16 @@ export default class PublishingManagerPlugin extends Plugin {
     registerFoundationCommand(this, getFoundationStatus);
     registerBookCommands(this, books);
     registerWorkflowCommands(this, catalog, workflows);
-    registerPublishingViews(this, catalog, books, editions, assets, workflows, drafts, () =>
-      catalogController.initialize()
+    registerPublishingViews(
+      this,
+      catalog,
+      books,
+      editions,
+      assets,
+      workflows,
+      metadata,
+      drafts,
+      () => catalogController.initialize()
     );
     this.addSettingTab(new PublishingManagerSettingsTab(this.app, this));
   }

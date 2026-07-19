@@ -23,6 +23,7 @@ import type {
   AssetInspection
 } from '../../application/assets/asset-reference-service';
 import type { WorkflowProjectService } from '../../application/workflows/workflow-project-service';
+import type { MetadataProjectService } from '../../application/metadata/metadata-project-service';
 import { BOOK_STATUSES, type BookStatus } from '../../domain/books/book-project';
 import { ManualCancellationToken } from '../../domain/foundation/cancellation';
 import type {
@@ -43,6 +44,7 @@ import { EditionFormatModal } from '../dialogs/edition-format-modal';
 import { EditionRevisionModal } from '../dialogs/edition-revision-modal';
 import { LinkAssetModal, RelinkAssetModal } from '../dialogs/link-asset-modal';
 import { createWorkflowWorkspaceState, renderWorkflowWorkspace } from './workflow-workspace';
+import { createMetadataWorkspaceState, renderMetadataWorkspace } from './metadata-workspace';
 import type { BookDraftStore, BookOverviewDraft } from '../state/book-draft-store';
 import {
   ENABLED_WORKSPACE_TABS,
@@ -55,7 +57,6 @@ import {
 export const BOOK_WORKSPACE_VIEW_TYPE = 'publishing-manager-book-workspace';
 
 const FUTURE_TABS = [
-  'Metadata',
   'ISBNs',
   'Pricing',
   'Distribution',
@@ -84,6 +85,7 @@ export class BookWorkspaceView extends ItemView {
     private readonly editions: EditionProjectService,
     private readonly assets: AssetReferenceService,
     private readonly workflows: WorkflowProjectService,
+    private readonly metadata: MetadataProjectService,
     private readonly drafts: BookDraftStore,
     private readonly openDashboard: () => Promise<void>
   ) {
@@ -94,6 +96,8 @@ export class BookWorkspaceView extends ItemView {
 
   /** Runtime-only workflow view choices never become a competing canonical workflow record. */
   private readonly workflowState = createWorkflowWorkspaceState();
+  /** Profile choice is runtime presentation state; effective metadata remains derived. */
+  private readonly metadataState = createMetadataWorkspaceState();
 
   /**
    * Renders book-scoped links and fills each evidence card asynchronously. Inspection reads file
@@ -413,6 +417,20 @@ export class BookWorkspaceView extends ItemView {
       });
     } else if (this.activeTab === 'editions') {
       this.renderEditions(content, record);
+    } else if (this.activeTab === 'metadata') {
+      renderMetadataWorkspace({
+        parent: content,
+        book: record,
+        ...(this.selectedEditionId === undefined
+          ? {}
+          : { selectedEditionId: this.selectedEditionId }),
+        snapshot,
+        metadata: this.metadata,
+        state: this.metadataState,
+        rerender: () => {
+          if (this.snapshot !== undefined) this.render(this.snapshot);
+        }
+      });
     } else if (this.activeTab === 'assets') {
       this.renderAssets(content, record);
     } else {

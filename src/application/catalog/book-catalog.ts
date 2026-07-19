@@ -13,6 +13,7 @@ import {
   validateEditionProject
 } from '../../domain/editions/edition-project';
 import { validateWorkflowProject, validateWorkflowTask } from '../../domain/workflows/workflow';
+import { validateMetadataSet } from '../../domain/metadata/metadata-set';
 import {
   type BookCatalogSnapshot,
   type CatalogActivity,
@@ -224,12 +225,16 @@ export class BookCatalog {
     const tasks = [...this.recordsByPath.values()]
       .filter((record) => record.type === 'task' && !hasPathError(record.path, diagnostics))
       .sort((left, right) => left.id.localeCompare(right.id));
+    const metadataSets = [...this.recordsByPath.values()]
+      .filter((record) => record.type === 'metadata-set' && !hasPathError(record.path, diagnostics))
+      .sort((left, right) => left.id.localeCompare(right.id));
     return {
       availability: this.availability,
       books,
       editions,
       formats,
       assets,
+      metadataSets,
       workflows,
       tasks,
       diagnostics,
@@ -336,6 +341,46 @@ export class BookCatalog {
         }
       }
     }
+
+    // Metadata inheritance requires one unambiguous set per scope. External Markdown edits may
+    // create duplicates or cross-book edition links; both remain visible as repair diagnostics
+    // instead of letting resolution choose an arbitrary winner.
+    const metadataByScope = new Map<string, CatalogRecord[]>();
+    for (const record of records.filter((candidate) => candidate.type === 'metadata-set')) {
+      const bookId = record.fields['book-id'];
+      const editionId = record.fields['edition-id'];
+      const scopeKey = `${String(bookId)}:${typeof editionId === 'string' ? editionId : 'book'}`;
+      metadataByScope.set(scopeKey, [...(metadataByScope.get(scopeKey) ?? []), record]);
+      if (typeof editionId === 'string') {
+        const edition = records.find(
+          (candidate) => candidate.id === editionId && candidate.type === 'edition'
+        );
+        if (edition !== undefined && edition.fields['book-id'] !== bookId)
+          diagnostics.push({
+            code: 'catalog.invalid-metadata',
+            severity: 'error',
+            path: record.path,
+            entityId: record.id,
+            field: 'edition-id',
+            message: `Metadata edition ${editionId} does not belong to book ${String(bookId)}.`,
+            suggestedAction:
+              'Reassign the metadata set to an edition belonging to the selected book.'
+          });
+      }
+    }
+    for (const matches of metadataByScope.values())
+      if (matches.length > 1)
+        for (const record of matches)
+          diagnostics.push({
+            code: 'catalog.invalid-metadata',
+            severity: 'error',
+            path: record.path,
+            entityId: record.id,
+            field: 'scope',
+            message: `${matches.length} metadata sets claim the same book/edition scope.`,
+            suggestedAction:
+              'Merge the values into one set and archive the duplicate scope records.'
+          });
 
     return diagnostics.sort((left, right) =>
       `${left.path}:${left.code}:${left.field ?? ''}`.localeCompare(
@@ -470,6 +515,19 @@ function inspectRecord(record: CatalogRecord): readonly CatalogDiagnostic[] {
         message: diagnostic.message,
         suggestedAction:
           'Open this asset reference and correct the highlighted link or evidence field.'
+      }))
+    );
+  }
+  if (record.type === 'metadata-set' && schemaDiagnostics.length === 0) {
+    diagnostics.push(
+      ...validateMetadataSet(record.fields).map((diagnostic) => ({
+        code: 'catalog.invalid-metadata' as const,
+        severity: 'error' as const,
+        path: record.path,
+        entityId: record.id,
+        field: String(diagnostic.field),
+        message: diagnostic.message,
+        suggestedAction: 'Open this metadata set and correct the named value or scope relationship.'
       }))
     );
   }
