@@ -15,6 +15,7 @@ import type {
 } from '../../application/pricing/price-project-service';
 import type { BookCatalogSnapshot, CatalogRecord } from '../../domain/catalog/catalog-model';
 import { PRICE_HEURISTIC_DISCLOSURE } from '../../domain/pricing/price-record';
+import { pageCollection, pagedCollectionWindow } from '../view-models/paged-collection';
 
 export interface PricingWorkspaceState {
   draft: PriceDraft;
@@ -23,6 +24,8 @@ export interface PricingWorkspaceState {
   seedSourceId?: string;
   seedText: string;
   seedPreview?: PriceSeedPreview;
+  seedPage: number;
+  matrixPage: number;
 }
 
 interface PriceDraft {
@@ -43,7 +46,9 @@ interface PriceDraft {
 export function createPricingWorkspaceState(): PricingWorkspaceState {
   return {
     draft: emptyDraft(),
-    seedText: ''
+    seedText: '',
+    seedPage: 0,
+    matrixPage: 0
   };
 }
 
@@ -218,13 +223,20 @@ function renderSeed(
         context.state.seedSourceId,
         parseSeedTargets(text.value)
       );
+      context.state.seedPage = 0;
       context.rerender();
     } catch (cause) {
       new Notice(errorMessage(cause));
     }
   });
   if (context.state.seedPreview === undefined) return;
-  for (const row of context.state.seedPreview.rows) {
+  const window = pagedCollectionWindow(
+    context.state.seedPreview.rows.length,
+    context.state.seedPage,
+    50
+  );
+  context.state.seedPage = window.page;
+  for (const row of pageCollection(context.state.seedPreview.rows, window)) {
     const card = details.createDiv({ cls: 'pm-price-card' });
     card.createEl('strong', {
       text: `${String(row.fields.territory)} · ${String(row.fields.currency)} ${String(row.fields.amount)}`
@@ -246,6 +258,40 @@ function renderSeed(
           .catch((cause: unknown) => new Notice(errorMessage(cause)))
     );
   }
+  renderSeedNavigation(details, context, window.offset, window.end);
+}
+
+/** Pages preview cards while every row remains in the immutable seed preview for individual Apply. */
+function renderSeedNavigation(
+  parent: HTMLElement,
+  context: Parameters<typeof renderPricingWorkspace>[0],
+  offset: number,
+  end: number
+): void {
+  const total = context.state.seedPreview?.rows.length ?? 0;
+  if (total <= 50) return;
+  const navigation = parent.createDiv({ cls: 'pm-pagination' });
+  const previous = navigation.createEl('button', {
+    cls: 'pm-button pm-button--secondary',
+    text: 'Previous seed page',
+    attr: { type: 'button' }
+  });
+  previous.disabled = context.state.seedPage === 0;
+  previous.addEventListener('click', () => {
+    context.state.seedPage = Math.max(0, context.state.seedPage - 1);
+    context.rerender();
+  });
+  navigation.createSpan({ text: `Seed rows ${offset + 1}–${end} of ${total}` });
+  const next = navigation.createEl('button', {
+    cls: 'pm-button pm-button--secondary',
+    text: 'Next seed page',
+    attr: { type: 'button' }
+  });
+  next.disabled = end >= total;
+  next.addEventListener('click', () => {
+    context.state.seedPage += 1;
+    context.rerender();
+  });
 }
 
 function renderMatrix(
@@ -253,6 +299,9 @@ function renderMatrix(
   context: Parameters<typeof renderPricingWorkspace>[0]
 ): void {
   const records = context.prices.forBook(context.book.id);
+  const window = pagedCollectionWindow(records.length, context.state.matrixPage, 50);
+  context.state.matrixPage = window.page;
+  const visibleRecords = pageCollection(records, window);
   const panel = parent.createEl('section', { cls: 'pm-panel' });
   panel.createEl('h3', { text: `Territory and currency matrix · ${records.length}` });
   if (records.length === 0) {
@@ -274,7 +323,7 @@ function renderMatrix(
     head.createEl('th', { text: label });
   const body = table.createEl('tbody');
   const cards = panel.createDiv({ cls: 'pm-price-cards' });
-  for (const record of records) {
+  for (const record of visibleRecords) {
     const values = rowValues(record, context.prices.history(record).length);
     const tr = body.createEl('tr');
     for (const value of values) tr.createEl('td', { text: value });
@@ -285,6 +334,40 @@ function renderMatrix(
     for (const value of values.slice(4)) card.createEl('p', { text: value });
     actionButton(card, context, record);
   }
+  renderMatrixNavigation(panel, context, window.offset, window.end, records.length);
+}
+
+/** The desktop table and equivalent mobile cards share one slice, avoiding duplicate full DOM. */
+function renderMatrixNavigation(
+  parent: HTMLElement,
+  context: Parameters<typeof renderPricingWorkspace>[0],
+  offset: number,
+  end: number,
+  total: number
+): void {
+  if (total <= 50) return;
+  const navigation = parent.createDiv({ cls: 'pm-pagination' });
+  const previous = navigation.createEl('button', {
+    cls: 'pm-button pm-button--secondary',
+    text: 'Previous price page',
+    attr: { type: 'button' }
+  });
+  previous.disabled = context.state.matrixPage === 0;
+  previous.addEventListener('click', () => {
+    context.state.matrixPage = Math.max(0, context.state.matrixPage - 1);
+    context.rerender();
+  });
+  navigation.createSpan({ text: `Prices ${offset + 1}–${end} of ${total}` });
+  const next = navigation.createEl('button', {
+    cls: 'pm-button pm-button--secondary',
+    text: 'Next price page',
+    attr: { type: 'button' }
+  });
+  next.disabled = end >= total;
+  next.addEventListener('click', () => {
+    context.state.matrixPage += 1;
+    context.rerender();
+  });
 }
 
 function actionButton(

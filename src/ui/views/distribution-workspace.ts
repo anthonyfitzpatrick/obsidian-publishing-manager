@@ -11,6 +11,7 @@ import {
   DISTRIBUTION_PUBLICATION_STATES,
   DISTRIBUTION_REVIEW_STATES
 } from '../../domain/distribution/distribution-record';
+import { pageCollection, pagedCollectionWindow } from '../view-models/paged-collection';
 
 export interface DistributionWorkspaceState {
   editionId: string;
@@ -24,6 +25,7 @@ export interface DistributionWorkspaceState {
   reviewState: string;
   publicationState: string;
   notes: string;
+  targetPage: number;
 }
 export function createDistributionWorkspaceState(): DistributionWorkspaceState {
   return {
@@ -37,7 +39,8 @@ export function createDistributionWorkspaceState(): DistributionWorkspaceState {
     pricingReady: false,
     reviewState: 'not-submitted',
     publicationState: 'not-planned',
-    notes: ''
+    notes: '',
+    targetPage: 0
   };
 }
 
@@ -200,10 +203,12 @@ function renderTargets(
   context: Parameters<typeof renderDistributionWorkspace>[0]
 ): void {
   const targets = context.distribution.targets(context.book.id);
+  const window = pagedCollectionWindow(targets.length, context.state.targetPage, 50);
+  context.state.targetPage = window.page;
   const section = parent.createEl('section', { cls: 'pm-panel' });
   section.createEl('h3', { text: `Platform × edition readiness · ${targets.length}` });
   const grid = section.createDiv({ cls: 'pm-distribution-grid' });
-  for (const target of targets) {
+  for (const target of pageCollection(targets, window)) {
     const card = grid.createEl('article', { cls: 'pm-distribution-card' });
     card.createEl('strong', {
       text: `${String(target.fields.platform)} · ${String(target.fields.territory)}`
@@ -221,6 +226,40 @@ function renderTargets(
     });
     renderTargetEvidenceEditor(card, target, context);
   }
+  renderTargetNavigation(section, context, window.offset, window.end, targets.length);
+}
+
+/** Keeps platform-target cards bounded without changing their canonical evidence editors. */
+function renderTargetNavigation(
+  parent: HTMLElement,
+  context: Parameters<typeof renderDistributionWorkspace>[0],
+  offset: number,
+  end: number,
+  total: number
+): void {
+  if (total <= 50) return;
+  const navigation = parent.createDiv({ cls: 'pm-pagination' });
+  const previous = navigation.createEl('button', {
+    cls: 'pm-button pm-button--secondary',
+    text: 'Previous target page',
+    attr: { type: 'button' }
+  });
+  previous.disabled = context.state.targetPage === 0;
+  previous.addEventListener('click', () => {
+    context.state.targetPage = Math.max(0, context.state.targetPage - 1);
+    context.rerender();
+  });
+  navigation.createSpan({ text: `Targets ${offset + 1}–${end} of ${total}` });
+  const next = navigation.createEl('button', {
+    cls: 'pm-button pm-button--secondary',
+    text: 'Next target page',
+    attr: { type: 'button' }
+  });
+  next.disabled = end >= total;
+  next.addEventListener('click', () => {
+    context.state.targetPage += 1;
+    context.rerender();
+  });
 }
 
 /** Keeps every external-state change an explicit, reviewable user action. */
