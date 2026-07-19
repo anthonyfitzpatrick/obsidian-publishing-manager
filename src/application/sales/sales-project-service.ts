@@ -106,6 +106,13 @@ export class SalesProjectService {
   public sources(): readonly CatalogRecord[] {
     return this.catalog.recordsOfType('sales-source');
   }
+  /** Reads user-owned defaults from the source note; unknown keys remain harmless Markdown data. */
+  public sourceDefaults(sourceId: string): Readonly<Record<string, unknown>> {
+    const source = this.catalog.recordById(sourceId);
+    return source?.type === 'sales-source' && isRecord(source.fields.defaults)
+      ? source.fields.defaults
+      : {};
+  }
   public lines(bookId?: string): readonly CatalogRecord[] {
     const all = this.catalog
       .recordsOfType('sales-line')
@@ -420,4 +427,7 @@ function safeId(value: string): string {
     .replace(/^-+|-+$/gu, '');
   if (safe.length < 8) throw new Error('Identity generator failed.');
   return safe;
+}
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

@@ -250,7 +250,15 @@ function renderEntryForm(
   source.value = context.state.sourceId;
   source.addEventListener('change', () => {
     context.state.sourceId = source.value;
+    const defaults = context.sales.sourceDefaults(source.value);
+    if (typeof defaults.country === 'string') context.state.country = defaults.country;
+    if (typeof defaults.currency === 'string') context.state.currency = defaults.currency;
+    if (typeof defaults['platform-target-id'] === 'string')
+      context.state.targetId = defaults['platform-target-id'];
+    if (defaults['entry-kind'] === 'transaction' || defaults['entry-kind'] === 'period-summary')
+      context.state.kind = defaults['entry-kind'];
     clearPreview(context.state);
+    context.rerender();
   });
   const editions =
     context.bookId === undefined
