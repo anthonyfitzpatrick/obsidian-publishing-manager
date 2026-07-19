@@ -21,6 +21,26 @@ describe('distribution records', () => {
       ).some(({ severity }) => severity === 'warning')
     ).toBe(true);
   });
+  it('rejects executable, credential-bearing, and oversized official URLs', () => {
+    for (const value of [
+      'javascript:alert(1)',
+      'https://user:secret@example.invalid/',
+      `https://example.invalid/${'x'.repeat(2_100)}`
+    ])
+      expect(
+        validatePlatformProfile(
+          {
+            slug: 'test',
+            label: 'Test',
+            version: 1,
+            'reviewed-at': '2026-07-19',
+            'official-url': value,
+            requirements: { items: [] }
+          },
+          '2026-07-19'
+        ).some(({ field, severity }) => field === 'official-url' && severity === 'error')
+      ).toBe(true);
+  });
   it('explains every incomplete readiness input', () => {
     expect(
       targetReadiness({

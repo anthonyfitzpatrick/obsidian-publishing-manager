@@ -6,10 +6,16 @@
 
 import type { ManagedRecordEnvelope } from './record-envelope';
 import { getRecordSchema, type RecordFieldDefinition } from './schema-catalog';
+import { inspectUntrustedData } from '../security/untrusted-data';
+import { normalizeVaultPath } from '../storage/vault-path';
 
 /** Field diagnostic suitable for user-facing repair guidance and deterministic tests. */
 export interface SchemaDiagnostic {
-  readonly code: 'schema.future-version' | 'schema.invalid-field' | 'schema.missing-field';
+  readonly code:
+    | 'schema.future-version'
+    | 'schema.invalid-field'
+    | 'schema.missing-field'
+    | 'schema.resource-limit';
   readonly field: string;
   readonly message: string;
 }
@@ -33,7 +39,11 @@ export function validateRecordSchema(record: ManagedRecordData): readonly Schema
     ];
   }
 
-  const diagnostics: SchemaDiagnostic[] = [];
+  const diagnostics: SchemaDiagnostic[] = inspectUntrustedData(record.fields).map((issue) => ({
+    code: 'schema.resource-limit' as const,
+    field: issue.path,
+    message: issue.message
+  }));
   for (const [field, definition] of Object.entries(schema.fields)) {
     const value = record.fields[field];
     if (value === undefined) {
@@ -68,16 +78,75 @@ function matchesKind(value: unknown, definition: RecordFieldDefinition): boolean
     case 'object':
       return typeof value === 'object' && value !== null && !Array.isArray(value);
     case 'string-list':
-      return Array.isArray(value) && value.every((item) => typeof item === 'string');
+      return (
+        Array.isArray(value) &&
+        value.length <= (definition.maximumItems ?? 1_000) &&
+        value.every(
+          (item) =>
+            typeof item === 'string' && utf8Bytes(item) <= (definition.maximumItemBytes ?? 2_048)
+        )
+      );
     case 'date':
-      return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/u.test(value);
+      return isCalendarDate(value);
     case 'datetime':
-      return typeof value === 'string' && !Number.isNaN(Date.parse(value));
+      return isCanonicalInstant(value);
     case 'decimal':
-      return typeof value === 'string' && /^-?(?:0|[1-9]\d*)(?:\.\d+)?$/u.test(value);
+      return (
+        typeof value === 'string' &&
+        utf8Bytes(value) <= (definition.maximumBytes ?? 100) &&
+        /^-?(?:0|[1-9]\d*)(?:\.\d+)?$/u.test(value)
+      );
     case 'string':
-      return typeof value === 'string';
+      return (
+        typeof value === 'string' &&
+        utf8Bytes(value) <= (definition.maximumBytes ?? 32_768) &&
+        (definition.relationship === undefined || isManagedId(value)) &&
+        (definition.allowedValues === undefined || definition.allowedValues.includes(value)) &&
+        matchesFormat(value, definition.format)
+      );
   }
+}
+
+function matchesFormat(value: string, format: RecordFieldDefinition['format']): boolean {
+  if (format === undefined) return true;
+  if (format === 'country') return /^[A-Z]{2}$/u.test(value);
+  if (format === 'currency') return /^[A-Z]{3}$/u.test(value);
+  if (format === 'http-url') {
+    try {
+      const parsed = new URL(value);
+      return ['http:', 'https:'].includes(parsed.protocol) && !parsed.username && !parsed.password;
+    } catch {
+      return false;
+    }
+  }
+  if (format === 'token') return /^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/u.test(value);
+  try {
+    return normalizeVaultPath(value) === value;
+  } catch {
+    return false;
+  }
+}
+
+function isManagedId(value: string): boolean {
+  return /^pm-[a-z0-9][a-z0-9-]{7,127}$/u.test(value);
+}
+
+function isCalendarDate(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(value);
+  if (match === null) return false;
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  return date.toISOString().slice(0, 10) === value;
+}
+
+function isCanonicalInstant(value: unknown): value is string {
+  if (typeof value !== 'string' || utf8Bytes(value) > 40 || !value.endsWith('Z')) return false;
+  const parsed = new Date(value);
+  return !Number.isNaN(parsed.valueOf()) && parsed.toISOString() === value;
+}
+
+function utf8Bytes(value: string): number {
+  return new TextEncoder().encode(value).byteLength;
 }
 
 /** Produces a human-readable type label and retains relationship information. */

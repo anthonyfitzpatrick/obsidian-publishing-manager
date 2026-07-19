@@ -31,6 +31,14 @@ describe('vault path normalization', () => {
       'Publishing Manager/Café.md'
     );
   });
+
+  it('rejects excessive path, segment, and depth limits', () => {
+    expect(() => normalizeVaultPath(`${'x'.repeat(256)}.md`)).toThrow('segment-too-long');
+    expect(() => normalizeVaultPath(new Array(130).fill('x').join('/'))).toThrow(
+      'too-many-segments'
+    );
+    expect(() => normalizeVaultPath(`${'folder/'.repeat(127)}${'x'.repeat(260)}.md`)).toThrow();
+  });
 });
 
 describe('managed folder layout', () => {

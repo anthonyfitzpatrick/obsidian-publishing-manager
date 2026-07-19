@@ -24,6 +24,9 @@ describe('review record', () => {
     expect(() => normalizeReview({ ...base, sourceLink: 'javascript:alert(1)' })).toThrow(
       'HTTP or HTTPS'
     );
+    expect(() =>
+      normalizeReview({ ...base, sourceLink: 'https://user:secret@example.invalid/' })
+    ).toThrow('without credentials');
     expect(() => normalizeReview({ ...base, quote: 'x'.repeat(501) })).toThrow('500 characters');
     expect(() => normalizeReview({ ...base, permissionStatus: 'unknown', quote: 'Text' })).toThrow(
       'permission'

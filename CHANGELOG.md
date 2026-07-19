@@ -6,6 +6,8 @@ All notable changes to Publishing Manager are recorded here using Keep a Changel
 
 ### Added
 
+- M9 SEC-001 and SEC-002: cross-feature threat model, shared plain-data/prototype/resource preflight, bounded managed Markdown/frontmatter, stricter schema/path/date/timestamp/relationship/enum/URL constraints, credential-free HTTP(S) rendering, hostile fixtures, and a permanent security build gate.
+
 - M8 exit review passed all 18 optional-integration items, 53 test files/179 tests, coverage, production build, empty audited production dependency tree, release-asset checksums, and disposable-vault installation; M9 Hardening is current.
 
 - M8 INT-001 through INT-004: bounded JSON-only optional integration transports; whole-envelope limits; malicious, cyclic, oversized, and mid-session-disable contract coverage; build-enforced application/repository/private-plugin boundaries; and expanded no-network checks. M8 delivery is 18/18 pending exit review.

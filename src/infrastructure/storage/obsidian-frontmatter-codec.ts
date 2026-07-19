@@ -11,6 +11,10 @@ import type {
   MarkdownFrontmatterCodec,
   ParsedMarkdownDocument
 } from '../../application/storage/record-storage-ports';
+import { inspectUntrustedData } from '../../domain/security/untrusted-data';
+
+export const MAXIMUM_MANAGED_MARKDOWN_BYTES = 4_194_304;
+export const MAXIMUM_MANAGED_FRONTMATTER_BYTES = 1_048_576;
 
 /** Raised when a candidate note has no canonical frontmatter block or contains non-object YAML. */
 export class InvalidFrontmatterDocumentError extends Error {
@@ -25,6 +29,8 @@ export class InvalidFrontmatterDocumentError extends Error {
 export class ObsidianFrontmatterCodec implements MarkdownFrontmatterCodec {
   /** Splits the first frontmatter block without trimming or otherwise changing body content. */
   public parse(source: string): ParsedMarkdownDocument {
+    if (new TextEncoder().encode(source).byteLength > MAXIMUM_MANAGED_MARKDOWN_BYTES)
+      throw new InvalidFrontmatterDocumentError('Managed record exceeds the 4 MiB Markdown limit.');
     const match = /^(?:\uFEFF)?---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/u.exec(source);
     if (match === null) {
       throw new InvalidFrontmatterDocumentError(
@@ -33,12 +39,21 @@ export class ObsidianFrontmatterCodec implements MarkdownFrontmatterCodec {
     }
 
     const yaml = match[1] ?? '';
+    if (new TextEncoder().encode(yaml).byteLength > MAXIMUM_MANAGED_FRONTMATTER_BYTES)
+      throw new InvalidFrontmatterDocumentError(
+        'Managed record frontmatter exceeds the 1 MiB limit.'
+      );
     const parsed: unknown = parseYaml(yaml);
     if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
       throw new InvalidFrontmatterDocumentError(
         'Managed record frontmatter must parse to a key/value object.'
       );
     }
+    const shapeIssues = inspectUntrustedData(parsed);
+    if (shapeIssues.length > 0)
+      throw new InvalidFrontmatterDocumentError(
+        `Managed record frontmatter is unsafe: ${shapeIssues[0]?.message ?? 'unsupported data shape.'}`
+      );
 
     return {
       frontmatter: parsed as Readonly<Record<string, unknown>>,

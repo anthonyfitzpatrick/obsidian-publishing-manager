@@ -100,4 +100,39 @@ describe('versioned schema catalog', () => {
       })
     ]);
   });
+
+  it('rejects impossible dates, unsupported enums, unsafe URLs, bad relationships, and oversized text', () => {
+    const diagnostics = validateRecordSchema({
+      envelope: { ...VALID_ENVELOPE, pmType: 'review' },
+      fields: {
+        'book-id': '../not-an-id',
+        source: 'Fictional source',
+        'source-link': 'javascript:alert(1)',
+        date: '2026-02-30',
+        'permission-status': 'invented',
+        'follow-up-status': 'none',
+        notes: 'x'.repeat(32_769)
+      }
+    });
+    expect(diagnostics.map(({ field }) => field)).toEqual(
+      expect.arrayContaining(['book-id', 'source-link', 'date', 'permission-status', 'notes'])
+    );
+  });
+
+  it('reports hostile structured extension data before feature hydration', () => {
+    const cycle: Record<string, unknown> = {};
+    cycle.self = cycle;
+    const diagnostics = validateRecordSchema({
+      envelope: VALID_ENVELOPE,
+      fields: {
+        title: 'Fictional title',
+        status: 'active',
+        'primary-language': 'en',
+        'hostile-extension': cycle
+      }
+    });
+    expect(diagnostics).toEqual([
+      expect.objectContaining({ code: 'schema.resource-limit', field: '$.hostile-extension.self' })
+    ]);
+  });
 });

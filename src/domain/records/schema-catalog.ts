@@ -14,7 +14,12 @@ export type SchemaValueKind =
 
 /** Field-level storage contract; domain-specific semantics are layered on later. */
 export interface RecordFieldDefinition {
+  readonly allowedValues?: readonly string[];
+  readonly format?: 'country' | 'currency' | 'http-url' | 'token' | 'vault-path';
   readonly kind: SchemaValueKind;
+  readonly maximumBytes?: number;
+  readonly maximumItemBytes?: number;
+  readonly maximumItems?: number;
   readonly required: boolean;
   readonly relationship?: ManagedRecordType;
 }
@@ -34,6 +39,10 @@ const optionalString = (): RecordFieldDefinition => ({
   kind: 'string',
   required: false
 });
+const constrainedString = (
+  required: boolean,
+  options: Pick<RecordFieldDefinition, 'allowedValues' | 'format' | 'maximumBytes'>
+): RecordFieldDefinition => ({ kind: 'string', required, ...options });
 const relation = (relationship: ManagedRecordType, required: boolean): RecordFieldDefinition => ({
   kind: 'string',
   required,
@@ -48,19 +57,35 @@ export const RECORD_SCHEMAS = {
   }),
   book: schema('book', {
     title: requiredString(),
-    status: requiredString(),
-    'primary-language': requiredString(),
+    status: constrainedString(true, {
+      allowedValues: ['planned', 'active', 'ready', 'published', 'suspended', 'archived']
+    }),
+    'primary-language': constrainedString(true, { format: 'token', maximumBytes: 40 }),
     'series-id': relation('series', false),
     'series-position': { kind: 'integer', required: false },
     summary: optionalString()
   }),
   edition: schema('edition', {
     'book-id': relation('book', true),
-    type: requiredString(),
+    type: constrainedString(true, {
+      allowedValues: [
+        'paperback',
+        'hardcover',
+        'ebook',
+        'audiobook',
+        'large-print',
+        'special-edition',
+        'collector-edition',
+        'box-set',
+        'custom'
+      ]
+    }),
     'custom-type': optionalString(),
-    medium: requiredString(),
+    medium: constrainedString(true, { allowedValues: ['print', 'digital', 'audio', 'mixed'] }),
     revision: { kind: 'integer', required: true },
-    status: requiredString(),
+    status: constrainedString(true, {
+      allowedValues: ['planned', 'active', 'ready', 'published', 'suspended', 'archived']
+    }),
     'publication-date': { kind: 'date', required: false },
     cover: optionalString(),
     'retail-links': { kind: 'object', required: false },
@@ -77,9 +102,9 @@ export const RECORD_SCHEMAS = {
   format: schema('format', {
     'edition-id': relation('edition', true),
     kind: requiredString(),
-    category: requiredString(),
+    category: constrainedString(true, { allowedValues: ['print', 'digital', 'audio'] }),
     label: optionalString(),
-    'file-path': optionalString(),
+    'file-path': constrainedString(false, { format: 'vault-path', maximumBytes: 1_024 }),
     accessibility: { kind: 'object', required: false },
     metadata: { kind: 'object', required: false },
     'asset-reference-id': relation('asset-reference', false)
@@ -88,7 +113,7 @@ export const RECORD_SCHEMAS = {
     'edition-id': relation('edition', true),
     'profile-id': relation('platform-profile', true),
     platform: requiredString(),
-    territory: requiredString(),
+    territory: constrainedString(true, { format: 'country', maximumBytes: 2 }),
     'publication-location': requiredString(),
     aliases: { kind: 'string-list', required: false },
     intent: { kind: 'boolean', required: true },
@@ -97,8 +122,12 @@ export const RECORD_SCHEMAS = {
     'assets-ready': { kind: 'boolean', required: true },
     'pricing-ready': { kind: 'boolean', required: true },
     'upload-date': { kind: 'date', required: false },
-    'review-state': requiredString(),
-    'publication-state': requiredString(),
+    'review-state': constrainedString(true, {
+      allowedValues: ['not-submitted', 'submitted', 'in-review', 'approved', 'changes-requested']
+    }),
+    'publication-state': constrainedString(true, {
+      allowedValues: ['not-planned', 'preorder', 'published', 'unpublished']
+    }),
     'retail-links': { kind: 'object', required: false },
     notes: optionalString(),
     'last-verified': { kind: 'date', required: false },
@@ -109,7 +138,7 @@ export const RECORD_SCHEMAS = {
     label: requiredString(),
     version: { kind: 'integer', required: true },
     'reviewed-at': { kind: 'date', required: true },
-    'official-url': requiredString(),
+    'official-url': constrainedString(true, { format: 'http-url', maximumBytes: 2_048 }),
     requirements: { kind: 'object', required: true },
     notes: optionalString()
   }),
@@ -133,7 +162,9 @@ export const RECORD_SCHEMAS = {
   isbn: schema('isbn', {
     value: requiredString(),
     'isbn-10': optionalString(),
-    status: requiredString(),
+    status: constrainedString(true, {
+      allowedValues: ['available', 'reserved', 'assigned', 'published', 'retired']
+    }),
     'edition-id': relation('edition', false),
     'format-id': relation('format', false),
     publisher: optionalString(),
@@ -147,8 +178,8 @@ export const RECORD_SCHEMAS = {
   price: schema('price', {
     'edition-id': relation('edition', true),
     platform: requiredString(),
-    territory: requiredString(),
-    currency: requiredString(),
+    territory: constrainedString(true, { format: 'country', maximumBytes: 2 }),
+    currency: constrainedString(true, { format: 'currency', maximumBytes: 3 }),
     amount: { kind: 'decimal', required: true },
     'tax-included': { kind: 'boolean', required: true },
     'tax-rate': { kind: 'decimal', required: false },
@@ -163,7 +194,7 @@ export const RECORD_SCHEMAS = {
   workflow: schema('workflow', {
     'book-id': relation('book', true),
     name: requiredString(),
-    status: requiredString(),
+    status: constrainedString(true, { allowedValues: ['active', 'archived'] }),
     'template-id': requiredString(),
     'template-version': { kind: 'integer', required: true },
     'template-baseline': { kind: 'object', required: true },
@@ -175,8 +206,10 @@ export const RECORD_SCHEMAS = {
     'stage-id': requiredString(),
     'edition-id': relation('edition', false),
     title: requiredString(),
-    status: requiredString(),
-    priority: requiredString(),
+    status: constrainedString(true, {
+      allowedValues: ['not-started', 'active', 'done', 'cancelled']
+    }),
+    priority: constrainedString(true, { allowedValues: ['low', 'normal', 'high', 'urgent'] }),
     required: { kind: 'boolean', required: true },
     deadline: { kind: 'date', required: false },
     'estimate-minutes': { kind: 'integer', required: false },
@@ -201,7 +234,9 @@ export const RECORD_SCHEMAS = {
     'publication-date': { kind: 'date', required: true },
     'template-id': requiredString(),
     'template-version': { kind: 'integer', required: true },
-    'reflow-mode': requiredString(),
+    'reflow-mode': constrainedString(true, {
+      allowedValues: ['all-unpinned', 'future-incomplete', 'anchor-only']
+    }),
     milestones: { kind: 'object', required: true },
     'critical-path': { kind: 'string-list', required: true }
   }),
@@ -209,15 +244,19 @@ export const RECORD_SCHEMAS = {
     'book-id': relation('book', true),
     'edition-id': relation('edition', false),
     source: requiredString(),
-    'source-link': optionalString(),
+    'source-link': constrainedString(false, { format: 'http-url', maximumBytes: 2_048 }),
     date: { kind: 'date', required: true },
     rating: { kind: 'decimal', required: false },
     quote: optionalString(),
     reference: optionalString(),
-    'permission-status': requiredString(),
+    'permission-status': constrainedString(true, {
+      allowedValues: ['unknown', 'not-required', 'obtained', 'restricted']
+    }),
     'permission-notes': optionalString(),
     'follow-up-date': { kind: 'date', required: false },
-    'follow-up-status': requiredString(),
+    'follow-up-status': constrainedString(true, {
+      allowedValues: ['none', 'open', 'done', 'dismissed']
+    }),
     notes: optionalString()
   }),
   template: schema('template', {
@@ -237,7 +276,7 @@ export const RECORD_SCHEMAS = {
     'book-id': relation('book', true),
     'edition-id': relation('edition', false),
     'format-id': relation('format', false),
-    path: requiredString(),
+    path: constrainedString(true, { format: 'vault-path', maximumBytes: 1_024 }),
     role: requiredString(),
     'modified-time': { kind: 'datetime', required: false },
     size: { kind: 'integer', required: false },
@@ -271,14 +310,14 @@ export const RECORD_SCHEMAS = {
     'edition-id': relation('edition', true),
     'format-id': relation('format', false),
     'platform-target-id': relation('platform-target', true),
-    country: requiredString(),
-    kind: requiredString(),
+    country: constrainedString(true, { format: 'country', maximumBytes: 2 }),
+    kind: constrainedString(true, { allowedValues: ['transaction', 'period-summary'] }),
     'start-date': { kind: 'date', required: true },
     'end-date': { kind: 'date', required: true },
     units: { kind: 'integer', required: true },
     returns: { kind: 'integer', required: true },
     'net-units': { kind: 'integer', required: true },
-    currency: requiredString(),
+    currency: constrainedString(true, { format: 'currency', maximumBytes: 3 }),
     'gross-revenue': { kind: 'decimal', required: false },
     'net-revenue': { kind: 'decimal', required: false },
     tax: { kind: 'decimal', required: false },
@@ -290,11 +329,13 @@ export const RECORD_SCHEMAS = {
     'coverage-key': requiredString(),
     provenance: { kind: 'object', required: true },
     'source-values': { kind: 'object', required: true },
-    status: requiredString()
+    status: constrainedString(true, { allowedValues: ['accepted', 'superseded', 'void'] })
   }),
   'sales-correction': schema('sales-correction', {
     'sales-line-id': relation('sales-line', true),
-    kind: requiredString(),
+    kind: constrainedString(true, {
+      allowedValues: ['correction', 'refund', 'return', 'reversal']
+    }),
     reason: requiredString(),
     timestamp: { kind: 'datetime', required: true },
     adjustment: { kind: 'object', required: true },

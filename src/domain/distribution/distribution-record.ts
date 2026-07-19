@@ -1,4 +1,6 @@
 /** Pure DST-001/DST-003/DST-005/DST-006 contracts; no function owns a network capability. */
+import { safeExternalHttpUrl } from '../security/untrusted-data';
+
 export const DISTRIBUTION_REVIEW_STATES = [
   'not-submitted',
   'submitted',
@@ -29,6 +31,10 @@ export function validatePlatformProfile(
   for (const field of ['slug', 'label', 'official-url'])
     if (typeof fields[field] !== 'string' || !fields[field])
       d.push(error(field, `${field} is required.`));
+  if (safeExternalHttpUrl(fields['official-url']) === undefined)
+    d.push(
+      error('official-url', 'Official URL must be bounded HTTP or HTTPS without credentials.')
+    );
   if (!Number.isSafeInteger(fields.version) || Number(fields.version) < 1)
     d.push(error('version', 'Profile version must be a positive integer.'));
   if (

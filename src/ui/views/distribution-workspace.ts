@@ -1,5 +1,6 @@
 /** Native DST-004 surface; all external states are explicit manual evidence. */
 import { Notice } from 'obsidian';
+import { safeExternalHttpUrl } from '../../domain/security/untrusted-data';
 import type {
   DistributionProjectService,
   DistributionTargetInput
@@ -85,11 +86,15 @@ export function renderDistributionWorkspace(context: {
       text: `${String(profile.fields.label)} · v${String(profile.fields.version)}`
     });
     row.createEl('p', { text: `Reviewed ${String(profile.fields['reviewed-at'])}` });
-    const link = row.createEl('a', {
-      text: 'Open official requirements',
-      href: String(profile.fields['official-url'])
-    });
-    link.setAttr('target', '_blank');
+    const officialUrl = safeExternalHttpUrl(profile.fields['official-url']);
+    if (officialUrl === undefined)
+      row.createEl('p', { cls: 'pm-muted', text: 'Official URL is invalid and cannot be opened.' });
+    else
+      row.createEl('a', {
+        text: 'Open official requirements',
+        href: officialUrl,
+        attr: { target: '_blank', rel: 'noopener noreferrer' }
+      });
     for (const issue of context.distribution.profileDiagnostics(profile))
       row.createEl('p', { text: `${issue.severity}: ${issue.message}` });
   }

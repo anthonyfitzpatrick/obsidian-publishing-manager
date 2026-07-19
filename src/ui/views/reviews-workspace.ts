@@ -1,5 +1,6 @@
 /** Native REV-001/REV-002 permission-aware entry and chronological filtered review log. */
 import { Notice } from 'obsidian';
+import { safeExternalHttpUrl } from '../../domain/security/untrusted-data';
 import type { ReviewProjectService } from '../../application/reviews/review-project-service';
 import type { BookCatalogSnapshot, CatalogRecord } from '../../domain/catalog/catalog-model';
 import type {
@@ -269,7 +270,7 @@ function renderReviewList(
     row.createEl('strong', {
       text: `${text(review.fields.date, 'Unknown date')} · ${text(review.fields.source, 'Unknown source')} · rating ${text(review.fields.rating, '—')}`
     });
-    const link = safeHttpUrl(review.fields['source-link']);
+    const link = safeExternalHttpUrl(review.fields['source-link']);
     if (link !== undefined)
       row.createEl('a', {
         text: ' Open source',
@@ -295,19 +296,6 @@ function renderReviewList(
   }
   if (!reviews.length)
     section.createEl('p', { cls: 'pm-muted', text: 'No review evidence matches these filters.' });
-}
-
-/** Refuses executable or malformed links if a user hand-edits canonical Markdown. */
-function safeHttpUrl(value: unknown): string | undefined {
-  if (typeof value !== 'string') return undefined;
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
-      ? parsed.toString()
-      : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 function reviewInput(context: Parameters<typeof renderReviewsWorkspace>[0]): ReviewInput {

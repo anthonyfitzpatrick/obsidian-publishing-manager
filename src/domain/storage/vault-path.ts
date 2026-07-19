@@ -20,6 +20,9 @@ export class InvalidVaultPathError extends Error {
       | 'dot-segment'
       | 'empty'
       | 'leading-or-trailing-whitespace'
+      | 'path-too-long'
+      | 'segment-too-long'
+      | 'too-many-segments'
       | 'segment-whitespace'
       | 'uri-scheme'
       | 'windows-drive'
@@ -41,6 +44,9 @@ export function normalizeVaultPath(input: string): VaultPath {
   if (input !== input.trim()) {
     throw new InvalidVaultPathError(input, 'leading-or-trailing-whitespace');
   }
+  if (new TextEncoder().encode(input).byteLength > 1_024) {
+    throw new InvalidVaultPathError(input, 'path-too-long');
+  }
   if (input.startsWith('/') || input.startsWith('~')) {
     throw new InvalidVaultPathError(input, 'absolute');
   }
@@ -58,6 +64,12 @@ export function normalizeVaultPath(input: string): VaultPath {
   }
 
   const segments = input.split('/');
+  if (segments.length > 128) {
+    throw new InvalidVaultPathError(input, 'too-many-segments');
+  }
+  if (segments.some((segment) => new TextEncoder().encode(segment).byteLength > 255)) {
+    throw new InvalidVaultPathError(input, 'segment-too-long');
+  }
   if (segments.some((segment) => segment === '.' || segment === '..' || segment.length === 0)) {
     throw new InvalidVaultPathError(input, 'dot-segment');
   }

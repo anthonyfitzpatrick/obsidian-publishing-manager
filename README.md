@@ -6,7 +6,7 @@ The product specification and project backlog in the Publishing Manager Obsidian
 
 ## Current state
 
-Milestones M0 through M8 are complete. M8 passed 18/18 with bounded, versioned, data-only Compiler and Metadata Visuals contracts, explicit opt-in controls, hostile/mid-session-disable handling, static repository/private-plugin boundaries, and no production network capability. M9 Hardening is current at 0/24.
+Milestones M0 through M8 are complete. M9 Hardening is current at 2/24. SEC-001/SEC-002 add a cross-feature threat model, validation inventory, hostile parsed-data limits, stricter path/date/identity/enum/URL constraints, and a permanent security build gate.
 
 ## Licence boundary
 

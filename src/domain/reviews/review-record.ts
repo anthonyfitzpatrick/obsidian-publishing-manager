@@ -1,5 +1,6 @@
 /** Pure REV-001 validation for permission-aware, bounded review evidence. */
 import { shiftDateOnly } from '../launch/launch-plan';
+import { safeExternalHttpUrl } from '../security/untrusted-data';
 
 export type ReviewPermissionStatus = 'unknown' | 'not-required' | 'obtained' | 'restricted';
 export type ReviewFollowUpStatus = 'none' | 'open' | 'done' | 'dismissed';
@@ -28,11 +29,8 @@ export function normalizeReview(input: ReviewInput): NormalizedReview {
   shiftDateOnly(input.date, 0, false);
   if (input.followUpDate !== undefined) shiftDateOnly(input.followUpDate, 0, false);
   const sourceLink = optional(input.sourceLink);
-  if (sourceLink !== undefined) {
-    const url = new URL(sourceLink);
-    if (!['http:', 'https:'].includes(url.protocol))
-      throw new Error('Review source link must use HTTP or HTTPS.');
-  }
+  if (sourceLink !== undefined && safeExternalHttpUrl(sourceLink) === undefined)
+    throw new Error('Review source link must use bounded HTTP or HTTPS without credentials.');
   const rating = optional(input.rating);
   if (rating !== undefined) {
     if (!/^\d(?:\.\d+)?$/u.test(rating) || Number(rating) < 0 || Number(rating) > 5)
