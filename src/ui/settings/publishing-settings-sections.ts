@@ -316,13 +316,17 @@ export class PublishingSettingsSections {
     const panel = section(
       this.container,
       'Integrations',
-      'No optional capability is currently active. Future capabilities remain independently detected, disclosed, tested, and enabled.'
+      'Capability preferences are local and opt-in. Runtime detection and compatibility evidence remain in each integration workspace.'
     );
     const draft = {
       ...this.value.integrations,
       enabledCapabilities: [...this.value.integrations.enabledCapabilities]
     };
-    readonlyField(panel, 'Detected capabilities', 'None');
+    readonlyField(
+      panel,
+      'Enabled capability preferences',
+      draft.enabledCapabilities.join(', ') || 'None'
+    );
     toggle(
       panel,
       'Disclose exchanged fields',

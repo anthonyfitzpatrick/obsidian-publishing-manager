@@ -6,6 +6,8 @@ All notable changes to Publishing Manager are recorded here using Keep a Changel
 
 ### Added
 
+- M8 INT-C-001, INT-C-002, and INT-C-007: strict local Manuscript Compiler v1 capability negotiation, explicit enablement, bounded correlated request previews, validated accepted/declined acknowledgement, native integration workspace, and always-available manual Assets fallback. Result payloads/freshness remain pending.
+
 - Foundation plugin scaffold, architecture boundaries, deterministic services, and native settings entry.
 - Local and Gitea CI quality gates for formatting, lint, types, support declarations, forbidden APIs, tests, and production builds.
 - Docker-free persistent native macOS Gitea runner configuration.

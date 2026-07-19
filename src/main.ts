@@ -24,6 +24,7 @@ import { TemplateProjectService } from './application/templates/template-project
 import { PublishingExportService } from './application/exports/publishing-export-service';
 import { PublishingSettingsService } from './application/settings/publishing-settings-service';
 import { DiagnosticsService } from './application/diagnostics/diagnostics-service';
+import { ManuscriptCompilerIntegrationService } from './application/integrations/manuscript-compiler-integration';
 import { JournaledOperationRunner } from './application/storage/operation-journal';
 import { ManagedFolderLayout } from './domain/storage/managed-folder-layout';
 import { ObsidianBookCatalogController } from './infrastructure/catalog/obsidian-book-catalog-controller';
@@ -39,6 +40,7 @@ import {
 import { VaultManagedRecordRepository } from './infrastructure/storage/vault-managed-record-repository';
 import { VaultOperationJournalStore } from './infrastructure/storage/vault-operation-journal-store';
 import { ObsidianManagedStoragePort } from './infrastructure/settings/obsidian-managed-storage-port';
+import { BrowserCompilerCapabilityTransport } from './infrastructure/integrations/browser-compiler-capability-transport';
 import { registerBookCommands } from './ui/commands/register-book-commands';
 import { registerFoundationCommand } from './ui/commands/register-foundation-command';
 import { registerWorkflowCommands } from './ui/commands/register-workflow-commands';
@@ -48,6 +50,7 @@ import { registerPublishingViews } from './ui/views/register-publishing-views';
 import { registerTemplateLibraryView } from './ui/views/template-library-view';
 import { registerPublishingExportView } from './ui/views/publishing-export-view';
 import { registerDiagnosticsView } from './ui/views/diagnostics-view';
+import { registerManuscriptCompilerIntegrationView } from './ui/views/manuscript-compiler-integration-view';
 
 export default class PublishingManagerPlugin extends Plugin {
   /**
@@ -168,6 +171,15 @@ export default class PublishingManagerPlugin extends Plugin {
     const diagnostics = new DiagnosticsService(catalog, settings, vaultText, layout, clock, () =>
       catalogController.initialize()
     );
+    // The compiler coordinator uses a browser-local versioned event transport. No Compiler module
+    // or private plugin instance enters this composition root, and an absent provider is normal.
+    const compilerIntegration = new ManuscriptCompilerIntegrationService(
+      catalog,
+      settings,
+      new BrowserCompilerCapabilityTransport(),
+      clock,
+      ids
+    );
 
     registerFoundationCommand(this, getFoundationStatus);
     registerBookCommands(this, books);
@@ -197,6 +209,7 @@ export default class PublishingManagerPlugin extends Plugin {
     registerTemplateLibraryView(this, catalog, templates);
     registerPublishingExportView(this, catalog, exports);
     registerDiagnosticsView(this, diagnostics);
+    registerManuscriptCompilerIntegrationView(this, catalog, compilerIntegration);
     this.addSettingTab(
       new PublishingManagerSettingsTab(
         this.app,

@@ -1,0 +1,350 @@
+/** Native INT-C-001/002 capability status, request preview, and complete manual fallback surface. */
+import { ItemView, Notice, setIcon, type Plugin, type WorkspaceLeaf } from 'obsidian';
+import {
+  COMPILER_EXPORT_FORMATS,
+  type CompilerExportFormat,
+  type CompilerNegotiation,
+  type CompilerRequestPreview,
+  type ManuscriptCompilerIntegrationService
+} from '../../application/integrations/manuscript-compiler-integration';
+import type { BookCatalog } from '../../application/catalog/book-catalog';
+import type { BookCatalogSnapshot } from '../../domain/catalog/catalog-model';
+import { BOOK_WORKSPACE_VIEW_TYPE } from './book-workspace-view';
+
+export const COMPILER_INTEGRATION_VIEW_TYPE = 'publishing-manager-compiler-integration';
+
+export class ManuscriptCompilerIntegrationView extends ItemView {
+  private unsubscribe: (() => void) | undefined;
+  private snapshot: BookCatalogSnapshot | undefined;
+  private negotiation: CompilerNegotiation | undefined;
+  private bookId = '';
+  private editionId = '';
+  private readonly formats = new Set<CompilerExportFormat>();
+  private preview: CompilerRequestPreview | undefined;
+
+  public constructor(
+    leaf: WorkspaceLeaf,
+    private readonly catalog: BookCatalog,
+    private readonly compiler: ManuscriptCompilerIntegrationService
+  ) {
+    super(leaf);
+    this.icon = 'package-open';
+    this.navigation = true;
+  }
+  public getViewType(): string {
+    return COMPILER_INTEGRATION_VIEW_TYPE;
+  }
+  public getDisplayText(): string {
+    return 'Compiler integration';
+  }
+  protected override async onOpen(): Promise<void> {
+    this.unsubscribe = this.catalog.subscribe((snapshot) => {
+      this.snapshot = snapshot;
+      this.reconcileScope();
+      this.render();
+    });
+    await this.refreshCapability();
+  }
+  protected override async onClose(): Promise<void> {
+    this.unsubscribe?.();
+    this.unsubscribe = undefined;
+    this.contentEl.empty();
+  }
+
+  private async refreshCapability(): Promise<void> {
+    try {
+      this.negotiation = await this.compiler.negotiate();
+    } catch (error) {
+      this.negotiation = {
+        state: 'absent',
+        explanation: message(error, 'Capability discovery failed closed.')
+      };
+    }
+    this.preview = undefined;
+    this.render();
+  }
+
+  private reconcileScope(): void {
+    const snapshot = this.snapshot;
+    if (snapshot === undefined) return;
+    const books = snapshot.books.filter(({ archived }) => !archived);
+    if (!books.some(({ id }) => id === this.bookId)) this.bookId = books[0]?.id ?? '';
+    const editions = snapshot.editions.filter(
+      ({ archived, fields }) => !archived && fields['book-id'] === this.bookId
+    );
+    if (!editions.some(({ id }) => id === this.editionId)) this.editionId = editions[0]?.id ?? '';
+  }
+
+  private render(): void {
+    const root = this.contentEl;
+    root.empty();
+    root.addClass('publishing-manager', 'pm-compiler-integration');
+    const header = root.createDiv({ cls: 'pm-page-header' });
+    const titles = header.createDiv({ cls: 'pm-page-header__titles' });
+    titles.createEl('p', { cls: 'pm-eyebrow', text: 'Optional local capability' });
+    titles.createEl('h1', { text: 'Manuscript Compiler' });
+    titles.createEl('p', {
+      cls: 'pm-page-subtitle',
+      text: 'Request compilation through a versioned local contract. Publishing Manager never compiles internally.'
+    });
+    const actions = header.createDiv({ cls: 'pm-action-row' });
+    control(actions, 'Refresh capability', 'refresh-cw', () => void this.refreshCapability());
+    this.renderCapability(root);
+    this.renderRequest(root);
+  }
+
+  private renderCapability(root: HTMLElement): void {
+    const panel = root.createEl('section', { cls: 'pm-panel' });
+    panel.createEl('h2', { text: 'Capability negotiation' });
+    const state = this.negotiation;
+    if (state === undefined) {
+      panel.createEl('p', { text: 'Checking for an explicit v1 capability…' });
+      return;
+    }
+    panel.createEl('p', {
+      text: `${symbol(state.state)} ${sentence(state.state)} — ${state.explanation}`
+    });
+    if (state.state === 'incompatible') {
+      const list = panel.createEl('ul');
+      for (const reason of state.reasons) list.createEl('li', { text: reason });
+    }
+    if (state.state !== 'compatible') {
+      panel.createEl('p', {
+        cls: 'pm-muted',
+        text: 'Installing or enabling a plugin is not enough: it must explicitly publish the compatible contract. Publishing Manager does not inspect private plugin APIs.'
+      });
+      return;
+    }
+    panel.createEl('p', {
+      text: `Provider: ${state.descriptor.providerId} ${state.descriptor.providerVersion} · Contract v${state.descriptor.contractVersion} · Delivery: ${state.descriptor.deliveryMode}`
+    });
+    panel.createEl('p', { text: `Formats: ${state.descriptor.supportedFormats.join(', ')}` });
+    const disclosure = panel.createEl('details');
+    disclosure.createEl('summary', { text: 'Exchanged field groups' });
+    const list = disclosure.createEl('ul');
+    for (const field of state.exchangedFields) list.createEl('li', { text: field });
+    control(
+      panel,
+      state.enabled ? 'Disable compiler capability' : 'Enable compiler capability',
+      state.enabled ? 'unplug' : 'plug',
+      () => {
+        void this.compiler
+          .setEnabled(!state.enabled)
+          .then(() => this.refreshCapability())
+          .catch(
+            (error: unknown) =>
+              new Notice(message(error, 'Capability preference could not be saved.'))
+          );
+      }
+    );
+  }
+
+  private renderRequest(root: HTMLElement): void {
+    const panel = root.createEl('section', { cls: 'pm-panel' });
+    panel.createEl('h2', { text: 'Request an export' });
+    panel.createEl('p', {
+      text: 'Choose stable project scope and output formats, inspect the exact local payload, then send one correlation-ID request. Manuscript text, paths, private notes, assets, and credentials are never included.'
+    });
+    const snapshot = this.snapshot;
+    if (snapshot === undefined || snapshot.books.length === 0) {
+      panel.createEl('p', {
+        cls: 'pm-muted',
+        text: 'Create an active book and edition before requesting an export.'
+      });
+      return;
+    }
+    const bookSelect = select(
+      panel,
+      'Book',
+      snapshot.books
+        .filter(({ archived }) => !archived)
+        .map((book) => [book.id, String(book.fields.title)] as const),
+      this.bookId
+    );
+    bookSelect.addEventListener('change', () => {
+      this.bookId = bookSelect.value;
+      this.editionId = '';
+      this.preview = undefined;
+      this.reconcileScope();
+      this.render();
+    });
+    const editions = snapshot.editions.filter(
+      ({ archived, fields }) => !archived && fields['book-id'] === this.bookId
+    );
+    const editionSelect = select(
+      panel,
+      'Edition',
+      editions.map(
+        (edition) =>
+          [
+            edition.id,
+            `${String(edition.fields.type)} · revision ${String(edition.fields.revision)}`
+          ] as const
+      ),
+      this.editionId
+    );
+    editionSelect.addEventListener('change', () => {
+      this.editionId = editionSelect.value;
+      this.preview = undefined;
+    });
+    const fieldset = panel.createEl('fieldset');
+    fieldset.createEl('legend', { text: 'Requested output formats' });
+    const supported =
+      this.negotiation?.state === 'compatible'
+        ? this.negotiation.descriptor.supportedFormats
+        : COMPILER_EXPORT_FORMATS;
+    for (const format of COMPILER_EXPORT_FORMATS) {
+      const label = fieldset.createEl('label', { cls: 'pm-checkbox-row' });
+      const checkbox = label.createEl('input', { type: 'checkbox' });
+      checkbox.checked = this.formats.has(format);
+      checkbox.disabled = !supported.includes(format);
+      label.createSpan({ text: format.toUpperCase() });
+      checkbox.addEventListener('change', () => {
+        checkbox.checked ? this.formats.add(format) : this.formats.delete(format);
+        this.preview = undefined;
+      });
+    }
+    const requestEnabled = this.negotiation?.state === 'compatible' && this.negotiation.enabled;
+    const preview = control(
+      panel,
+      'Preview compiler request',
+      'file-search',
+      () => void this.previewRequest()
+    );
+    preview.disabled = !requestEnabled || this.editionId.length === 0;
+    const fallback = control(
+      panel,
+      'Open manual asset linking',
+      'paperclip',
+      () => void this.openManualFallback()
+    );
+    fallback.disabled = this.bookId.length === 0;
+    panel.createEl('p', {
+      cls: 'pm-muted',
+      text: 'Manual asset linking is a complete core workflow and remains available when the compiler is absent, disabled, incompatible, declined, or later interrupted.'
+    });
+    this.renderPreview(panel);
+  }
+
+  private async previewRequest(): Promise<void> {
+    try {
+      this.preview = await this.compiler.previewRequest({
+        bookId: this.bookId,
+        editionId: this.editionId,
+        formats: [...this.formats]
+      });
+      this.render();
+    } catch (error) {
+      new Notice(message(error, 'Compiler request preview failed.'));
+    }
+  }
+
+  private renderPreview(panel: HTMLElement): void {
+    const preview = this.preview;
+    if (preview === undefined) return;
+    const box = panel.createEl('details', { attr: { open: 'open' } });
+    box.createEl('summary', { text: 'Reviewed local request' });
+    box.createEl('p', {
+      text: `Provider: ${preview.providerId} ${preview.providerVersion} · ${preview.byteCount} bytes · Correlation: ${preview.request.correlationId}`
+    });
+    const list = box.createEl('ul');
+    for (const consequence of preview.consequences) list.createEl('li', { text: consequence });
+    box.createEl('pre').createEl('code', { text: JSON.stringify(preview.request, null, 2) });
+    control(box, 'Send this local request', 'send', () => {
+      void this.compiler
+        .applyRequest(preview)
+        .then((acknowledgement) => {
+          this.preview = undefined;
+          this.render();
+          new Notice(
+            acknowledgement.state === 'accepted'
+              ? acknowledgement.message
+              : `Compiler declined: ${acknowledgement.reason}`
+          );
+        })
+        .catch((error: unknown) => new Notice(message(error, 'Compiler request stopped.')));
+    });
+  }
+
+  private async openManualFallback(): Promise<void> {
+    const book = this.snapshot?.books.find(({ id }) => id === this.bookId);
+    if (book === undefined) return;
+    const leaf =
+      this.app.workspace.getLeavesOfType(BOOK_WORKSPACE_VIEW_TYPE)[0] ??
+      this.app.workspace.getLeaf(true);
+    await leaf.setViewState({
+      type: BOOK_WORKSPACE_VIEW_TYPE,
+      active: true,
+      state: { bookPath: book.path, tab: 'assets' }
+    });
+    await this.app.workspace.revealLeaf(leaf);
+  }
+}
+
+export function registerManuscriptCompilerIntegrationView(
+  plugin: Plugin,
+  catalog: BookCatalog,
+  compiler: ManuscriptCompilerIntegrationService
+): void {
+  const open = async (): Promise<void> => {
+    const leaf =
+      plugin.app.workspace.getLeavesOfType(COMPILER_INTEGRATION_VIEW_TYPE)[0] ??
+      plugin.app.workspace.getLeaf(true);
+    await leaf.setViewState({ type: COMPILER_INTEGRATION_VIEW_TYPE, active: true });
+    await plugin.app.workspace.revealLeaf(leaf);
+  };
+  plugin.registerView(
+    COMPILER_INTEGRATION_VIEW_TYPE,
+    (leaf) => new ManuscriptCompilerIntegrationView(leaf, catalog, compiler)
+  );
+  plugin.addRibbonIcon('package-open', 'Open Manuscript Compiler integration', () => void open());
+  plugin.addCommand({
+    id: 'open-compiler-integration',
+    name: 'Open Manuscript Compiler integration',
+    callback: () => void open()
+  });
+  plugin.register(() => plugin.app.workspace.detachLeavesOfType(COMPILER_INTEGRATION_VIEW_TYPE));
+}
+
+function select(
+  parent: HTMLElement,
+  labelText: string,
+  options: readonly (readonly [string, string])[],
+  value: string
+): HTMLSelectElement {
+  const label = parent.createEl('label');
+  label.createSpan({ text: labelText });
+  const input = label.createEl('select');
+  for (const [key, text] of options) input.createEl('option', { value: key, text });
+  input.value = value;
+  return input;
+}
+function control(
+  parent: HTMLElement,
+  text: string,
+  icon: string,
+  action: () => void
+): HTMLButtonElement {
+  const button = parent.createEl('button', {
+    cls: 'pm-button pm-button--secondary',
+    attr: { type: 'button' }
+  });
+  const iconEl = button.createSpan({ cls: 'pm-button__icon' });
+  setIcon(iconEl, icon);
+  button.createSpan({ text });
+  button.addEventListener('click', action);
+  return button;
+}
+function sentence(value: string): string {
+  return `${value[0]?.toUpperCase()}${value.slice(1)}`;
+}
+function symbol(state: string): string {
+  return state === 'compatible'
+    ? '✓'
+    : state === 'incompatible' || state === 'ambiguous'
+      ? '⚠'
+      : 'ⓘ';
+}
+function message(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
