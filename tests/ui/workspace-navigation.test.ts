@@ -19,7 +19,8 @@ describe('workspace keyboard navigation', () => {
     expect(nextWorkspaceTab('distribution', 'ArrowRight')).toBe('readiness');
     expect(nextWorkspaceTab('readiness', 'ArrowRight')).toBe('sales');
     expect(nextWorkspaceTab('sales', 'ArrowRight')).toBe('launch');
-    expect(nextWorkspaceTab('launch', 'ArrowRight')).toBe('assets');
+    expect(nextWorkspaceTab('launch', 'ArrowRight')).toBe('reviews');
+    expect(nextWorkspaceTab('reviews', 'ArrowRight')).toBe('assets');
     expect(nextWorkspaceTab('assets', 'ArrowRight')).toBe('diagnostics');
     expect(nextWorkspaceTab('diagnostics', 'ArrowRight')).toBe('overview');
     expect(nextWorkspaceTab('overview', 'ArrowLeft')).toBe('diagnostics');
@@ -38,5 +39,6 @@ describe('workspace keyboard navigation', () => {
     expect(isWorkspaceTab('distribution')).toBe(true);
     expect(isWorkspaceTab('sales')).toBe(true);
     expect(isWorkspaceTab('launch')).toBe(true);
+    expect(isWorkspaceTab('reviews')).toBe(true);
   });
 });

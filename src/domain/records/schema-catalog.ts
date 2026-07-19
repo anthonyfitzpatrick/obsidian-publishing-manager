@@ -209,8 +209,16 @@ export const RECORD_SCHEMAS = {
     'book-id': relation('book', true),
     'edition-id': relation('edition', false),
     source: requiredString(),
+    'source-link': optionalString(),
     date: { kind: 'date', required: true },
-    rating: { kind: 'decimal', required: false }
+    rating: { kind: 'decimal', required: false },
+    quote: optionalString(),
+    reference: optionalString(),
+    'permission-status': requiredString(),
+    'permission-notes': optionalString(),
+    'follow-up-date': { kind: 'date', required: false },
+    'follow-up-status': requiredString(),
+    notes: optionalString()
   }),
   'asset-reference': schema('asset-reference', {
     'book-id': relation('book', true),

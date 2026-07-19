@@ -30,6 +30,7 @@ import type { DistributionProjectService } from '../../application/distribution/
 import type { ReadinessProjectService } from '../../application/readiness/readiness-project-service';
 import type { SalesProjectService } from '../../application/sales/sales-project-service';
 import type { LaunchProjectService } from '../../application/launch/launch-project-service';
+import type { ReviewProjectService } from '../../application/reviews/review-project-service';
 import { BOOK_STATUSES, type BookStatus } from '../../domain/books/book-project';
 import { ManualCancellationToken } from '../../domain/foundation/cancellation';
 import type {
@@ -69,11 +70,12 @@ import type { ReadinessEvaluation } from '../../domain/readiness/readiness-engin
 import { renderReadinessWorkspace } from './readiness-workspace';
 import { createSalesWorkspaceState, renderSalesWorkspace } from './sales-workspace';
 import { createLaunchWorkspaceState, renderLaunchWorkspace } from './launch-workspace';
+import { createReviewsWorkspaceState, renderReviewsWorkspace } from './reviews-workspace';
 
 /** Stable Obsidian view identifier persisted with the selected book and active tab. */
 export const BOOK_WORKSPACE_VIEW_TYPE = 'publishing-manager-book-workspace';
 
-const FUTURE_TABS = ['Reviews', 'Notes', 'History'] as const;
+const FUTURE_TABS = ['Notes', 'History'] as const;
 
 /** Native book workspace with per-book draft continuity and immutable catalog subscriptions. */
 export class BookWorkspaceView extends ItemView {
@@ -101,6 +103,7 @@ export class BookWorkspaceView extends ItemView {
     private readonly readiness: ReadinessProjectService,
     private readonly sales: SalesProjectService,
     private readonly launches: LaunchProjectService,
+    private readonly reviews: ReviewProjectService,
     private readonly drafts: BookDraftStore,
     private readonly openDashboard: () => Promise<void>
   ) {
@@ -123,6 +126,8 @@ export class BookWorkspaceView extends ItemView {
   private readonly salesState = createSalesWorkspaceState();
   /** Anchor/mode/preview survive catalog-driven rerenders until explicitly applied or changed. */
   private readonly launchState = createLaunchWorkspaceState();
+  /** Review filters and in-progress evidence remain stable while canonical records rerender. */
+  private readonly reviewsState = createReviewsWorkspaceState();
 
   /**
    * Renders book-scoped links and fills each evidence card asynchronously. Inspection reads file
@@ -537,6 +542,15 @@ export class BookWorkspaceView extends ItemView {
         snapshot,
         launches: this.launches,
         state: this.launchState,
+        rerender: () => this.render(snapshot)
+      });
+    } else if (this.activeTab === 'reviews') {
+      renderReviewsWorkspace({
+        parent: content,
+        book: record,
+        snapshot,
+        reviews: this.reviews,
+        state: this.reviewsState,
         rerender: () => this.render(snapshot)
       });
     } else if (this.activeTab === 'assets') {

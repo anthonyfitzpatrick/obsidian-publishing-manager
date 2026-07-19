@@ -16,6 +16,7 @@ import { DashboardPreferencesService } from './application/dashboard/dashboard-p
 import { SalesProjectService } from './application/sales/sales-project-service';
 import { LaunchProjectService } from './application/launch/launch-project-service';
 import { CalendarProjectService } from './application/calendar/calendar-project-service';
+import { ReviewProjectService } from './application/reviews/review-project-service';
 import { JournaledOperationRunner } from './application/storage/operation-journal';
 import { ManagedFolderLayout } from './domain/storage/managed-folder-layout';
 import { ObsidianBookCatalogController } from './infrastructure/catalog/obsidian-book-catalog-controller';
@@ -100,6 +101,7 @@ export default class PublishingManagerPlugin extends Plugin {
     const sales = new SalesProjectService(repository, catalog, layout, clock, ids);
     const launches = new LaunchProjectService(repository, catalog, workflows, layout, clock, ids);
     const calendar = new CalendarProjectService(catalog, workflows, vaultText, layout, clock);
+    const reviews = new ReviewProjectService(repository, catalog, layout, clock, ids);
     const drafts = new BookDraftStore();
     const catalogController = new ObsidianBookCatalogController(
       this.app.vault,
@@ -130,6 +132,7 @@ export default class PublishingManagerPlugin extends Plugin {
       sales,
       launches,
       calendar,
+      reviews,
       drafts,
       () => catalogController.initialize()
     );

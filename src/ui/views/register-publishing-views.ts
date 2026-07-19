@@ -20,6 +20,7 @@ import type { DashboardPreferencesService } from '../../application/dashboard/da
 import type { SalesProjectService } from '../../application/sales/sales-project-service';
 import type { LaunchProjectService } from '../../application/launch/launch-project-service';
 import type { CalendarProjectService } from '../../application/calendar/calendar-project-service';
+import type { ReviewProjectService } from '../../application/reviews/review-project-service';
 import type { CatalogRecord } from '../../domain/catalog/catalog-model';
 import { normalizeVaultPath } from '../../domain/storage/vault-path';
 import { CreateBookModal } from '../dialogs/create-book-modal';
@@ -47,6 +48,7 @@ export function registerPublishingViews(
   sales: SalesProjectService,
   launches: LaunchProjectService,
   calendar: CalendarProjectService,
+  reviews: ReviewProjectService,
   drafts: BookDraftStore,
   refreshCatalog: () => Promise<void>
 ): void {
@@ -98,6 +100,7 @@ export function registerPublishingViews(
         readiness,
         sales,
         launches,
+        reviews,
         drafts,
         openDashboard
       )
