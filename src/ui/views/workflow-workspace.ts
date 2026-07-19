@@ -33,11 +33,22 @@ export interface WorkflowWorkspaceState {
   readonly batchTaskIds: Set<string>;
   /** Zero-based task page shared by list and board so changing mode retains the same evidence. */
   taskPage: number;
+  dependencyPage: number;
+  batchPreviewPage: number;
+  /** Stable-ID selections retain off-page dependencies without treating visibility as authority. */
+  readonly dependencySelections: Map<string, Set<string>>;
 }
 
 /** Creates a fresh view state without leaking selection between Book Workspace leaves. */
 export function createWorkflowWorkspaceState(): WorkflowWorkspaceState {
-  return { mode: 'list', batchTaskIds: new Set<string>(), taskPage: 0 };
+  return {
+    mode: 'list',
+    batchTaskIds: new Set<string>(),
+    taskPage: 0,
+    dependencyPage: 0,
+    batchPreviewPage: 0,
+    dependencySelections: new Map<string, Set<string>>()
+  };
 }
 
 /** Dependencies kept explicit so the renderer can be tested and cannot acquire hidden I/O. */
@@ -507,6 +518,10 @@ function renderTaskSummary(
     text: `${stage?.label ?? 'Unknown stage'} · due ${task.deadline ?? 'not set'} · ${blockers.blocked ? `Blocked: ${blockers.explanations.join(' ')}` : 'Not blocked'}`
   });
   parent.addEventListener('click', () => {
+    if (context.state.selectedTaskId !== task.id) {
+      context.state.dependencyPage = 0;
+      context.state.dependencySelections.clear();
+    }
     context.state.selectedTaskId = task.id;
     context.rerender();
   });
@@ -584,6 +599,7 @@ function renderBatchEditor(
         patch,
         include.checked
       );
+      context.state.batchPreviewPage = 0;
       renderBatchPreview(region, currentPreview, context, () => {
         currentPreview = undefined;
       });
@@ -606,10 +622,13 @@ function renderBatchPreview(
     text: `${preview.rows.length} tasks will change; ${preview.excludedTaskIds.length} completed/cancelled tasks excluded.`
   });
   const list = parent.createEl('ul');
-  for (const row of preview.rows)
+  const window = pagedCollectionWindow(preview.rows.length, context.state.batchPreviewPage, 50);
+  context.state.batchPreviewPage = window.page;
+  for (const row of pageCollection(preview.rows, window))
     list.createEl('li', {
       text: `${row.before.title}: ${row.before.status}/${row.before.priority}/${row.before.owner ?? 'Unassigned'} → ${row.after.status}/${row.after.priority}/${row.after.owner ?? 'Unassigned'}`
     });
+  renderBatchPreviewNavigation(parent, preview, context, clear, window.offset, window.end);
   const apply = parent.createEl('button', {
     cls: 'pm-button pm-button--primary',
     text: 'Apply reviewed batch',
@@ -629,6 +648,42 @@ function renderBatchPreview(
         new Notice(errorMessage(cause, 'Batch stopped; its journal retains recovery state.'));
         apply.disabled = false;
       });
+  });
+}
+
+/** Preserves one immutable batch preview while exposing every row through bounded local pages. */
+function renderBatchPreviewNavigation(
+  parent: HTMLElement,
+  preview: BatchTaskPreview,
+  context: WorkflowWorkspaceContext,
+  clear: () => void,
+  offset: number,
+  end: number
+): void {
+  if (preview.rows.length <= 50) return;
+  const navigation = parent.createDiv({ cls: 'pm-pagination' });
+  const previous = navigation.createEl('button', {
+    cls: 'pm-button pm-button--secondary',
+    text: 'Previous batch page',
+    attr: { type: 'button' }
+  });
+  previous.disabled = context.state.batchPreviewPage === 0;
+  previous.addEventListener('click', () => {
+    context.state.batchPreviewPage = Math.max(0, context.state.batchPreviewPage - 1);
+    renderBatchPreview(parent, preview, context, clear);
+  });
+  navigation.createSpan({
+    text: `Batch rows ${offset + 1}–${end} of ${preview.rows.length}`
+  });
+  const next = navigation.createEl('button', {
+    cls: 'pm-button pm-button--secondary',
+    text: 'Next batch page',
+    attr: { type: 'button' }
+  });
+  next.disabled = end >= preview.rows.length;
+  next.addEventListener('click', () => {
+    context.state.batchPreviewPage += 1;
+    renderBatchPreview(parent, preview, context, clear);
   });
 }
 
@@ -657,6 +712,8 @@ function renderTaskInspector(
   });
   close.addEventListener('click', () => {
     delete context.state.selectedTaskId;
+    context.state.dependencyPage = 0;
+    context.state.dependencySelections.clear();
     context.rerender();
   });
 
@@ -720,16 +777,12 @@ function renderTaskInspector(
 
   const dependencyDetails = inspector.createEl('details');
   dependencyDetails.createEl('summary', { text: `Dependencies · ${task.dependsOn.length}` });
-  const dependencyInputs = tasks
-    .filter(({ id }) => id !== task.id)
-    .map((candidate) => ({
-      task: candidate,
-      input: labelledCheckbox(
-        dependencyDetails,
-        `${candidate.title} · ${candidate.status}`,
-        task.dependsOn.includes(candidate.id)
-      )
-    }));
+  const dependencyCandidates = tasks.filter(({ id }) => id !== task.id);
+  const dependencySelection =
+    context.state.dependencySelections.get(task.id) ?? new Set(task.dependsOn);
+  context.state.dependencySelections.set(task.id, dependencySelection);
+  const dependencyRegion = dependencyDetails.createDiv();
+  renderDependencyPage(dependencyRegion, context, dependencyCandidates, dependencySelection);
   const blockers = textareaField(
     dependencyDetails,
     'Manual blockers (one per line)',
@@ -835,17 +888,69 @@ function renderTaskInspector(
         ...(notes.value.trim() ? { notes: notes.value.trim() } : {}),
         attachments: lines(attachments.value),
         checklist: { items: checklist },
-        dependsOn: dependencyInputs
-          .filter(({ input }) => input.checked)
-          .map(({ task: dependency }) => dependency.id),
+        dependsOn: [...dependencySelection],
         manualBlockers: lines(blockers.value),
         linkedMetadata: { ...task.linkedMetadata }
       })
-      .then(() => new Notice('Task saved.'))
+      .then(() => {
+        context.state.dependencySelections.delete(task.id);
+        new Notice('Task saved.');
+      })
       .catch((cause: unknown) => {
         errors.setText(errorMessage(cause, 'Task could not be saved.'));
         save.disabled = false;
       });
+  });
+}
+
+/**
+ * Replaces only dependency rows so paging cannot discard unsaved title, checklist, time, or other
+ * inspector fields. The stable-ID Set retains checked candidates outside the visible page.
+ */
+function renderDependencyPage(
+  parent: HTMLElement,
+  context: WorkflowWorkspaceContext,
+  candidates: readonly WorkflowTask[],
+  selection: Set<string>
+): void {
+  parent.empty();
+  const window = pagedCollectionWindow(candidates.length, context.state.dependencyPage, 50);
+  context.state.dependencyPage = window.page;
+  for (const candidate of pageCollection(candidates, window)) {
+    const input = labelledCheckbox(
+      parent,
+      `${candidate.title} · ${candidate.status}`,
+      selection.has(candidate.id)
+    );
+    input.addEventListener('change', () => {
+      if (input.checked) selection.add(candidate.id);
+      else selection.delete(candidate.id);
+    });
+  }
+  if (candidates.length <= 50) return;
+  const navigation = parent.createDiv({ cls: 'pm-pagination' });
+  const previous = navigation.createEl('button', {
+    cls: 'pm-button pm-button--secondary',
+    text: 'Previous dependency page',
+    attr: { type: 'button' }
+  });
+  previous.disabled = context.state.dependencyPage === 0;
+  previous.addEventListener('click', () => {
+    context.state.dependencyPage = Math.max(0, context.state.dependencyPage - 1);
+    renderDependencyPage(parent, context, candidates, selection);
+  });
+  navigation.createSpan({
+    text: `Dependencies ${window.offset + 1}–${window.end} of ${candidates.length}`
+  });
+  const next = navigation.createEl('button', {
+    cls: 'pm-button pm-button--secondary',
+    text: 'Next dependency page',
+    attr: { type: 'button' }
+  });
+  next.disabled = window.end >= candidates.length;
+  next.addEventListener('click', () => {
+    context.state.dependencyPage += 1;
+    renderDependencyPage(parent, context, candidates, selection);
   });
 }
 

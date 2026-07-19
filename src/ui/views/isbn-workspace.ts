@@ -17,6 +17,8 @@ import { pageCollection, pagedCollectionWindow } from '../view-models/paged-coll
 export interface IsbnWorkspaceState {
   importText: string;
   importPreview?: IsbnImportPreview;
+  /** Import evidence is paged independently from the canonical pool. */
+  importPage: number;
   transaction?: IsbnTransactionPreview;
   editionId?: string;
   formatId?: string;
@@ -26,7 +28,7 @@ export interface IsbnWorkspaceState {
 }
 
 export function createIsbnWorkspaceState(): IsbnWorkspaceState {
-  return { importText: '', correctionReason: '', poolPage: 0 };
+  return { importText: '', importPage: 0, correctionReason: '', poolPage: 0 };
 }
 
 export interface IsbnWorkspaceContext {
@@ -65,6 +67,7 @@ function renderImport(parent: HTMLElement, context: IsbnWorkspaceContext): void 
   });
   input.addEventListener('input', () => {
     context.state.importText = input.value;
+    context.state.importPage = 0;
     delete context.state.importPreview;
   });
   const actions = details.createDiv({ cls: 'pm-action-row' });
@@ -76,17 +79,20 @@ function renderImport(parent: HTMLElement, context: IsbnWorkspaceContext): void 
   preview.addEventListener('click', () => {
     context.state.importText = input.value;
     context.state.importPreview = context.isbns.previewImport(input.value);
+    context.state.importPage = 0;
     context.rerender();
   });
   const result = context.state.importPreview;
   if (result === undefined) return;
+  const window = pagedCollectionWindow(result.rows.length, context.state.importPage, 50);
+  context.state.importPage = window.page;
   details.createEl('p', { text: `${result.ready} ready · ${result.rejected} rejected` });
   const table = details.createEl('table', { cls: 'pm-mobile-table' });
   const head = table.createEl('thead').createEl('tr');
   for (const label of ['Row', 'Input', 'Normalized', 'Result'])
     head.createEl('th', { text: label });
   const body = table.createEl('tbody');
-  for (const row of result.rows) {
+  for (const row of pageCollection(result.rows, window)) {
     const tr = body.createEl('tr');
     const values = [
       ['Row', String(row.row)],
@@ -97,6 +103,7 @@ function renderImport(parent: HTMLElement, context: IsbnWorkspaceContext): void 
     for (const [label, value] of values)
       tr.createEl('td', { text: value, attr: { 'data-label': label } });
   }
+  renderImportNavigation(details, context, window.offset, window.end, result.rows.length);
   if (result.ready > 0) {
     const apply = details.createEl('button', {
       cls: 'pm-button pm-button--primary',
@@ -110,6 +117,7 @@ function renderImport(parent: HTMLElement, context: IsbnWorkspaceContext): void 
         .then((records) => {
           new Notice(`${records.length} ISBN${records.length === 1 ? '' : 's'} added.`);
           context.state.importText = '';
+          context.state.importPage = 0;
           delete context.state.importPreview;
           context.rerender();
         })
@@ -119,6 +127,39 @@ function renderImport(parent: HTMLElement, context: IsbnWorkspaceContext): void 
         });
     });
   }
+}
+
+/** Every import result remains reviewable while the table mounts at most fifty evidence rows. */
+function renderImportNavigation(
+  parent: HTMLElement,
+  context: IsbnWorkspaceContext,
+  offset: number,
+  end: number,
+  total: number
+): void {
+  if (total <= 50) return;
+  const navigation = parent.createDiv({ cls: 'pm-pagination' });
+  const previous = navigation.createEl('button', {
+    cls: 'pm-button pm-button--secondary',
+    text: 'Previous import page',
+    attr: { type: 'button' }
+  });
+  previous.disabled = context.state.importPage === 0;
+  previous.addEventListener('click', () => {
+    context.state.importPage = Math.max(0, context.state.importPage - 1);
+    context.rerender();
+  });
+  navigation.createSpan({ text: `Import rows ${offset + 1}–${end} of ${total}` });
+  const next = navigation.createEl('button', {
+    cls: 'pm-button pm-button--secondary',
+    text: 'Next import page',
+    attr: { type: 'button' }
+  });
+  next.disabled = end >= total;
+  next.addEventListener('click', () => {
+    context.state.importPage += 1;
+    context.rerender();
+  });
 }
 
 /** Assignment selectors are shared by card actions so the chosen scope is always visible. */
