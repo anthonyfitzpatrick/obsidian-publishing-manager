@@ -124,7 +124,12 @@ export class DiagnosticsService {
   public async previewExport(redacted = true): Promise<DiagnosticsExportPreview> {
     const report = await this.report();
     const redactions = redacted
-      ? ['Vault-relative paths', 'Stable entity identifiers', 'Free-form diagnostic values']
+      ? [
+          'Vault-relative paths',
+          'Stable entity identifiers',
+          'Free-form diagnostic messages and guidance',
+          'Plugin-setting recovery paths'
+        ]
       : [];
     const content = serializeReport(report, redacted);
     const folder = joinVaultPath(this.layout.rootPath(), 'Exports/Diagnostics');
@@ -377,19 +382,21 @@ function serializeReport(report: DiagnosticReport, redacted: boolean): string {
   for (const category of CATEGORIES) {
     lines.push(`## ${category[0]?.toUpperCase()}${category.slice(1)}`, '');
     for (const item of report.items.filter((candidate) => candidate.category === category)) {
-      const privateRecord = redacted && item.source === 'canonical-record';
+      // Redaction applies to every source. Plugin-setting diagnostics can contain managed-root
+      // recovery paths, while runtime/provider messages may contain free text in future versions.
+      const privateItem = redacted;
       lines.push(
-        `### ${item.severity.toUpperCase()} — ${privateRecord ? 'Canonical record diagnostic' : item.title}`
+        `### ${item.severity.toUpperCase()} — ${privateItem ? `${item.category} diagnostic` : item.title}`
       );
       lines.push(`- Source: ${item.source}`);
       lines.push(
-        privateRecord
-          ? '- Impact: A canonical record requires local review.'
+        privateItem
+          ? '- Impact: Review this diagnostic inside the local vault.'
           : `- Impact: ${item.impact}`
       );
       lines.push(
-        privateRecord
-          ? '- Guidance: Open Diagnostics locally for source-specific guidance.'
+        privateItem
+          ? '- Guidance: Open Local Diagnostics for private details and source-specific guidance.'
           : `- Guidance: ${item.guidance}`
       );
       if (!redacted && item.path !== undefined) lines.push(`- Path: ${item.path}`);

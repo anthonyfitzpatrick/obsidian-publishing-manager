@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { DiagnosticsService } from '../../src/application/diagnostics/diagnostics-service';
 import { DEFAULT_PUBLISHING_SETTINGS } from '../../src/application/settings/publishing-settings-service';
+import type { StorageMovePreview } from '../../src/application/settings/publishing-settings-service';
 import type {
   BookCatalogSnapshot,
   CatalogDiagnostic
@@ -51,13 +52,16 @@ function snapshot(diagnostics: readonly CatalogDiagnostic[] = []): BookCatalogSn
   };
 }
 
-function fixture(diagnostics: readonly CatalogDiagnostic[] = []) {
+function fixture(
+  diagnostics: readonly CatalogDiagnostic[] = [],
+  recovery: StorageMovePreview | undefined = undefined
+) {
   let current = snapshot(diagnostics);
   let rebuilds = 0;
   const vault = new MemoryVaultTextPort();
   const settings = {
     current: () => structuredClone(DEFAULT_PUBLISHING_SETTINGS),
-    storageMoveRecovery: async () => undefined
+    storageMoveRecovery: async () => recovery
   };
   const service = new DiagnosticsService(
     { snapshot: () => current },
@@ -116,6 +120,36 @@ describe('diagnostics service', () => {
     const explicit = await service.previewExport(false);
     expect(explicit.content).toContain('Publishing Manager/Books/private-title.md');
     expect(explicit.content).toContain('pm-book-private-0001');
+  });
+
+  it('redacts plugin-setting recovery paths and all free-form item prose by default', async () => {
+    const recovery: StorageMovePreview = {
+      operationId: 'private-operation',
+      source: normalizeVaultPath('Private Author/Secret Publishing Root'),
+      target: normalizeVaultPath('Private Press/Recovered Root'),
+      sourceExists: true,
+      sourcePaths: [normalizeVaultPath('Private Author/Secret Publishing Root/Books/secret.md')],
+      targetExists: false,
+      blockedReasons: [],
+      consequences: ['Private free-form recovery consequence.']
+    };
+    const { service } = fixture([diagnostic()], recovery);
+    expect(JSON.stringify(await service.report())).toContain(
+      'Private Author/Secret Publishing Root'
+    );
+    const safe = await service.previewExport();
+    for (const privateValue of [
+      'Private Author',
+      'Private Press',
+      'secret.md',
+      'Private title value',
+      'replace the private title value'
+    ])
+      expect(safe.content).not.toContain(privateValue);
+    expect(safe.redactions).toContain('Plugin-setting recovery paths');
+
+    const explicit = await service.previewExport(false);
+    expect(explicit.content).toContain('Private title value is invalid.');
   });
 
   it('creates one never-overwritten export and rejects stale evidence or a target race', async () => {

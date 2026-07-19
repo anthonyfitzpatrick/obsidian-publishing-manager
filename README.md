@@ -6,7 +6,7 @@ The product specification and project backlog in the Publishing Manager Obsidian
 
 ## Current state
 
-Milestones M0 through M8 are complete. M9 Hardening is current at 5/24. SEC-001–SEC-005 add the cross-feature threat and validation model, hostile parsed-data limits, text-only rendering, full-destination external confirmation, blocked-network test/production monitoring, and exact dependency/release-package gates.
+Milestones M0 through M8 are complete. M9 Hardening is current at 9/24. Security/runtime/package controls plus the machine-checked data/exchange inventory, every-source diagnostic redaction, and disable/uninstall preservation evidence are active.
 
 ## Licence boundary
 
@@ -59,6 +59,8 @@ Start with a Gitea issue and reference the permanent backlog ID. See [CONTRIBUTI
 - `npm run check:forbidden` — production-source policy scan
 - `npm run check:offline-bundle` — production-bundle initialization under blocked-network monitoring
 - `npm run check:package` — exact release-asset, production-dependency, prohibited-import, and checksum audit
+- `npm run check:privacy` — data placement, settings authority, redaction, and unload policy audit
+- `npm run check:lifecycle-preservation` — disposable-vault uninstall preservation proof
 - `npm run check:conventions` — required contributor, issue, pull-request, commit, and release conventions
 - `npm run check:test-vault` — disposable test-vault safety and installation workflow
 - `npm run check:support` — manifest, version map, platform, and toolchain policy alignment

@@ -6,6 +6,8 @@ All notable changes to Publishing Manager are recorded here using Keep a Changel
 
 ### Added
 
+- M9 PRV-001 through PRV-004: machine-readable canonical/plugin/session/reference/integration data inventory; default every-source diagnostic redaction including settings recovery paths; privacy architecture enforcement; and disposable-vault disable/uninstall preservation evidence.
+
 - M9 SEC-003 through SEC-005: one confirmation-only renderer that displays each complete validated external destination before navigation, direct-anchor enforcement, a complete blocked-network test run, monitored production-bundle initialization, and an exact three-asset zero-production-dependency package audit.
 
 - M9 SEC-001 and SEC-002: cross-feature threat model, shared plain-data/prototype/resource preflight, bounded managed Markdown/frontmatter, stricter schema/path/date/timestamp/relationship/enum/URL constraints, credential-free HTTP(S) rendering, hostile fixtures, and a permanent security build gate.
