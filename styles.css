@@ -922,6 +922,17 @@
   display: grid;
   gap: 0.75rem;
 }
+
+.pm-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: var(--size-4-3);
+}
+
+.pm-calendar-agenda {
+  display: grid;
+  gap: var(--size-4-2);
+}
 .pm-sales-grid {
   grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr));
 }

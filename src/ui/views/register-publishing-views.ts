@@ -19,6 +19,7 @@ import type { ReadinessProjectService } from '../../application/readiness/readin
 import type { DashboardPreferencesService } from '../../application/dashboard/dashboard-preferences-service';
 import type { SalesProjectService } from '../../application/sales/sales-project-service';
 import type { LaunchProjectService } from '../../application/launch/launch-project-service';
+import type { CalendarProjectService } from '../../application/calendar/calendar-project-service';
 import type { CatalogRecord } from '../../domain/catalog/catalog-model';
 import { normalizeVaultPath } from '../../domain/storage/vault-path';
 import { CreateBookModal } from '../dialogs/create-book-modal';
@@ -45,6 +46,7 @@ export function registerPublishingViews(
   dashboardPreferences: DashboardPreferencesService,
   sales: SalesProjectService,
   launches: LaunchProjectService,
+  calendar: CalendarProjectService,
   drafts: BookDraftStore,
   refreshCatalog: () => Promise<void>
 ): void {
@@ -73,6 +75,7 @@ export function registerPublishingViews(
         readiness,
         dashboardPreferences,
         sales,
+        calendar,
         () => new CreateBookModal(plugin.app, books).open(),
         openBook,
         refreshCatalog

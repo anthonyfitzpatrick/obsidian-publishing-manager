@@ -31,6 +31,7 @@ All notable changes to Publishing Manager are recorded here using Keep a Changel
 - M6 DSH-001–DSH-008 with operational cards, ranked attention, launch/workload summaries, readiness-aware portfolio evidence, filters, locally persisted saved views/custom columns, exact-source navigation, and partial/rebuilding labels.
 - M6 SAL-001–SAL-014 with canonical source/line/correction records, direct transaction and period-summary entry, unique ISBN/target/country attribution, duplicate/overlap safeguards, immutable adjustments, exact decimal currency groups, multidimensional analytics, and Dashboard/book provenance drill-down.
 - M6 LCH-001–LCH-006 with a versioned relative launch template, complete preview diff, completed/pinned protection, three reflow modes, dependency/estimate critical paths, timezone-safe date-only working-day arithmetic, canonical launch records, and generated workflow tasks.
+- M6 CAL-001–CAL-003 with Dashboard-filtered month/agenda/book-timeline projections, source navigation, transitive dependency-impact date previews, pinned/conflict/stale safeguards, and collision-safe local RFC 5545 ICS export without cloud events.
 
 ## [0.1.0] - 2026-07-18
 

@@ -6,7 +6,7 @@ The product specification and project backlog in the Publishing Manager Obsidian
 
 ## Current state
 
-Milestones M0 through M5 are complete. M6 Dashboard, Sales, and Launch sections are complete. Launch planning uses a versioned relative template, reviewed task/date diffs, completed/pinned protection, explicit reflow modes, dependency critical paths, and timezone-safe date-only arithmetic. Calendar views are next.
+Milestones M0 through M5 are complete. M6 Dashboard, Sales, Launch, and Calendar sections are complete. Calendar derives local month/agenda/book timelines, previews dependency impacts before task movement, respects pinned dates, and creates portable vault-only ICS exports without cloud activity. Reviews are next.
 
 ## Licence boundary
 
