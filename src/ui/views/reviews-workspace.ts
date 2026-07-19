@@ -8,6 +8,7 @@ import type {
   ReviewInput,
   ReviewPermissionStatus
 } from '../../domain/reviews/review-record';
+import { pageCollection, pagedCollectionWindow } from '../view-models/paged-collection';
 
 export interface ReviewsWorkspaceState {
   editingId: string;
@@ -28,6 +29,7 @@ export interface ReviewsWorkspaceState {
   filterPermission: string;
   filterFollowUp: string;
   filterRating: string;
+  reviewPage: number;
 }
 export function createReviewsWorkspaceState(): ReviewsWorkspaceState {
   return {
@@ -48,7 +50,8 @@ export function createReviewsWorkspaceState(): ReviewsWorkspaceState {
     filterEditionId: '',
     filterPermission: '',
     filterFollowUp: '',
-    filterRating: ''
+    filterRating: '',
+    reviewPage: 0
   };
 }
 
@@ -196,6 +199,7 @@ function renderFilters(
   });
   source.addEventListener('change', () => {
     context.state.filterSource = source.value;
+    context.state.reviewPage = 0;
     context.rerender();
   });
   const editions = context.snapshot.editions.filter(
@@ -232,6 +236,7 @@ function renderFilters(
     control.value = context.state[key];
     control.addEventListener('change', () => {
       context.state[key] = control.value;
+      context.state.reviewPage = 0;
       context.rerender();
     });
   }
@@ -248,6 +253,7 @@ function renderFilters(
   });
   rating.addEventListener('change', () => {
     context.state.filterRating = rating.value;
+    context.state.reviewPage = 0;
     context.rerender();
   });
 }
@@ -263,10 +269,12 @@ function renderReviewList(
     ...(context.state.filterFollowUp ? { followUpStatus: context.state.filterFollowUp } : {}),
     ...(context.state.filterRating ? { minimumRating: Number(context.state.filterRating) } : {})
   });
+  const window = pagedCollectionWindow(reviews.length, context.state.reviewPage, 50);
+  context.state.reviewPage = window.page;
   const section = parent.createEl('section', { cls: 'pm-panel' });
   section.createEl('h3', { text: `Chronological review log · ${reviews.length}` });
   const list = section.createEl('ol');
-  for (const review of reviews) {
+  for (const review of pageCollection(reviews, window)) {
     const row = list.createEl('li', { cls: 'pm-panel' });
     row.createEl('strong', {
       text: `${text(review.fields.date, 'Unknown date')} · ${text(review.fields.source, 'Unknown source')} · rating ${text(review.fields.rating, '—')}`
@@ -292,6 +300,40 @@ function renderReviewList(
   }
   if (!reviews.length)
     section.createEl('p', { cls: 'pm-muted', text: 'No review evidence matches these filters.' });
+  else renderReviewNavigation(section, context, window.offset, window.end, reviews.length);
+}
+
+/** Pages the filtered chronological log while every edit action retains canonical identity. */
+function renderReviewNavigation(
+  parent: HTMLElement,
+  context: Parameters<typeof renderReviewsWorkspace>[0],
+  offset: number,
+  end: number,
+  total: number
+): void {
+  if (total <= 50) return;
+  const navigation = parent.createDiv({ cls: 'pm-pagination' });
+  const previous = navigation.createEl('button', {
+    cls: 'pm-button pm-button--secondary',
+    text: 'Previous review page',
+    attr: { type: 'button' }
+  });
+  previous.disabled = context.state.reviewPage === 0;
+  previous.addEventListener('click', () => {
+    context.state.reviewPage = Math.max(0, context.state.reviewPage - 1);
+    context.rerender();
+  });
+  navigation.createSpan({ text: `Reviews ${offset + 1}–${end} of ${total}` });
+  const next = navigation.createEl('button', {
+    cls: 'pm-button pm-button--secondary',
+    text: 'Next review page',
+    attr: { type: 'button' }
+  });
+  next.disabled = end >= total;
+  next.addEventListener('click', () => {
+    context.state.reviewPage += 1;
+    context.rerender();
+  });
 }
 
 function reviewInput(context: Parameters<typeof renderReviewsWorkspace>[0]): ReviewInput {

@@ -6,6 +6,7 @@ import {
   type HistoryRetentionDays
 } from '../../application/history/history-preferences-service';
 import type { CatalogRecord } from '../../domain/catalog/catalog-model';
+import { pageCollection, pagedCollectionWindow } from '../view-models/paged-collection';
 
 export interface HistoryWorkspaceState {
   action: string;
@@ -14,9 +15,10 @@ export interface HistoryWorkspaceState {
   search: string;
   from: string;
   to: string;
+  eventPage: number;
 }
 export function createHistoryWorkspaceState(): HistoryWorkspaceState {
-  return { action: '', entityType: '', actor: '', search: '', from: '', to: '' };
+  return { action: '', entityType: '', actor: '', search: '', from: '', to: '', eventPage: 0 };
 }
 
 export function renderHistoryWorkspace(context: {
@@ -154,6 +156,8 @@ function renderEvents(
     ...(context.state.from ? { from: context.state.from } : {}),
     ...(context.state.to ? { to: context.state.to } : {})
   });
+  const window = pagedCollectionWindow(events.length, context.state.eventPage, 50);
+  context.state.eventPage = window.page;
   const section = parent.createEl('section', { cls: 'pm-panel' });
   section.createEl('h3', { text: `Chronological history · ${events.length}` });
   if (events.length === 0) {
@@ -161,7 +165,7 @@ function renderEvents(
     return;
   }
   const list = section.createEl('ol');
-  for (const event of events) {
+  for (const event of pageCollection(events, window)) {
     const row = list.createEl('li', { cls: 'pm-panel' });
     row.createEl('strong', { text: text(event.fields.summary, 'Recorded change') });
     row.createEl('p', {
@@ -174,6 +178,40 @@ function renderEvents(
     });
     evidence.createEl('p', { text: `After: ${text(event.fields['after-summary'], 'Not set')}` });
   }
+  renderHistoryNavigation(section, context, window.offset, window.end, events.length);
+}
+
+/** Keeps the filtered chronological projection bounded without changing retention or evidence. */
+function renderHistoryNavigation(
+  parent: HTMLElement,
+  context: Parameters<typeof renderHistoryWorkspace>[0],
+  offset: number,
+  end: number,
+  total: number
+): void {
+  if (total <= 50) return;
+  const navigation = parent.createDiv({ cls: 'pm-pagination' });
+  const previous = navigation.createEl('button', {
+    cls: 'pm-button pm-button--secondary',
+    text: 'Previous history page',
+    attr: { type: 'button' }
+  });
+  previous.disabled = context.state.eventPage === 0;
+  previous.addEventListener('click', () => {
+    context.state.eventPage = Math.max(0, context.state.eventPage - 1);
+    context.rerender();
+  });
+  navigation.createSpan({ text: `Events ${offset + 1}–${end} of ${total}` });
+  const next = navigation.createEl('button', {
+    cls: 'pm-button pm-button--secondary',
+    text: 'Next history page',
+    attr: { type: 'button' }
+  });
+  next.disabled = end >= total;
+  next.addEventListener('click', () => {
+    context.state.eventPage += 1;
+    context.rerender();
+  });
 }
 
 type FilterKey = keyof HistoryWorkspaceState;
@@ -188,6 +226,7 @@ function input(
   const control = label.createEl('input', { type: 'search', value: context.state[key] });
   control.addEventListener('change', () => {
     context.state[key] = control.value;
+    context.state.eventPage = 0;
     context.rerender();
   });
 }
@@ -202,6 +241,7 @@ function date(
   const control = label.createEl('input', { type: 'date', value: context.state[key] });
   control.addEventListener('change', () => {
     context.state[key] = control.value;
+    context.state.eventPage = 0;
     context.rerender();
   });
 }
@@ -223,6 +263,7 @@ function selectFilter(
     });
   control.addEventListener('change', () => {
     context.state[key] = control.value;
+    context.state.eventPage = 0;
     context.rerender();
   });
 }
