@@ -116,6 +116,15 @@ describe('sales project service', () => {
         proceeds: '23.75'
       })
     ]);
+    const page = sales.queryPage({ bookId: book.book.id }, 0, 1);
+    expect(page.total).toBe(2);
+    expect(page.lines).toHaveLength(1);
+    const analyticsPage = sales.analytics({ bookId: book.book.id }, { offset: 0, limit: 1 });
+    expect(analyticsPage.lineCount).toBe(2);
+    expect(analyticsPage.lines).toHaveLength(1);
+    const [aggregatePage] = sales.aggregates({ bookId: book.book.id }, { offset: 0, limit: 1 });
+    expect(aggregatePage?.lineCount).toBe(2);
+    expect(aggregatePage?.lines).toHaveLength(1);
     expect(sales.corrections(line.id)).toHaveLength(1);
   });
 });

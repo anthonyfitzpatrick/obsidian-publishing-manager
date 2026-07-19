@@ -47,6 +47,8 @@ export interface SalesAggregateGroup {
   readonly netRevenue?: string;
   readonly proceeds?: string;
   readonly lines: readonly CatalogRecord[];
+  /** Exact contributing count remains available when `lines` is only the visible page. */
+  readonly lineCount?: number;
 }
 export interface SalesQuery {
   readonly bookId?: string;
@@ -64,6 +66,8 @@ export interface SalesQuery {
 }
 export interface SalesAnalytics {
   readonly lines: readonly CatalogRecord[];
+  /** Exact matching count remains separate from the bounded drill-down evidence page. */
+  readonly lineCount?: number;
   readonly units: number;
   readonly returns: number;
   readonly trend: readonly (readonly [string, number])[];
@@ -114,87 +118,98 @@ export class SalesProjectService {
       : {};
   }
   public lines(bookId?: string): readonly CatalogRecord[] {
-    const all = this.catalog
-      .recordsOfType('sales-line')
-      .filter((line) => line.fields.status === 'accepted');
-    if (bookId === undefined) return all;
-    const editionIds = new Set(this.catalog.editionsForBook(bookId).map(({ id }) => id));
-    return all.filter((line) => editionIds.has(String(line.fields['edition-id'])));
+    return [...this.matchingLines(bookId === undefined ? {} : { bookId })];
   }
   /** Resolves every filter through canonical relationships; no label is guessed. */
   public query(input: SalesQuery): readonly CatalogRecord[] {
-    const normalizedIsbn = input.isbn?.trim() ? normalizeIsbn(input.isbn).isbn13 : undefined;
-    return this.lines(input.bookId).filter((line) => {
+    return [...this.matchingLines(input)];
+  }
+
+  /** Materializes only the requested drill-down rows while still reporting an exact total. */
+  public queryPage(
+    input: SalesQuery,
+    offset: number,
+    limit: number
+  ): { readonly lines: readonly CatalogRecord[]; readonly total: number } {
+    const safeOffset = Math.max(0, Math.floor(offset));
+    const safeLimit = Math.max(1, Math.floor(limit));
+    const lines: CatalogRecord[] = [];
+    let total = 0;
+    for (const line of this.matchingLines(input)) {
+      if (total >= safeOffset && lines.length < safeLimit) lines.push(line);
+      total += 1;
+    }
+    return { lines, total };
+  }
+  /** Produces disposable, inspectable counts; the returned lines are the drill-down evidence. */
+  public analytics(
+    input: SalesQuery = {},
+    page?: { readonly offset: number; readonly limit: number }
+  ): SalesAnalytics {
+    const allCorrections = this.correctionsByLineId();
+    const visibleLines: CatalogRecord[] = [];
+    let lineCount = 0;
+    let units = 0;
+    let returns = 0;
+    const trend = new Map<string, number>();
+    const books = new Map<string, number>();
+    const locations = new Map<string, number>();
+    const countries = new Map<string, number>();
+    const adjusted = (line: CatalogRecord, field: 'units' | 'returns'): number =>
+      Number(line.fields[field] ?? 0) +
+      (allCorrections.get(line.id) ?? []).reduce(
+        (sum, item) =>
+          sum + Number((item.fields.adjustment as Record<string, unknown>)[field] ?? 0),
+        0
+      );
+    const add = (map: Map<string, number>, key: string, value: number) =>
+      map.set(key, (map.get(key) ?? 0) + value);
+    for (const line of this.matchingLines(input)) {
+      if (
+        page === undefined ||
+        (lineCount >= Math.max(0, page.offset) && visibleLines.length < Math.max(1, page.limit))
+      )
+        visibleLines.push(line);
+      const adjustedUnits = adjusted(line, 'units');
+      const adjustedReturns = adjusted(line, 'returns');
+      const net = adjustedUnits - adjustedReturns;
+      units += adjustedUnits;
+      returns += adjustedReturns;
+      add(trend, String(line.fields['start-date']).slice(0, 7), net);
       const edition = this.catalog.recordById(String(line.fields['edition-id']));
       const book =
         edition === undefined
           ? undefined
           : this.catalog.recordById(String(edition.fields['book-id']));
-      const isbn = this.catalog.recordById(String(line.fields['isbn-id']));
-      const target = this.catalog.recordById(String(line.fields['platform-target-id']));
-      return (
-        (input.seriesId === undefined || book?.fields['series-id'] === input.seriesId) &&
-        (input.editionId === undefined || line.fields['edition-id'] === input.editionId) &&
-        (normalizedIsbn === undefined || isbn?.fields.value === normalizedIsbn) &&
-        (input.formatId === undefined || line.fields['format-id'] === input.formatId) &&
-        (input.platform === undefined || target?.fields.platform === input.platform) &&
-        (input.publicationLocation === undefined ||
-          target?.fields['publication-location'] === input.publicationLocation) &&
-        (input.country === undefined || line.fields.country === input.country.toUpperCase()) &&
-        (input.currency === undefined || line.fields.currency === input.currency.toUpperCase()) &&
-        (input.sourceId === undefined || line.fields['source-id'] === input.sourceId) &&
-        (input.startDate === undefined || String(line.fields['end-date']) >= input.startDate) &&
-        (input.endDate === undefined || String(line.fields['start-date']) <= input.endDate)
-      );
-    });
-  }
-  /** Produces disposable, inspectable counts; the returned lines are the drill-down evidence. */
-  public analytics(input: SalesQuery = {}): SalesAnalytics {
-    const lines = this.query(input);
-    const adjusted = (line: CatalogRecord, field: 'units' | 'returns'): number =>
-      Number(line.fields[field] ?? 0) +
-      this.corrections(line.id).reduce(
-        (sum, item) =>
-          sum + Number((item.fields.adjustment as Record<string, unknown>)[field] ?? 0),
-        0
-      );
-    const by = (label: (line: CatalogRecord) => string) => {
-      const values = new Map<string, number>();
-      for (const line of lines) {
-        const key = label(line);
-        values.set(
-          key,
-          (values.get(key) ?? 0) + adjusted(line, 'units') - adjusted(line, 'returns')
-        );
-      }
-      return [...values.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-    };
-    return {
-      lines,
-      units: lines.reduce((sum, line) => sum + adjusted(line, 'units'), 0),
-      returns: lines.reduce((sum, line) => sum + adjusted(line, 'returns'), 0),
-      trend: by((line) => String(line.fields['start-date']).slice(0, 7)),
-      books: by((line) => {
-        const edition = this.catalog.recordById(String(line.fields['edition-id']));
-        const book =
-          edition === undefined
-            ? undefined
-            : this.catalog.recordById(String(edition.fields['book-id']));
-        return typeof book?.fields.title === 'string'
+      add(
+        books,
+        typeof book?.fields.title === 'string'
           ? book.fields.title
-          : (book?.id ?? 'Unresolved book');
-      }),
-      locations: by((line) => {
-        const target = this.catalog.recordById(String(line.fields['platform-target-id']));
-        const platform =
-          typeof target?.fields.platform === 'string' ? target.fields.platform : 'Unknown';
-        const location =
-          typeof target?.fields['publication-location'] === 'string'
-            ? target.fields['publication-location']
-            : 'Unknown';
-        return `${platform} · ${location}`;
-      }),
-      countries: by((line) => String(line.fields.country))
+          : (book?.id ?? 'Unresolved book'),
+        net
+      );
+      const target = this.catalog.recordById(String(line.fields['platform-target-id']));
+      const platform =
+        typeof target?.fields.platform === 'string' ? target.fields.platform : 'Unknown';
+      const location =
+        typeof target?.fields['publication-location'] === 'string'
+          ? target.fields['publication-location']
+          : 'Unknown';
+      add(locations, `${platform} · ${location}`, net);
+      add(countries, String(line.fields.country), net);
+      lineCount += 1;
+    }
+    const ordered = (values: Map<string, number>) =>
+      [...values.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    return {
+      lines: visibleLines,
+      ...(page === undefined ? {} : { lineCount }),
+      units,
+      returns,
+      trend: ordered(trend),
+      books: ordered(books),
+      locations: ordered(locations),
+      countries: ordered(countries)
     };
   }
   public corrections(lineId?: string): readonly CatalogRecord[] {
@@ -347,53 +362,142 @@ export class SalesProjectService {
       'owner-label': input.ownerLabel.trim()
     });
   }
-  public aggregates(query: string | SalesQuery = {}): readonly SalesAggregateGroup[] {
-    const groups = new Map<string, CatalogRecord[]>();
-    for (const line of typeof query === 'string' ? this.lines(query) : this.query(query))
-      groups.set(String(line.fields.currency), [
-        ...(groups.get(String(line.fields.currency)) ?? []),
-        line
-      ]);
+  public aggregates(
+    query: string | SalesQuery = {},
+    page?: { readonly offset: number; readonly limit: number }
+  ): readonly SalesAggregateGroup[] {
+    interface Accumulator {
+      units: number;
+      returns: number;
+      grossRevenue?: string;
+      netRevenue?: string;
+      proceeds?: string;
+      lineCount: number;
+      lines: CatalogRecord[];
+    }
+    const groups = new Map<string, Accumulator>();
+    const corrections = this.correctionsByLineId();
+    let globalIndex = 0;
+    const input = typeof query === 'string' ? { bookId: query } : query;
+    const addMoney = (current: string | undefined, value: unknown): string | undefined =>
+      typeof value !== 'string'
+        ? current
+        : current === undefined
+          ? value
+          : sumDecimals([current, value]);
+    for (const line of this.matchingLines(input)) {
+      const currency = String(line.fields.currency);
+      const group = groups.get(currency) ?? {
+        units: 0,
+        returns: 0,
+        lineCount: 0,
+        lines: []
+      };
+      const includeLine =
+        page === undefined ||
+        (globalIndex >= Math.max(0, page.offset) &&
+          globalIndex < Math.max(0, page.offset) + Math.max(1, page.limit));
+      if (includeLine) group.lines.push(line);
+      const lineCorrections = corrections.get(line.id) ?? [];
+      group.units +=
+        Number(line.fields.units ?? 0) +
+        lineCorrections.reduce(
+          (sum, item) =>
+            sum + Number((item.fields.adjustment as Record<string, unknown>).units ?? 0),
+          0
+        );
+      group.returns +=
+        Number(line.fields.returns ?? 0) +
+        lineCorrections.reduce(
+          (sum, item) =>
+            sum + Number((item.fields.adjustment as Record<string, unknown>).returns ?? 0),
+          0
+        );
+      for (const field of ['gross-revenue', 'net-revenue', 'proceeds'] as const) {
+        const property =
+          field === 'gross-revenue'
+            ? 'grossRevenue'
+            : field === 'net-revenue'
+              ? 'netRevenue'
+              : 'proceeds';
+        let value = addMoney(group[property], line.fields[field]);
+        for (const correction of lineCorrections)
+          value = addMoney(value, (correction.fields.adjustment as Record<string, unknown>)[field]);
+        if (value !== undefined) {
+          if (field === 'gross-revenue') group.grossRevenue = value;
+          else if (field === 'net-revenue') group.netRevenue = value;
+          else group.proceeds = value;
+        }
+      }
+      group.lineCount += 1;
+      groups.set(currency, group);
+      globalIndex += 1;
+    }
     return [...groups.entries()]
-      .map(([currency, lines]) => {
-        const corrections = lines.flatMap((line) => this.corrections(line.id));
-        const adjustedNumber = (field: string) =>
-          lines.reduce((sum, line) => sum + Number(line.fields[field] ?? 0), 0) +
-          corrections.reduce(
-            (sum, item) =>
-              sum + Number((item.fields.adjustment as Record<string, unknown>)[field] ?? 0),
-            0
-          );
-        const adjustedMoney = (field: string): string | undefined => {
-          const values = [
-            ...lines.flatMap((line) =>
-              typeof line.fields[field] === 'string' ? [line.fields[field]] : []
-            ),
-            ...corrections.flatMap((item) => {
-              const value = (item.fields.adjustment as Record<string, unknown>)[field];
-              return typeof value === 'string' ? [value] : [];
-            })
-          ];
-          return values.length ? sumDecimals(values) : undefined;
-        };
-        const units = adjustedNumber('units');
-        const returns = adjustedNumber('returns');
-        const grossRevenue = adjustedMoney('gross-revenue');
-        const netRevenue = adjustedMoney('net-revenue');
-        const proceeds = adjustedMoney('proceeds');
-        return {
-          currency,
-          units,
-          returns,
-          netUnits: units - returns,
-          ...(grossRevenue === undefined ? {} : { grossRevenue }),
-          ...(netRevenue === undefined ? {} : { netRevenue }),
-          ...(proceeds === undefined ? {} : { proceeds }),
-          lines
-        };
-      })
+      .map(([currency, group]) => ({
+        currency,
+        units: group.units,
+        returns: group.returns,
+        netUnits: group.units - group.returns,
+        ...(group.grossRevenue === undefined ? {} : { grossRevenue: group.grossRevenue }),
+        ...(group.netRevenue === undefined ? {} : { netRevenue: group.netRevenue }),
+        ...(group.proceeds === undefined ? {} : { proceeds: group.proceeds }),
+        lines: group.lines,
+        ...(page === undefined ? {} : { lineCount: group.lineCount })
+      }))
       .sort((a, b) => a.currency.localeCompare(b.currency));
   }
+
+  /**
+   * Streams accepted rows and resolves relationship filters through indexed stable identities.
+   * Keeping this as one shared iterator ensures UI pages, analytics, exports, and duplicate checks
+   * cannot drift into subtly different attribution rules.
+   */
+  private *matchingLines(input: SalesQuery): IterableIterator<CatalogRecord> {
+    const normalizedIsbn = input.isbn?.trim() ? normalizeIsbn(input.isbn).isbn13 : undefined;
+    const bookEditionIds =
+      input.bookId === undefined
+        ? undefined
+        : new Set(this.catalog.editionsForBook(input.bookId).map(({ id }) => id));
+    for (const line of this.catalog.iterateRecordsOfType('sales-line')) {
+      if (line.fields.status !== 'accepted') continue;
+      if (bookEditionIds !== undefined && !bookEditionIds.has(String(line.fields['edition-id'])))
+        continue;
+      const edition = this.catalog.recordById(String(line.fields['edition-id']));
+      const book =
+        edition === undefined
+          ? undefined
+          : this.catalog.recordById(String(edition.fields['book-id']));
+      const isbn = this.catalog.recordById(String(line.fields['isbn-id']));
+      const target = this.catalog.recordById(String(line.fields['platform-target-id']));
+      if (
+        (input.seriesId === undefined || book?.fields['series-id'] === input.seriesId) &&
+        (input.editionId === undefined || line.fields['edition-id'] === input.editionId) &&
+        (normalizedIsbn === undefined || isbn?.fields.value === normalizedIsbn) &&
+        (input.formatId === undefined || line.fields['format-id'] === input.formatId) &&
+        (input.platform === undefined || target?.fields.platform === input.platform) &&
+        (input.publicationLocation === undefined ||
+          target?.fields['publication-location'] === input.publicationLocation) &&
+        (input.country === undefined || line.fields.country === input.country.toUpperCase()) &&
+        (input.currency === undefined || line.fields.currency === input.currency.toUpperCase()) &&
+        (input.sourceId === undefined || line.fields['source-id'] === input.sourceId) &&
+        (input.startDate === undefined || String(line.fields['end-date']) >= input.startDate) &&
+        (input.endDate === undefined || String(line.fields['start-date']) <= input.endDate)
+      )
+        yield line;
+    }
+  }
+
+  /** Builds one correction lookup per operation instead of rescanning the ledger for every row. */
+  private correctionsByLineId(): ReadonlyMap<string, readonly CatalogRecord[]> {
+    const result = new Map<string, CatalogRecord[]>();
+    for (const correction of this.catalog.iterateRecordsOfType('sales-correction')) {
+      const lineId = String(correction.fields['sales-line-id']);
+      result.set(lineId, [...(result.get(lineId) ?? []), correction]);
+    }
+    return result;
+  }
+
   private async createRecord(
     type: 'sales-source' | 'sales-line' | 'sales-correction',
     label: string,

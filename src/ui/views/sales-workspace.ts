@@ -40,6 +40,8 @@ export interface SalesWorkspaceState {
   filterFormatId: string;
   filterPlatform: string;
   filterLocation: string;
+  /** Zero-based visible ledger page; canonical rows remain outside the DOM until requested. */
+  linePage: number;
 }
 export function createSalesWorkspaceState(): SalesWorkspaceState {
   return {
@@ -72,7 +74,8 @@ export function createSalesWorkspaceState(): SalesWorkspaceState {
     filterIsbn: '',
     filterFormatId: '',
     filterPlatform: '',
-    filterLocation: ''
+    filterLocation: '',
+    linePage: 0
   };
 }
 
@@ -160,6 +163,7 @@ function renderAnalyticsFilters(
     });
     input.addEventListener('change', () => {
       context.state[key] = input.value;
+      context.state.linePage = 0;
       context.rerender();
     });
   }
@@ -171,6 +175,7 @@ function renderAnalyticsFilters(
   source.value = context.state.filterSourceId;
   source.addEventListener('change', () => {
     context.state.filterSourceId = source.value;
+    context.state.linePage = 0;
     context.rerender();
   });
   const selectFilters: readonly [SalesFilterSelectKey, string, readonly CatalogRecordOption[]][] = [
@@ -199,6 +204,7 @@ function renderAnalyticsFilters(
     control.disabled = key === 'filterBookId' && context.bookId !== undefined;
     control.addEventListener('change', () => {
       context.state[key] = control.value;
+      context.state.linePage = 0;
       context.rerender();
     });
   }
@@ -214,12 +220,17 @@ function renderAnalyticsFilters(
     });
     input.addEventListener('change', () => {
       context.state[key] = input.value;
+      context.state.linePage = 0;
       context.rerender();
     });
   }
-  const analytics = context.sales.analytics(activeQuery(context));
+  const pageSize = 50;
+  const analytics = context.sales.analytics(activeQuery(context), {
+    offset: context.state.linePage * pageSize,
+    limit: pageSize
+  });
   details.createEl('p', {
-    text: `${analytics.units} units · ${analytics.returns} returns · ${analytics.units - analytics.returns} net units · ${analytics.lines.length} contributing lines`
+    text: `${analytics.units} units · ${analytics.returns} returns · ${analytics.units - analytics.returns} net units · ${analytics.lineCount ?? analytics.lines.length} contributing lines`
   });
   const grid = details.createDiv({ cls: 'pm-sales-grid' });
   for (const [title, rows] of [
@@ -400,7 +411,11 @@ function renderAggregates(
   parent: HTMLElement,
   context: Parameters<typeof renderSalesWorkspace>[0]
 ): void {
-  const groups = context.sales.aggregates(activeQuery(context));
+  const pageSize = 50;
+  const offset = context.state.linePage * pageSize;
+  const query = activeQuery(context);
+  const page = context.sales.queryPage(query, offset, pageSize);
+  const groups = context.sales.aggregates(query, { offset, limit: pageSize });
   const section = parent.createEl('section', { cls: 'pm-panel' });
   section.createEl('h3', { text: `Currency-safe totals · ${groups.length} currencies` });
   if (!groups.length) {
@@ -466,6 +481,33 @@ function renderAggregates(
       });
     }
   }
+  const navigation = section.createDiv({ cls: 'pm-pagination' });
+  const previous = navigation.createEl('button', {
+    cls: 'pm-button pm-button--secondary',
+    text: 'Previous sales page',
+    attr: { type: 'button' }
+  });
+  previous.disabled = context.state.linePage === 0;
+  previous.addEventListener('click', () => {
+    context.state.linePage = Math.max(0, context.state.linePage - 1);
+    context.rerender();
+  });
+  navigation.createSpan({
+    text:
+      page.total === 0
+        ? 'No ledger rows'
+        : `Rows ${offset + 1}–${Math.min(offset + pageSize, page.total)} of ${page.total}`
+  });
+  const next = navigation.createEl('button', {
+    cls: 'pm-button pm-button--secondary',
+    text: 'Next sales page',
+    attr: { type: 'button' }
+  });
+  next.disabled = offset + pageSize >= page.total;
+  next.addEventListener('click', () => {
+    context.state.linePage += 1;
+    context.rerender();
+  });
 }
 function entryInput(state: SalesWorkspaceState): SalesEntryInput {
   return {

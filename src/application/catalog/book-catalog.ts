@@ -51,7 +51,15 @@ export interface CatalogInitializationOptions {
 /** Stateful projection with bounded local activity and immutable public snapshots. */
 export class BookCatalog {
   private readonly recordsByPath = new Map<VaultPath, CatalogRecord>();
+  /**
+   * These disposable secondary indexes prevent every feature query from sorting and scanning the
+   * complete vault projection. Paths, rather than record objects, are stored so replacement after
+   * an external edit has one authoritative object and duplicate stable identities remain visible.
+   */
+  private readonly pathsByType = new Map<ManagedRecordType, Set<VaultPath>>();
+  private readonly pathsById = new Map<string, Set<VaultPath>>();
   private readonly directDiagnosticsByPath = new Map<VaultPath, readonly CatalogDiagnostic[]>();
+  private cachedDiagnostics: readonly CatalogDiagnostic[] | undefined;
   private readonly recentActivity: CatalogActivity[] = [];
   private readonly subscribers = new Set<BookCatalogSubscriber>();
   private availability: CatalogAvailability = { state: 'loading' };
@@ -82,8 +90,9 @@ export class BookCatalog {
       total: orderedPaths.length
     };
     this.publish();
-    this.recordsByPath.clear();
+    this.clearRecords();
     this.directDiagnosticsByPath.clear();
+    this.cachedDiagnostics = undefined;
     for (const path of orderedPaths.slice(0, initialBatchSize)) await this.inspectPath(path);
     this.publishRebuildProgress(initialBatchSize, orderedPaths.length);
     if (initialBatchSize === orderedPaths.length) {
@@ -150,8 +159,9 @@ export class BookCatalog {
   ): void {
     const previous = this.recordsByPath.get(loaded.path);
     const record = toCatalogRecord(loaded);
-    this.recordsByPath.set(loaded.path, record);
+    this.setRecord(record);
     this.directDiagnosticsByPath.set(loaded.path, inspectRecord(record));
+    this.cachedDiagnostics = undefined;
     if (previous?.sourceRevision !== record.sourceRevision) {
       this.recordActivity(action, record);
     }
@@ -161,8 +171,9 @@ export class BookCatalog {
   /** Reconciles a rename by removing the stale path and inspecting the authoritative new path. */
   public async rename(previousPath: VaultPath, nextPath: VaultPath): Promise<void> {
     const previous = this.recordsByPath.get(previousPath);
-    this.recordsByPath.delete(previousPath);
+    this.deleteRecord(previousPath);
     this.directDiagnosticsByPath.delete(previousPath);
+    this.cachedDiagnostics = undefined;
     const next = await this.inspectPath(nextPath);
     if (next !== undefined) {
       this.recordActivity('renamed', next, previousPath);
@@ -175,8 +186,9 @@ export class BookCatalog {
   /** Removes a deleted path while retaining a bounded human-readable activity receipt. */
   public remove(path: VaultPath): void {
     const previous = this.recordsByPath.get(path);
-    this.recordsByPath.delete(path);
+    this.deleteRecord(path);
     this.directDiagnosticsByPath.delete(path);
+    this.cachedDiagnostics = undefined;
     if (previous !== undefined) {
       this.recordActivity('deleted', previous);
     }
@@ -190,7 +202,10 @@ export class BookCatalog {
 
   /** Resolves one valid projected record by stable identity, rejecting ambiguous duplicates. */
   public recordById(id: string): CatalogRecord | undefined {
-    const matches = [...this.recordsByPath.values()].filter((record) => record.id === id);
+    const matches = [...(this.pathsById.get(id) ?? [])].flatMap((path) => {
+      const record = this.recordsByPath.get(path);
+      return record === undefined ? [] : [record];
+    });
     return matches.length === 1 ? matches[0] : undefined;
   }
 
@@ -232,10 +247,43 @@ export class BookCatalog {
 
   /** Exposes a deterministic valid-record query without granting collection mutation. */
   public recordsOfType(type: ManagedRecordType): readonly CatalogRecord[] {
-    const diagnostics = this.collectDiagnostics();
-    return [...this.recordsByPath.values()]
-      .filter((record) => record.type === type && !hasPathError(record.path, diagnostics))
-      .sort((left, right) => left.id.localeCompare(right.id));
+    return [...this.iterateRecordsOfType(type)].sort((left, right) =>
+      left.id.localeCompare(right.id)
+    );
+  }
+
+  /**
+   * Streams valid records of one type from the secondary index without allocating or sorting the
+   * full result. Large ledger analytics and exports use this form; visible UI pages use
+   * `recordsPageOfType` below. Canonical Markdown ordering is deliberately irrelevant.
+   */
+  public *iterateRecordsOfType(type: ManagedRecordType): IterableIterator<CatalogRecord> {
+    const invalidPaths = new Set(
+      this.collectDiagnostics()
+        .filter(({ severity }) => severity === 'error')
+        .map(({ path }) => path)
+    );
+    for (const path of this.pathsByType.get(type) ?? []) {
+      const record = this.recordsByPath.get(path);
+      if (record !== undefined && !invalidPaths.has(path)) yield record;
+    }
+  }
+
+  /** Returns one bounded visible slice while reporting the exact number of valid matching rows. */
+  public recordsPageOfType(
+    type: ManagedRecordType,
+    offset: number,
+    limit: number
+  ): { readonly records: readonly CatalogRecord[]; readonly total: number } {
+    const safeOffset = Math.max(0, Math.floor(offset));
+    const safeLimit = Math.max(1, Math.floor(limit));
+    const records: CatalogRecord[] = [];
+    let total = 0;
+    for (const record of this.iterateRecordsOfType(type)) {
+      if (total >= safeOffset && records.length < safeLimit) records.push(record);
+      total += 1;
+    }
+    return { records, total };
   }
 
   /** Finds every valid record that currently points at one edition through `edition-id`. */
@@ -340,12 +388,14 @@ export class BookCatalog {
     try {
       const loaded = await this.inspection.inspect(path);
       const record = toCatalogRecord(loaded);
-      this.recordsByPath.set(path, record);
+      this.setRecord(record);
       this.directDiagnosticsByPath.set(path, inspectRecord(record));
+      this.cachedDiagnostics = undefined;
       return record;
     } catch (error) {
-      this.recordsByPath.delete(path);
+      this.deleteRecord(path);
       this.directDiagnosticsByPath.set(path, [diagnoseInspectionFailure(path, error)]);
+      this.cachedDiagnostics = undefined;
       return undefined;
     }
   }
@@ -384,6 +434,7 @@ export class BookCatalog {
 
   /** Combines direct parse/schema failures with cross-record identity and link diagnostics. */
   private collectDiagnostics(): readonly CatalogDiagnostic[] {
+    if (this.cachedDiagnostics !== undefined) return this.cachedDiagnostics;
     const diagnostics = [...this.directDiagnosticsByPath.values()].flat();
     const records = [...this.recordsByPath.values()];
     const byId = new Map<string, CatalogRecord[]>();
@@ -558,11 +609,12 @@ export class BookCatalog {
               'Retain one canonical snapshot or move the correction to a distinct effective date.'
           });
 
-    return diagnostics.sort((left, right) =>
+    this.cachedDiagnostics = diagnostics.sort((left, right) =>
       `${left.path}:${left.code}:${left.field ?? ''}`.localeCompare(
         `${right.path}:${right.code}:${right.field ?? ''}`
       )
     );
+    return this.cachedDiagnostics;
   }
 
   /** Stores newest activity first and bounds memory without persisting private note content. */
@@ -586,6 +638,41 @@ export class BookCatalog {
       ...(previousPath === undefined ? {} : { previousPath })
     });
     this.recentActivity.splice(50);
+  }
+
+  /** Replaces one projection while keeping both secondary indexes exactly in step. */
+  private setRecord(record: CatalogRecord): void {
+    this.deleteRecord(record.path);
+    this.recordsByPath.set(record.path, record);
+    const typePaths = this.pathsByType.get(record.type) ?? new Set<VaultPath>();
+    typePaths.add(record.path);
+    this.pathsByType.set(record.type, typePaths);
+    const idPaths = this.pathsById.get(record.id) ?? new Set<VaultPath>();
+    idPaths.add(record.path);
+    this.pathsById.set(record.id, idPaths);
+    this.cachedDiagnostics = undefined;
+  }
+
+  /** Removes one projection and prunes empty index buckets so stale paths cannot accumulate. */
+  private deleteRecord(path: VaultPath): void {
+    const previous = this.recordsByPath.get(path);
+    if (previous === undefined) return;
+    this.recordsByPath.delete(path);
+    const typePaths = this.pathsByType.get(previous.type);
+    typePaths?.delete(path);
+    if (typePaths?.size === 0) this.pathsByType.delete(previous.type);
+    const idPaths = this.pathsById.get(previous.id);
+    idPaths?.delete(path);
+    if (idPaths?.size === 0) this.pathsById.delete(previous.id);
+    this.cachedDiagnostics = undefined;
+  }
+
+  /** Clears only disposable projections and their indexes; canonical notes are never touched. */
+  private clearRecords(): void {
+    this.recordsByPath.clear();
+    this.pathsByType.clear();
+    this.pathsById.clear();
+    this.cachedDiagnostics = undefined;
   }
 
   /** Publishes fresh immutable snapshots after the complete reconciliation is consistent. */
