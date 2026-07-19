@@ -138,9 +138,26 @@
   text-underline-offset: 3px;
 }
 
-.publishing-manager :is(button, input, textarea, select):focus-visible {
+.publishing-manager :is(button, input, textarea, select, a, summary, [tabindex]):focus-visible {
   outline: 3px solid var(--interactive-accent);
   outline-offset: 2px;
+}
+
+/* Every direct action/control keeps a 44 CSS-pixel target; checkbox/radio labels own the target. */
+.publishing-manager :is(button, select, input:not([type='checkbox'], [type='radio'])) {
+  min-height: 44px;
+}
+
+.publishing-manager
+  :is(label:has(input[type='checkbox']), label:has(input[type='radio']), summary) {
+  align-items: center;
+  display: flex;
+  min-height: 44px;
+}
+
+.publishing-manager :is(input[type='checkbox'], input[type='radio']) {
+  min-height: 24px;
+  min-width: 24px;
 }
 
 /* State banners pair icons and text; background color is supplementary rather than semantic. */
@@ -378,7 +395,7 @@
 }
 
 .pm-breadcrumb .pm-text-button {
-  min-height: 28px;
+  min-height: 44px;
 }
 
 .pm-context-grid {
@@ -1033,6 +1050,8 @@
   .publishing-manager *::before,
   .publishing-manager *::after {
     scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }

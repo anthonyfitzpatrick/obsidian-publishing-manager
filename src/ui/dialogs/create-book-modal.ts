@@ -27,8 +27,10 @@ export class CreateBookModal extends Modal {
     let primaryLanguage = 'en';
     let status: BookStatus = 'planned';
     let summary = '';
-    const error = this.contentEl.createDiv({ cls: 'publishing-manager-form-error' });
-    error.setAttr('role', 'alert');
+    const error = this.contentEl.createDiv({
+      cls: 'publishing-manager-form-error',
+      attr: { role: 'alert', 'aria-live': 'assertive', tabindex: '-1' }
+    });
 
     new Setting(this.contentEl)
       .setName('Title')
@@ -113,6 +115,7 @@ export class CreateBookModal extends Modal {
       this.close();
     } catch (cause) {
       error.setText(cause instanceof Error ? cause.message : 'Book project could not be created.');
+      error.focus();
     }
   }
 }

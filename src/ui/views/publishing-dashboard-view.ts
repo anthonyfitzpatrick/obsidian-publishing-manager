@@ -356,9 +356,11 @@ function renderOperationalCards(root: HTMLElement, model: OperationalDashboardMo
     element.createSpan({ cls: 'pm-summary-card__label', text: card.label });
     element.createEl('strong', { cls: 'pm-summary-card__value', text: String(card.value) });
     element.createSpan({ cls: 'pm-summary-card__detail', text: card.detail });
-    element.addEventListener('click', () =>
-      root.querySelector(`#${card.target}`)?.scrollIntoView({ block: 'start' })
-    );
+    element.addEventListener('click', () => {
+      const target = root.querySelector<HTMLElement>(`#${card.target}`);
+      target?.scrollIntoView({ block: 'start' });
+      target?.focus();
+    });
   }
 }
 
@@ -457,7 +459,7 @@ function renderPortfolioTable(
 ): void {
   const section = parent.createEl('section', {
     cls: 'pm-panel pm-portfolio',
-    attr: { id: 'pm-dashboard-portfolio' }
+    attr: { id: 'pm-dashboard-portfolio', tabindex: '-1' }
   });
   const heading = section.createDiv({ cls: 'pm-section-heading' });
   heading.createDiv().createEl('h2', { text: 'Book portfolio' });
@@ -497,7 +499,7 @@ function renderTimeline(
 ): void {
   const section = parent.createEl('section', {
     cls: 'pm-panel',
-    attr: { id: 'pm-dashboard-timeline' }
+    attr: { id: 'pm-dashboard-timeline', tabindex: '-1' }
   });
   section.createEl('h2', { text: 'Launch timeline' });
   if (model.timeline.length === 0) {
@@ -535,7 +537,7 @@ function renderAttention(
 ): void {
   const section = parent.createEl('section', {
     cls: 'pm-panel',
-    attr: { id: 'pm-dashboard-attention' }
+    attr: { id: 'pm-dashboard-attention', tabindex: '-1' }
   });
   section.createEl('h2', { text: 'Ranked attention' });
   if (model.attention.length === 0) {

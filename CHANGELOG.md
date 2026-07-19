@@ -6,6 +6,8 @@ All notable changes to Publishing Manager are recorded here using Keep a Changel
 
 ### Added
 
+- M9 A11Y-001 through A11Y-004: build-enforced semantic controls and tab behavior, repaired focus after re-render/navigation, assertive focused error summaries, theme-relative visible focus, text-labelled status, narrow-pane reflow, reduced-motion behavior, and 44 CSS-pixel labelled targets.
+
 - M9 PRV-001 through PRV-004: machine-readable canonical/plugin/session/reference/integration data inventory; default every-source diagnostic redaction including settings recovery paths; privacy architecture enforcement; and disposable-vault disable/uninstall preservation evidence.
 
 - M9 SEC-003 through SEC-005: one confirmation-only renderer that displays each complete validated external destination before navigation, direct-anchor enforcement, a complete blocked-network test run, monitored production-bundle initialization, and an exact three-asset zero-production-dependency package audit.

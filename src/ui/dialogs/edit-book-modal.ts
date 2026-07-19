@@ -29,8 +29,10 @@ export class EditBookModal extends Modal {
     let primaryLanguage = this.current.primaryLanguage;
     let status = this.current.status;
     let summary = this.current.summary ?? '';
-    const error = this.contentEl.createDiv({ cls: 'publishing-manager-form-error' });
-    error.setAttr('role', 'alert');
+    const error = this.contentEl.createDiv({
+      cls: 'publishing-manager-form-error',
+      attr: { role: 'alert', 'aria-live': 'assertive', tabindex: '-1' }
+    });
 
     new Setting(this.contentEl).setName('Title').addText((text) => {
       text.setValue(title).onChange((value) => {
@@ -109,6 +111,7 @@ export class EditBookModal extends Modal {
       this.close();
     } catch (cause) {
       error.setText(cause instanceof Error ? cause.message : 'Book project could not be updated.');
+      error.focus();
     }
   }
 }

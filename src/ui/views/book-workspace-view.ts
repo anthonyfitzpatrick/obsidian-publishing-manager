@@ -439,7 +439,15 @@ export class BookWorkspaceView extends ItemView {
         attr: { role: 'alert' }
       });
     }
-    const content = root.createDiv({ cls: 'pm-workspace-content' });
+    const content = root.createDiv({
+      cls: 'pm-workspace-content',
+      attr: {
+        id: 'pm-book-workspace-panel',
+        role: 'tabpanel',
+        tabindex: '0',
+        'aria-labelledby': `pm-book-tab-${this.activeTab}`
+      }
+    });
     if (this.activeTab === 'overview') {
       this.renderOverview(content, record, snapshot);
     } else if (this.activeTab === 'workflow') {
@@ -681,13 +689,15 @@ export class BookWorkspaceView extends ItemView {
         text: capitalize(tab),
         attr: {
           type: 'button',
+          id: `pm-book-tab-${tab}`,
           role: 'tab',
           'aria-selected': String(this.activeTab === tab),
-          tabindex: this.activeTab === tab ? '0' : '-1'
+          tabindex: this.activeTab === tab ? '0' : '-1',
+          'aria-controls': 'pm-book-workspace-panel'
         }
       });
-      button.addEventListener('click', () => this.selectTab(tab));
-      button.addEventListener('keydown', (event) => this.handleTabKey(event, tab, tablist));
+      button.addEventListener('click', () => this.selectTab(tab, 'tab'));
+      button.addEventListener('keydown', (event) => this.handleTabKey(event, tab));
     }
     for (const tab of FUTURE_TABS) {
       tablist.createEl('button', {
@@ -714,7 +724,7 @@ export class BookWorkspaceView extends ItemView {
       });
     }
     select.addEventListener('change', () => {
-      if (isWorkspaceTab(select.value)) this.selectTab(select.value);
+      if (isWorkspaceTab(select.value)) this.selectTab(select.value, 'picker');
     });
   }
 
@@ -1175,10 +1185,18 @@ export class BookWorkspaceView extends ItemView {
     return `${series.fields.name} · Book ${typeof position === 'number' ? String(position) : '—'}`;
   }
 
-  /** Changes tabs without touching the shared draft store. */
-  private selectTab(tab: WorkspaceTab): void {
+  /** Changes tabs without touching drafts and restores focus after replacing the active DOM. */
+  private selectTab(tab: WorkspaceTab, focus?: 'picker' | 'tab'): void {
     this.activeTab = tab;
     if (this.snapshot !== undefined) this.render(this.snapshot);
+    if (focus !== undefined)
+      window.setTimeout(() => {
+        const selector =
+          focus === 'tab'
+            ? `[role="tab"][id="pm-book-tab-${tab}"]`
+            : '.pm-mobile-tab-picker select';
+        this.contentEl.querySelector<HTMLElement>(selector)?.focus();
+      }, 0);
   }
 
   /** Refreshes derived readiness asynchronously and rejects results for a superseded selection. */
@@ -1195,15 +1213,11 @@ export class BookWorkspaceView extends ItemView {
   }
 
   /** Implements wrapping arrow/home/end tab navigation and moves focus to the selected tab. */
-  private handleTabKey(event: KeyboardEvent, tab: WorkspaceTab, tablist: HTMLElement): void {
+  private handleTabKey(event: KeyboardEvent, tab: WorkspaceTab): void {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
     event.preventDefault();
     const next = nextWorkspaceTab(tab, event.key as 'ArrowLeft' | 'ArrowRight' | 'End' | 'Home');
-    this.selectTab(next);
-    const target = Array.from(tablist.querySelectorAll<HTMLButtonElement>('[role="tab"]')).find(
-      (button) => button.textContent?.toLowerCase() === next
-    );
-    window.setTimeout(() => target?.focus(), 0);
+    this.selectTab(next, 'tab');
   }
 }
 
