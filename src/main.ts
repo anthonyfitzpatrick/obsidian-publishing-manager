@@ -25,6 +25,7 @@ import { PublishingExportService } from './application/exports/publishing-export
 import { PublishingSettingsService } from './application/settings/publishing-settings-service';
 import { DiagnosticsService } from './application/diagnostics/diagnostics-service';
 import { ManuscriptCompilerIntegrationService } from './application/integrations/manuscript-compiler-integration';
+import { MetadataVisualsProviderService } from './application/integrations/metadata-visuals-provider';
 import { JournaledOperationRunner } from './application/storage/operation-journal';
 import { ManagedFolderLayout } from './domain/storage/managed-folder-layout';
 import { ObsidianBookCatalogController } from './infrastructure/catalog/obsidian-book-catalog-controller';
@@ -44,6 +45,7 @@ import {
   BrowserCompilerCapabilityTransport,
   BrowserCompilerTimer
 } from './infrastructure/integrations/browser-compiler-capability-transport';
+import { BrowserMetadataVisualsProviderTransport } from './infrastructure/integrations/browser-metadata-visuals-provider-transport';
 import { registerBookCommands } from './ui/commands/register-book-commands';
 import { registerFoundationCommand } from './ui/commands/register-foundation-command';
 import { registerWorkflowCommands } from './ui/commands/register-workflow-commands';
@@ -196,6 +198,15 @@ export default class PublishingManagerPlugin extends Plugin {
     // Result listening is app-lifetime rather than view-lifetime so a closed integration tab does
     // not cause a valid asynchronous completion event to disappear silently.
     this.register(compilerIntegration.start());
+    // Publishing Manager is the read-only provider. Metadata Visuals must discover this explicit
+    // event contract; installation alone never exposes data or grants access to plugin internals.
+    const metadataVisualsProvider = new MetadataVisualsProviderService(
+      catalog,
+      settings,
+      clock,
+      this.manifest.version
+    );
+    this.register(new BrowserMetadataVisualsProviderTransport(metadataVisualsProvider).start());
 
     registerFoundationCommand(this, getFoundationStatus);
     registerBookCommands(this, books);

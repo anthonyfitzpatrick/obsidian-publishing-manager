@@ -6,7 +6,7 @@ The product specification and project backlog in the Publishing Manager Obsidian
 
 ## Current state
 
-Milestones M0 through M7 are complete. M8 Optional plugin integrations is current at 7/18 items. The optional Manuscript Compiler section is complete with reviewed linking, lifecycle safeguards, and manual fallback; Metadata Visuals is next.
+Milestones M0 through M7 are complete. M8 Optional plugin integrations is current at 9/18 items. Compiler is complete; Metadata Visuals now has a versioned opt-in read-only provider with bounded catalog and book/edition snapshots.
 
 ## Licence boundary
 
