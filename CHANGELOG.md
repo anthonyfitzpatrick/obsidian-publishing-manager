@@ -8,6 +8,7 @@ All notable changes to Publishing Manager are recorded here using Keep a Changel
 
 - M8 INT-C-001, INT-C-002, and INT-C-007: strict local Manuscript Compiler v1 capability negotiation, explicit enablement, bounded correlated request previews, validated accepted/declined acknowledgement, native integration workspace, and always-available manual Assets fallback. Result payloads/freshness remain pending.
 - M8 INT-C-003 and INT-C-004: app-lifetime result reception with strict accepted-request/provider/scope/format/time/path/fingerprint/warning/history validation, session-only evidence cards, and deterministic Current/Stale fingerprint comparison without canonical format/asset writes.
+- M8 INT-C-005 and INT-C-006: reviewed single-format linking through the existing optimistic repository boundary plus timeout, cancellation, decline, malformed/duplicate/reload-late/incompatible failure handling that leaves canonical records untouched.
 
 - Foundation plugin scaffold, architecture boundaries, deterministic services, and native settings entry.
 - Local and Gitea CI quality gates for formatting, lint, types, support declarations, forbidden APIs, tests, and production builds.

@@ -5,7 +5,8 @@ import {
   COMPILER_CONTRACT_VERSION,
   ManuscriptCompilerIntegrationService,
   type CompilerCapabilityTransport,
-  type CompilerExportRequest
+  type CompilerExportRequest,
+  type CompilerTimerPort
 } from '../../src/application/integrations/manuscript-compiler-integration';
 import {
   DEFAULT_PUBLISHING_SETTINGS,
@@ -14,6 +15,7 @@ import {
 import type { BookCatalogSnapshot } from '../../src/domain/catalog/catalog-model';
 import type { Clock } from '../../src/domain/foundation/clock';
 import type { IdGenerator } from '../../src/domain/foundation/id-generator';
+import { ManualCancellationToken } from '../../src/domain/foundation/cancellation';
 import { normalizeVaultPath } from '../../src/domain/storage/vault-path';
 
 class FixedClock implements Clock {
@@ -30,12 +32,14 @@ class MemoryTransport implements CompilerCapabilityTransport {
   public descriptors: unknown[] = [];
   public requests: CompilerExportRequest[] = [];
   public acknowledgement: unknown;
+  public hang = false;
   private resultListener: ((payload: unknown) => void) | undefined;
   public async discover(): Promise<readonly unknown[]> {
     return structuredClone(this.descriptors);
   }
   public async request(payload: CompilerExportRequest): Promise<unknown> {
     this.requests.push(structuredClone(payload));
+    if (this.hang) return new Promise(() => undefined);
     return structuredClone(this.acknowledgement);
   }
   public subscribeResults(listener: (payload: unknown) => void): () => void {
@@ -46,6 +50,28 @@ class MemoryTransport implements CompilerCapabilityTransport {
   }
   public emitResult(payload: unknown): void {
     this.resultListener?.(structuredClone(payload));
+  }
+}
+
+class NodeTestTimers implements CompilerTimerPort {
+  private next = 0;
+  private readonly cancelled = new Set<number>();
+  public setTimeout(action: () => void, milliseconds: number): unknown {
+    const handle = ++this.next;
+    if (milliseconds <= 5)
+      queueMicrotask(() => {
+        if (!this.cancelled.has(handle)) action();
+      });
+    return handle;
+  }
+  public clearTimeout(handle: unknown): void {
+    if (typeof handle === 'number') this.cancelled.add(handle);
+  }
+  public setInterval(_action: () => void, _milliseconds: number): unknown {
+    return ++this.next;
+  }
+  public clearInterval(handle: unknown): void {
+    if (typeof handle === 'number') this.cancelled.add(handle);
   }
 }
 
@@ -132,7 +158,8 @@ function fixture() {
     },
     transport,
     new FixedClock(),
-    new FixedIds()
+    new FixedIds(),
+    new NodeTestTimers()
   );
   return { service, transport, settings: () => settings };
 }
@@ -293,8 +320,24 @@ describe('Manuscript Compiler integration', () => {
         historyId: 'compiler-history-0001'
       }
     });
-    const stale = await state.service.acceptResult(
-      result(preview.request.correlationId, {
+    const later = fixture();
+    later.transport.descriptors = [descriptor()];
+    await later.service.setEnabled(true);
+    const laterPreview = await later.service.previewRequest({
+      bookId: 'pm-book-0001',
+      editionId: 'pm-edition-0001',
+      formats: ['docx']
+    });
+    later.transport.acknowledgement = {
+      contract: COMPILER_CONTRACT,
+      contractVersion: 1,
+      kind: 'request-accepted',
+      correlationId: laterPreview.request.correlationId,
+      providerId: 'manuscript-compiler'
+    };
+    await later.service.applyRequest(laterPreview);
+    const stale = await later.service.acceptResult(
+      result(laterPreview.request.correlationId, {
         sourceFingerprint: 'sha256:older-source',
         historyId: 'compiler-history-0002'
       })
@@ -337,5 +380,61 @@ describe('Manuscript Compiler integration', () => {
     await expect(
       state.service.acceptResult(result(preview.request.correlationId, { warnings: 'not-a-list' }))
     ).rejects.toThrow('warnings');
+  });
+
+  it('handles decline, cancellation, timeout, duplicate result, and reload without stale authority', async () => {
+    const state = fixture();
+    state.transport.descriptors = [descriptor()];
+    await state.service.setEnabled(true);
+    const preview = await state.service.previewRequest({
+      bookId: 'pm-book-0001',
+      editionId: 'pm-edition-0001',
+      formats: ['docx']
+    });
+    state.transport.acknowledgement = {
+      contract: COMPILER_CONTRACT,
+      contractVersion: 1,
+      kind: 'request-declined',
+      correlationId: preview.request.correlationId,
+      providerId: 'manuscript-compiler',
+      reason: 'Fictional provider is busy.'
+    };
+    await expect(state.service.applyRequest(preview)).resolves.toMatchObject({ state: 'declined' });
+    await expect(state.service.acceptResult(result(preview.request.correlationId))).rejects.toThrow(
+      'accepted'
+    );
+
+    const cancelled = new ManualCancellationToken();
+    cancelled.cancel();
+    await expect(state.service.applyRequest(preview, { cancellation: cancelled })).rejects.toThrow(
+      'cancelled'
+    );
+
+    state.transport.hang = true;
+    await expect(state.service.applyRequest(preview, { timeoutMilliseconds: 5 })).rejects.toThrow(
+      'timed out'
+    );
+    state.transport.hang = false;
+    state.transport.acknowledgement = {
+      contract: COMPILER_CONTRACT,
+      contractVersion: 1,
+      kind: 'request-accepted',
+      correlationId: preview.request.correlationId,
+      providerId: 'manuscript-compiler'
+    };
+    await state.service.applyRequest(preview);
+    await state.service.acceptResult(result(preview.request.correlationId));
+    await expect(
+      state.service.acceptResult(
+        result(preview.request.correlationId, { historyId: 'different-history-id' })
+      )
+    ).rejects.toThrow('Duplicate');
+
+    const reloaded = fixture();
+    reloaded.transport.descriptors = [descriptor()];
+    await reloaded.service.setEnabled(true);
+    await expect(
+      reloaded.service.acceptResult(result(preview.request.correlationId))
+    ).rejects.toThrow('accepted matching request in this session');
   });
 });

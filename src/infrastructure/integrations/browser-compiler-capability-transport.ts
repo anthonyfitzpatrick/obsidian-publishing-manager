@@ -5,7 +5,8 @@
  */
 import type {
   CompilerCapabilityTransport,
-  CompilerExportRequest
+  CompilerExportRequest,
+  CompilerTimerPort
 } from '../../application/integrations/manuscript-compiler-integration';
 
 export const COMPILER_DISCOVERY_EVENT = 'publishing-manager:compiler:discover:v1';
@@ -54,5 +55,21 @@ export class BrowserCompilerCapabilityTransport implements CompilerCapabilityTra
     };
     window.addEventListener(COMPILER_RESULT_EVENT, receive);
     return () => window.removeEventListener(COMPILER_RESULT_EVENT, receive);
+  }
+}
+
+/** Owns browser timers in infrastructure so request control follows the active host window API. */
+export class BrowserCompilerTimer implements CompilerTimerPort {
+  public setTimeout(action: () => void, milliseconds: number): number {
+    return window.setTimeout(action, milliseconds);
+  }
+  public clearTimeout(handle: unknown): void {
+    if (typeof handle === 'number') window.clearTimeout(handle);
+  }
+  public setInterval(action: () => void, milliseconds: number): number {
+    return window.setInterval(action, milliseconds);
+  }
+  public clearInterval(handle: unknown): void {
+    if (typeof handle === 'number') window.clearInterval(handle);
   }
 }

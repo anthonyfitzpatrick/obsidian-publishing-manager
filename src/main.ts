@@ -40,7 +40,10 @@ import {
 import { VaultManagedRecordRepository } from './infrastructure/storage/vault-managed-record-repository';
 import { VaultOperationJournalStore } from './infrastructure/storage/vault-operation-journal-store';
 import { ObsidianManagedStoragePort } from './infrastructure/settings/obsidian-managed-storage-port';
-import { BrowserCompilerCapabilityTransport } from './infrastructure/integrations/browser-compiler-capability-transport';
+import {
+  BrowserCompilerCapabilityTransport,
+  BrowserCompilerTimer
+} from './infrastructure/integrations/browser-compiler-capability-transport';
 import { registerBookCommands } from './ui/commands/register-book-commands';
 import { registerFoundationCommand } from './ui/commands/register-foundation-command';
 import { registerWorkflowCommands } from './ui/commands/register-workflow-commands';
@@ -99,12 +102,20 @@ export default class PublishingManagerPlugin extends Plugin {
     // repository directly, so evidence cannot recursively generate evidence about itself.
     const repository = new HistoryRecordingRepository(canonicalRepository, history);
     const books = new BookProjectService(repository, catalog, layout, clock, ids);
-    const editions = new EditionProjectService(repository, catalog, layout, clock, ids);
+    const vaultAssets = new ObsidianVaultAssetPort(this.app.vault);
+    const editions = new EditionProjectService(
+      repository,
+      catalog,
+      layout,
+      clock,
+      ids,
+      vaultAssets
+    );
     const assets = new AssetReferenceService(
       repository,
       catalog,
       layout,
-      new ObsidianVaultAssetPort(this.app.vault),
+      vaultAssets,
       new WebCryptoContentFingerprintPort(),
       clock,
       ids
@@ -179,7 +190,8 @@ export default class PublishingManagerPlugin extends Plugin {
       settings,
       compilerTransport,
       clock,
-      ids
+      ids,
+      new BrowserCompilerTimer()
     );
     // Result listening is app-lifetime rather than view-lifetime so a closed integration tab does
     // not cause a valid asynchronous completion event to disappear silently.
@@ -213,7 +225,7 @@ export default class PublishingManagerPlugin extends Plugin {
     registerTemplateLibraryView(this, catalog, templates);
     registerPublishingExportView(this, catalog, exports);
     registerDiagnosticsView(this, diagnostics);
-    registerManuscriptCompilerIntegrationView(this, catalog, compilerIntegration);
+    registerManuscriptCompilerIntegrationView(this, catalog, compilerIntegration, editions);
     this.addSettingTab(
       new PublishingManagerSettingsTab(
         this.app,

@@ -9,7 +9,8 @@
 import type { BookCatalog } from '../catalog/book-catalog';
 import type {
   LoadedManagedRecord,
-  ManagedRecordRepositoryPort
+  ManagedRecordRepositoryPort,
+  VaultAssetPort
 } from '../storage/record-storage-ports';
 import type { Clock } from '../../domain/foundation/clock';
 import type { IdGenerator } from '../../domain/foundation/id-generator';
@@ -115,6 +116,35 @@ export interface EditionFormatResult {
   readonly format: EditionFormat;
 }
 
+/** Already validated Compiler evidence narrowed to the fields needed for one format update. */
+export interface CompilerOutputLinkInput {
+  readonly formatId: string;
+  readonly editionId: string;
+  readonly compilerFormat: 'docx' | 'odt' | 'epub' | 'html' | 'markdown' | 'xml';
+  readonly vaultPath: VaultPath;
+  readonly providerId: string;
+  readonly compilerVersion: string;
+  readonly compiledAt: string;
+  readonly semanticFingerprint: string;
+  readonly sourceFingerprint: string;
+  readonly outputFingerprint: string;
+  readonly historyId: string;
+  readonly correlationId: string;
+  readonly freshness: 'current' | 'stale';
+}
+
+/** Immutable one-record proposal prevents a result from writing before exact user review. */
+export interface CompilerOutputLinkPreview {
+  readonly formatId: string;
+  readonly formatPath: VaultPath;
+  readonly sourceRevision: string;
+  readonly input: CompilerOutputLinkInput;
+  readonly previousFilePath?: string;
+  readonly proposedFilePath: VaultPath;
+  readonly proposedMetadata: Readonly<Record<string, string>>;
+  readonly consequences: readonly string[];
+}
+
 /** Removal assessment explains why deletion is unavailable and which links can be reassigned. */
 export interface EditionRemovalAssessment {
   readonly canDelete: boolean;
@@ -152,6 +182,8 @@ export class EditionProjectServiceError extends Error {
       | 'edition-not-found'
       | 'edition-revision-stale'
       | 'edition-target-invalid'
+      | 'format-compiler-invalid'
+      | 'format-compiler-stale'
       | 'format-invalid'
       | 'record-type-invalid',
     message: string
@@ -168,7 +200,8 @@ export class EditionProjectService {
     private readonly catalog: BookCatalog,
     private readonly layout: ManagedFolderLayout,
     private readonly clock: Clock,
-    private readonly ids: IdGenerator
+    private readonly ids: IdGenerator,
+    private readonly files?: Pick<VaultAssetPort, 'inspect'>
   ) {}
 
   /** Creates revision one after validating the parent, type vocabulary, and conditional fields. */
@@ -219,6 +252,113 @@ export class EditionProjectService {
     });
     this.catalog.accept(loaded, 'created');
     return { path, format: hydrateEditionFormat(loaded) };
+  }
+
+  /** Plans one lossless format-record update after rechecking scope, kind, extension, and file. */
+  public async previewCompilerOutputLink(
+    input: CompilerOutputLinkInput
+  ): Promise<CompilerOutputLinkPreview> {
+    if (this.files === undefined)
+      throw new EditionProjectServiceError(
+        'format-compiler-invalid',
+        'Compiler linking requires live vault-file inspection.'
+      );
+    const formatRecord = this.catalog.recordById(input.formatId);
+    if (
+      formatRecord?.type !== 'format' ||
+      formatRecord.archived ||
+      formatRecord.fields['edition-id'] !== input.editionId
+    )
+      throw new EditionProjectServiceError(
+        'format-compiler-invalid',
+        'Choose one active format belonging to the compiled edition.'
+      );
+    if (!formatMatchesCompiler(String(formatRecord.fields.kind), input.compilerFormat))
+      throw new EditionProjectServiceError(
+        'format-compiler-invalid',
+        'The selected format kind does not match the compiler output format.'
+      );
+    if (!pathMatchesCompiler(input.vaultPath, input.compilerFormat))
+      throw new EditionProjectServiceError(
+        'format-compiler-invalid',
+        'The output filename extension does not match the compiler result format.'
+      );
+    const observation = await this.files.inspect(input.vaultPath);
+    if (!observation.exists)
+      throw new EditionProjectServiceError(
+        'format-compiler-invalid',
+        'The compiler output does not currently exist at the validated vault path.'
+      );
+    const loaded = await this.repository.load(formatRecord.path);
+    assertRecordType(loaded, 'format');
+    const currentMetadata = isStringRecord(loaded.fields.metadata) ? loaded.fields.metadata : {};
+    const proposedMetadata = {
+      ...currentMetadata,
+      'compiler-provider': input.providerId,
+      'compiler-version': input.compilerVersion,
+      'compiler-compiled-at': input.compiledAt,
+      'compiler-semantic-fingerprint': input.semanticFingerprint,
+      'compiler-source-fingerprint': input.sourceFingerprint,
+      'compiler-output-fingerprint': input.outputFingerprint,
+      'compiler-history-id': input.historyId,
+      'compiler-correlation-id': input.correlationId,
+      'compiler-freshness': input.freshness
+    };
+    assertValidFormat({
+      ...loaded.fields,
+      'file-path': input.vaultPath,
+      metadata: proposedMetadata
+    });
+    return {
+      formatId: formatRecord.id,
+      formatPath: formatRecord.path,
+      sourceRevision: loaded.sourceRevision,
+      input: structuredClone(input),
+      ...(typeof loaded.fields['file-path'] === 'string'
+        ? { previousFilePath: loaded.fields['file-path'] }
+        : {}),
+      proposedFilePath: input.vaultPath,
+      proposedMetadata,
+      consequences: [
+        'Exactly one canonical format note will change; the compiler output file is not copied or modified.',
+        'The file path and validated compiler evidence will replace prior values for the named compiler metadata keys.',
+        'Unknown frontmatter, accessibility data, unrelated metadata keys, and note prose remain unchanged.'
+      ]
+    };
+  }
+
+  /** Applies only an unchanged reviewed format proposal through the existing repository boundary. */
+  public async applyCompilerOutputLink(
+    preview: CompilerOutputLinkPreview
+  ): Promise<EditionFormatResult> {
+    const refreshed = await this.previewCompilerOutputLink(preview.input);
+    if (
+      refreshed.formatPath !== preview.formatPath ||
+      refreshed.sourceRevision !== preview.sourceRevision ||
+      JSON.stringify(refreshed.proposedMetadata) !== JSON.stringify(preview.proposedMetadata)
+    )
+      throw new EditionProjectServiceError(
+        'format-compiler-stale',
+        'The format, provider evidence, or output changed after preview. Review a fresh link.'
+      );
+    const loaded = await this.repository.load(preview.formatPath);
+    if (loaded.sourceRevision !== preview.sourceRevision)
+      throw new EditionProjectServiceError(
+        'format-compiler-stale',
+        'The format changed after preview. Review a fresh link.'
+      );
+    const saved = await this.repository.save(
+      loaded,
+      {
+        fields: {
+          'file-path': preview.proposedFilePath,
+          metadata: preview.proposedMetadata
+        }
+      },
+      this.now()
+    );
+    this.catalog.accept(saved, 'modified');
+    return { path: saved.path, format: hydrateEditionFormat(saved) };
   }
 
   /** Builds a field-by-field revision proposal without writing or copying an identifier assignment. */
@@ -635,11 +775,11 @@ function assertValidFormat(fields: Readonly<Record<string, unknown>>): void {
 }
 
 /** Narrows a loaded repository record before edition-specific hydration or mutation. */
-function assertRecordType(record: LoadedManagedRecord, expected: 'edition'): void {
+function assertRecordType(record: LoadedManagedRecord, expected: 'edition' | 'format'): void {
   if (record.envelope.pmType !== expected) {
     throw new EditionProjectServiceError(
       'record-type-invalid',
-      `Expected an ${expected} record but found ${record.envelope.pmType}.`
+      `Expected a${expected === 'edition' ? 'n' : ''} ${expected} record but found ${record.envelope.pmType}.`
     );
   }
 }
@@ -744,6 +884,37 @@ function stableObjectSummary(input: object): string {
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([key, entry]) => `${key}: ${value(entry)}`)
     .join('; ');
+}
+
+/** Accepts only the exact semantic kinds represented by the Compiler contract. */
+function formatMatchesCompiler(
+  kind: string,
+  compilerFormat: CompilerOutputLinkInput['compilerFormat']
+): boolean {
+  return kind === compilerFormat || (compilerFormat === 'markdown' && kind === 'md');
+}
+
+/** Prevents a declared format from silently targeting a differently typed filename. */
+function pathMatchesCompiler(
+  path: VaultPath,
+  format: CompilerOutputLinkInput['compilerFormat']
+): boolean {
+  const lower = path.toLowerCase();
+  return format === 'markdown'
+    ? lower.endsWith('.md') || lower.endsWith('.markdown')
+    : format === 'html'
+      ? lower.endsWith('.html') || lower.endsWith('.htm')
+      : lower.endsWith(`.${format}`);
+}
+
+/** Narrows existing user-owned metadata without coercing hostile structured values. */
+function isStringRecord(value: unknown): value is Readonly<Record<string, string>> {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    Object.entries(value).every(([key, entry]) => key.length > 0 && typeof entry === 'string')
+  );
 }
 
 /** Prefixes opaque generator output without deriving identity from title, type, or path. */

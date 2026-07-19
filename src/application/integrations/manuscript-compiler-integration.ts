@@ -6,6 +6,11 @@
 import type { BookCatalogSnapshot, CatalogRecord } from '../../domain/catalog/catalog-model';
 import type { Clock } from '../../domain/foundation/clock';
 import type { IdGenerator } from '../../domain/foundation/id-generator';
+import {
+  NeverCancelledToken,
+  OperationCancelledError,
+  type CancellationToken
+} from '../../domain/foundation/cancellation';
 import { normalizeVaultPath, type VaultPath } from '../../domain/storage/vault-path';
 import type {
   PublishingManagerSettings,
@@ -98,6 +103,11 @@ export interface CompilerResultState {
   readonly lastRejected?: string;
 }
 
+export interface CompilerRequestControl {
+  readonly timeoutMilliseconds?: number;
+  readonly cancellation?: CancellationToken;
+}
+
 export type CompilerRequestAcknowledgement =
   | {
       readonly state: 'accepted';
@@ -116,6 +126,14 @@ export interface CompilerCapabilityTransport {
   discover(): Promise<readonly unknown[]>;
   request(payload: CompilerExportRequest): Promise<unknown>;
   subscribeResults(listener: (payload: unknown) => void): () => void;
+}
+
+/** Host timer boundary keeps application timeout logic deterministic and popout-window safe. */
+export interface CompilerTimerPort {
+  setTimeout(action: () => void, milliseconds: number): unknown;
+  clearTimeout(handle: unknown): void;
+  setInterval(action: () => void, milliseconds: number): unknown;
+  clearInterval(handle: unknown): void;
 }
 
 export interface CompilerCatalogPort {
@@ -143,7 +161,8 @@ export class ManuscriptCompilerIntegrationService {
     private readonly settings: CompilerSettingsPort | PublishingSettingsService,
     private readonly transport: CompilerCapabilityTransport,
     private readonly clock: Clock,
-    private readonly ids: IdGenerator
+    private readonly ids: IdGenerator,
+    private readonly timers: CompilerTimerPort
   ) {}
 
   /** Starts one app-lifetime result listener so completion is not dependent on the view being open. */
@@ -268,8 +287,11 @@ export class ManuscriptCompilerIntegrationService {
 
   /** Re-negotiates before dispatch so reload, disable, or provider replacement invalidates preview. */
   public async applyRequest(
-    preview: CompilerRequestPreview
+    preview: CompilerRequestPreview,
+    control: CompilerRequestControl = {}
   ): Promise<CompilerRequestAcknowledgement> {
+    const cancellation = control.cancellation ?? new NeverCancelledToken();
+    cancellation.throwIfCancellationRequested();
     const negotiation = await this.requireEnabledCapability();
     if (negotiation.descriptorFingerprint !== preview.descriptorFingerprint) {
       throw new Error('Compiler capability changed after preview; review a fresh request.');
@@ -277,11 +299,18 @@ export class ManuscriptCompilerIntegrationService {
     // Re-resolve stable scope immediately before sending; removed or reassigned projects therefore
     // cannot leave Publishing Manager as stale integration requests.
     requireScope(this.catalog.snapshot(), preview.request.bookId, preview.request.editionId);
+    cancellation.throwIfCancellationRequested();
     const acknowledgement = parseAcknowledgement(
-      await this.transport.request(preview.request),
+      await awaitControlledRequest(
+        this.transport.request(preview.request),
+        control.timeoutMilliseconds ?? 10_000,
+        cancellation,
+        this.timers
+      ),
       preview.request.correlationId,
       negotiation.descriptor.providerId
     );
+    cancellation.throwIfCancellationRequested();
     if (acknowledgement.state === 'accepted') {
       this.acceptedRequests.set(preview.request.correlationId, {
         request: structuredClone(preview.request),
@@ -319,7 +348,10 @@ export class ManuscriptCompilerIntegrationService {
         freshnessExplanation: freshness.explanation,
         receivedAt: this.clock.now().toISOString()
       };
-      this.results.set(resultKey(result), evidence);
+      const key = resultKey(result);
+      if (this.results.has(key))
+        throw new Error('Duplicate compiler result for this request and format was rejected.');
+      this.results.set(key, evidence);
       this.lastRejected = undefined;
       this.publishResults();
       return evidence;
@@ -544,7 +576,44 @@ function parseWarnings(value: unknown): readonly string[] {
 }
 
 function resultKey(result: CompilerExportResult): string {
-  return `${result.correlationId}:${result.format}:${result.historyId}`;
+  return `${result.correlationId}:${result.format}`;
+}
+
+/** Bounds a provider Promise and polls cooperative cancellation without provider-specific APIs. */
+function awaitControlledRequest(
+  request: Promise<unknown>,
+  timeoutMilliseconds: number,
+  cancellation: CancellationToken,
+  timers: CompilerTimerPort
+): Promise<unknown> {
+  if (
+    !Number.isInteger(timeoutMilliseconds) ||
+    timeoutMilliseconds < 1 ||
+    timeoutMilliseconds > 60_000
+  )
+    throw new Error('Compiler request timeout must be between 1 and 60000 milliseconds.');
+  return new Promise<unknown>((resolve, reject) => {
+    let settled = false;
+    const finish = (action: () => void): void => {
+      if (settled) return;
+      settled = true;
+      timers.clearTimeout(timeout);
+      timers.clearInterval(cancellationPoll);
+      action();
+    };
+    const timeout = timers.setTimeout(
+      () => finish(() => reject(new Error('Compiler request timed out without acknowledgement.'))),
+      timeoutMilliseconds
+    );
+    const cancellationPoll = timers.setInterval(() => {
+      if (cancellation.isCancellationRequested) finish(() => reject(new OperationCancelledError()));
+    }, 25);
+    request.then(
+      (value) => finish(() => resolve(value)),
+      (error: unknown) =>
+        finish(() => reject(error instanceof Error ? error : new Error('Compiler request failed.')))
+    );
+  });
 }
 
 function requireScope(
