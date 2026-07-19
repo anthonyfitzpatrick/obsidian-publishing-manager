@@ -28,6 +28,7 @@ All notable changes to Publishing Manager are recorded here using Keep a Changel
 - M4 DST-001–DST-006 and milestone completion with twelve editable/versioned local platform profiles, official-source links, edition/platform/territory targets, explainable readiness, manual checklist/review/publication evidence, stale-version diagnostics, and no retailer-client or credential capability.
 - M5 RDY-001–RDY-006 with pure versioned rule contracts, five explicit outcomes and scopes, applicable-known weighted scoring, blocking-failure state cap, separately calculated confidence, and text-first pending-rule presentation.
 - M5 RDY-007–RDY-012 and milestone completion with nine canonical-evidence core checks, actionable result destinations, dependency-key reuse, Markdown audited overrides, visible version/time evidence, and deterministic regression fixtures.
+- M6 DSH-001–DSH-008 with operational cards, ranked attention, launch/workload summaries, readiness-aware portfolio evidence, filters, locally persisted saved views/custom columns, exact-source navigation, and partial/rebuilding labels.
 
 ## [0.1.0] - 2026-07-18
 

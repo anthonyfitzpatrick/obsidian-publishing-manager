@@ -897,6 +897,26 @@
 .pm-readiness-result {
   border-inline-start: 0.25rem solid var(--interactive-accent);
 }
+.pm-summary-card--button {
+  color: var(--text-normal);
+  cursor: pointer;
+  text-align: start;
+  width: 100%;
+}
+.pm-dashboard-table {
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+  width: 100%;
+}
+.pm-dashboard-table th,
+.pm-dashboard-table td {
+  border-bottom: 1px solid var(--background-modifier-border);
+  padding: 0.6rem;
+  text-align: start;
+  vertical-align: top;
+  white-space: nowrap;
+}
 
 /* Single-column panes keep the same actions/content and replace crowded tabs with a picker. */
 @container (max-width: 800px) {

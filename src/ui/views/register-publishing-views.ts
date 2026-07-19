@@ -16,6 +16,7 @@ import type { IsbnProjectService } from '../../application/isbn/isbn-project-ser
 import type { PriceProjectService } from '../../application/pricing/price-project-service';
 import type { DistributionProjectService } from '../../application/distribution/distribution-project-service';
 import type { ReadinessProjectService } from '../../application/readiness/readiness-project-service';
+import type { DashboardPreferencesService } from '../../application/dashboard/dashboard-preferences-service';
 import type { CatalogRecord } from '../../domain/catalog/catalog-model';
 import { normalizeVaultPath } from '../../domain/storage/vault-path';
 import { CreateBookModal } from '../dialogs/create-book-modal';
@@ -39,6 +40,7 @@ export function registerPublishingViews(
   prices: PriceProjectService,
   distribution: DistributionProjectService,
   readiness: ReadinessProjectService,
+  dashboardPreferences: DashboardPreferencesService,
   drafts: BookDraftStore,
   refreshCatalog: () => Promise<void>
 ): void {
@@ -48,12 +50,12 @@ export function registerPublishingViews(
     await plugin.app.workspace.revealLeaf(leaf);
   };
 
-  const openBook = async (record: CatalogRecord): Promise<void> => {
+  const openBook = async (record: CatalogRecord, tab = 'overview'): Promise<void> => {
     const leaf = existingOrNewLeaf(plugin, BOOK_WORKSPACE_VIEW_TYPE);
     await leaf.setViewState({
       type: BOOK_WORKSPACE_VIEW_TYPE,
       active: true,
-      state: { bookPath: record.path, tab: 'overview' }
+      state: { bookPath: record.path, tab }
     });
     await plugin.app.workspace.revealLeaf(leaf);
   };
@@ -64,6 +66,8 @@ export function registerPublishingViews(
       new PublishingDashboardView(
         leaf,
         catalog,
+        readiness,
+        dashboardPreferences,
         () => new CreateBookModal(plugin.app, books).open(),
         openBook,
         refreshCatalog
