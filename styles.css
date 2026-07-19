@@ -917,6 +917,14 @@
   vertical-align: top;
   white-space: nowrap;
 }
+.pm-sales-page,
+.pm-sales-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+.pm-sales-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr));
+}
 
 /* Single-column panes keep the same actions/content and replace crowded tabs with a picker. */
 @container (max-width: 800px) {

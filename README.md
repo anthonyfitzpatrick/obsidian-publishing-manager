@@ -6,7 +6,7 @@ The product specification and project backlog in the Publishing Manager Obsidian
 
 ## Current state
 
-Milestones M0 through M5 are complete. M6 Dashboard DSH-001–DSH-008 is active with inspectable operational cards, ranked attention, launch/workload summaries, an evidence-rich portfolio table, filters, local saved views/custom columns, exact-source navigation, and explicit partial states. Canonical Sales is next.
+Milestones M0 through M5 are complete. M6 Dashboard DSH-001–DSH-008 and Sales SAL-001–SAL-014 are complete with direct local entry, exact-once ISBN/location/country attribution, immutable corrections, currency-safe analytics, complete filters, and provenance drill-down. Launch planning is next.
 
 ## Licence boundary
 

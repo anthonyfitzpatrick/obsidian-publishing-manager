@@ -17,7 +17,8 @@ describe('workspace keyboard navigation', () => {
     expect(nextWorkspaceTab('isbns', 'ArrowRight')).toBe('pricing');
     expect(nextWorkspaceTab('pricing', 'ArrowRight')).toBe('distribution');
     expect(nextWorkspaceTab('distribution', 'ArrowRight')).toBe('readiness');
-    expect(nextWorkspaceTab('readiness', 'ArrowRight')).toBe('assets');
+    expect(nextWorkspaceTab('readiness', 'ArrowRight')).toBe('sales');
+    expect(nextWorkspaceTab('sales', 'ArrowRight')).toBe('assets');
     expect(nextWorkspaceTab('assets', 'ArrowRight')).toBe('diagnostics');
     expect(nextWorkspaceTab('diagnostics', 'ArrowRight')).toBe('overview');
     expect(nextWorkspaceTab('overview', 'ArrowLeft')).toBe('diagnostics');
@@ -34,5 +35,6 @@ describe('workspace keyboard navigation', () => {
     expect(isWorkspaceTab('isbns')).toBe(true);
     expect(isWorkspaceTab('pricing')).toBe(true);
     expect(isWorkspaceTab('distribution')).toBe(true);
+    expect(isWorkspaceTab('sales')).toBe(true);
   });
 });

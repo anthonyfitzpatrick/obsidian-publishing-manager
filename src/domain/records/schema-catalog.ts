@@ -231,24 +231,43 @@ export const RECORD_SCHEMAS = {
   'sales-source': schema('sales-source', {
     label: requiredString(),
     kind: requiredString(),
-    defaults: { kind: 'object', required: false }
+    defaults: { kind: 'object', required: false },
+    notes: optionalString()
   }),
   'sales-line': schema('sales-line', {
     'source-id': relation('sales-source', true),
     'isbn-id': relation('isbn', true),
     'edition-id': relation('edition', true),
+    'format-id': relation('format', false),
     'platform-target-id': relation('platform-target', true),
     country: requiredString(),
+    kind: requiredString(),
+    'start-date': { kind: 'date', required: true },
+    'end-date': { kind: 'date', required: true },
     units: { kind: 'integer', required: true },
+    returns: { kind: 'integer', required: true },
+    'net-units': { kind: 'integer', required: true },
     currency: requiredString(),
-    amount: { kind: 'decimal', required: false }
+    'gross-revenue': { kind: 'decimal', required: false },
+    'net-revenue': { kind: 'decimal', required: false },
+    tax: { kind: 'decimal', required: false },
+    fees: { kind: 'decimal', required: false },
+    discounts: { kind: 'decimal', required: false },
+    proceeds: { kind: 'decimal', required: false },
+    'external-reference': optionalString(),
+    'entry-key': requiredString(),
+    'coverage-key': requiredString(),
+    provenance: { kind: 'object', required: true },
+    'source-values': { kind: 'object', required: true },
+    status: requiredString()
   }),
   'sales-correction': schema('sales-correction', {
     'sales-line-id': relation('sales-line', true),
     kind: requiredString(),
     reason: requiredString(),
     timestamp: { kind: 'datetime', required: true },
-    adjustment: { kind: 'object', required: true }
+    adjustment: { kind: 'object', required: true },
+    'owner-label': requiredString()
   })
 } as const satisfies Record<ManagedRecordType, RecordSchemaDefinition>;
 

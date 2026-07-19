@@ -9,6 +9,7 @@ import { ItemView, Notice, TFile, setIcon, type WorkspaceLeaf } from 'obsidian';
 
 import type { BookCatalog } from '../../application/catalog/book-catalog';
 import type { ReadinessProjectService } from '../../application/readiness/readiness-project-service';
+import type { SalesProjectService } from '../../application/sales/sales-project-service';
 import {
   DEFAULT_DASHBOARD_COLUMNS,
   EMPTY_DASHBOARD_FILTERS,
@@ -28,6 +29,7 @@ import {
   type OperationalDashboardModel
 } from '../view-models/operational-dashboard-view-model';
 import type { ReadinessEvaluation } from '../../domain/readiness/readiness-engine';
+import { createSalesWorkspaceState, renderSalesWorkspace } from './sales-workspace';
 
 /** Stable Obsidian view identifier persisted in workspace layout state. */
 export const PUBLISHING_DASHBOARD_VIEW_TYPE = 'publishing-manager-dashboard';
@@ -40,6 +42,7 @@ export class PublishingDashboardView extends ItemView {
   private filters: DashboardFilterState = { ...EMPTY_DASHBOARD_FILTERS };
   private columns: readonly string[] = [...DEFAULT_DASHBOARD_COLUMNS];
   private savedViews: readonly DashboardSavedView[] = [];
+  private readonly salesState = createSalesWorkspaceState();
 
   /** Receives application state and narrow user-intent callbacks. */
   public constructor(
@@ -47,6 +50,7 @@ export class PublishingDashboardView extends ItemView {
     private readonly catalog: BookCatalog,
     private readonly readiness: ReadinessProjectService,
     private readonly preferences: DashboardPreferencesService,
+    private readonly sales: SalesProjectService,
     private readonly createBook: () => void,
     private readonly openBook: (record: CatalogRecord, tab?: string) => Promise<void>,
     private readonly refreshCatalog: () => Promise<void>
@@ -172,6 +176,15 @@ export class PublishingDashboardView extends ItemView {
     renderPortfolioTable(primary, operations, this.columns, (record) => void this.openBook(record));
     renderTimeline(primary, operations, (bookId) => this.openBookById(bookId));
     renderWorkload(primary, operations);
+    renderSalesWorkspace({
+      parent: primary,
+      sales: this.sales,
+      snapshot,
+      state: this.salesState,
+      rerender: () => {
+        if (this.snapshot !== undefined) this.render(this.snapshot);
+      }
+    });
     const aside = layout.createEl('aside', {
       cls: 'pm-dashboard-aside',
       attr: { 'aria-label': 'Catalog attention and recent activity' }

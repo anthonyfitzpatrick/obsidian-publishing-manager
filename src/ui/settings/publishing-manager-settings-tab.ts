@@ -27,6 +27,10 @@ export class PublishingManagerSettingsTab extends PluginSettingTab {
       {
         name: 'Classification data licence acknowledgement',
         desc: `Version ${CLASSIFICATION_DATA_ACKNOWLEDGEMENT_VERSION}; the MIT software licence and third-party dataset authorization remain separate.`
+      },
+      {
+        name: 'Sales entry defaults',
+        desc: 'Reusable local sales-source notes hold channel, publication-location, country, currency, date-grain, and sign defaults without credentials or endpoints.'
       }
     ];
   }
@@ -41,6 +45,11 @@ export class PublishingManagerSettingsTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName('Local-first operation')
       .setDesc('Publishing manager uses local vault data and makes no network requests.');
+    new Setting(containerEl)
+      .setName('Sales entry defaults')
+      .setDesc(
+        'Install and edit local Sales/Sources notes to maintain channel, publication-location, country, currency, date-grain, and sign defaults. Publishing manager stores no sales credentials or endpoints.'
+      );
 
     this.renderClassificationLicensing();
   }

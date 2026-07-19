@@ -29,6 +29,7 @@ All notable changes to Publishing Manager are recorded here using Keep a Changel
 - M5 RDY-001–RDY-006 with pure versioned rule contracts, five explicit outcomes and scopes, applicable-known weighted scoring, blocking-failure state cap, separately calculated confidence, and text-first pending-rule presentation.
 - M5 RDY-007–RDY-012 and milestone completion with nine canonical-evidence core checks, actionable result destinations, dependency-key reuse, Markdown audited overrides, visible version/time evidence, and deterministic regression fixtures.
 - M6 DSH-001–DSH-008 with operational cards, ranked attention, launch/workload summaries, readiness-aware portfolio evidence, filters, locally persisted saved views/custom columns, exact-source navigation, and partial/rebuilding labels.
+- M6 SAL-001–SAL-014 with canonical source/line/correction records, direct transaction and period-summary entry, unique ISBN/target/country attribution, duplicate/overlap safeguards, immutable adjustments, exact decimal currency groups, multidimensional analytics, and Dashboard/book provenance drill-down.
 
 ## [0.1.0] - 2026-07-18
 
