@@ -807,6 +807,41 @@
   overflow: auto;
 }
 
+/* ISBN cards keep lifecycle evidence and actions together. Import results use a native table so
+   invalid rows remain auditable instead of disappearing when valid rows are applied. */
+.pm-isbn-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.pm-isbn-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr));
+  gap: 0.75rem;
+}
+
+.pm-isbn-card {
+  padding: 0.85rem;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background: var(--background-primary);
+}
+
+.pm-isbn-page table {
+  width: 100%;
+  margin-block: 0.75rem;
+  border-collapse: collapse;
+}
+
+.pm-isbn-page th,
+.pm-isbn-page td {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--background-modifier-border);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
 /* Single-column panes keep the same actions/content and replace crowded tabs with a picker. */
 @container (max-width: 800px) {
   .pm-page-header,

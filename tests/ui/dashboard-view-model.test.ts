@@ -33,6 +33,7 @@ function snapshot(
     formats: [],
     assets: [],
     metadataSets: [],
+    isbns: [],
     workflows: [],
     tasks: [],
     diagnostics: Array.from({ length: diagnostics }, (_, index) => ({

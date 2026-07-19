@@ -14,6 +14,7 @@ import {
 } from '../../domain/editions/edition-project';
 import { validateWorkflowProject, validateWorkflowTask } from '../../domain/workflows/workflow';
 import { validateMetadataSet } from '../../domain/metadata/metadata-set';
+import { validateIsbnRecord } from '../../domain/isbn/isbn-record';
 import {
   type BookCatalogSnapshot,
   type CatalogActivity,
@@ -228,6 +229,9 @@ export class BookCatalog {
     const metadataSets = [...this.recordsByPath.values()]
       .filter((record) => record.type === 'metadata-set' && !hasPathError(record.path, diagnostics))
       .sort((left, right) => left.id.localeCompare(right.id));
+    const isbns = [...this.recordsByPath.values()]
+      .filter((record) => record.type === 'isbn' && !hasPathError(record.path, diagnostics))
+      .sort((left, right) => String(left.fields.value).localeCompare(String(right.fields.value)));
     return {
       availability: this.availability,
       books,
@@ -235,6 +239,7 @@ export class BookCatalog {
       formats,
       assets,
       metadataSets,
+      isbns,
       workflows,
       tasks,
       diagnostics,
@@ -380,6 +385,36 @@ export class BookCatalog {
             message: `${matches.length} metadata sets claim the same book/edition scope.`,
             suggestedAction:
               'Merge the values into one set and archive the duplicate scope records.'
+          });
+
+    // ISBN values and edition/format assignments are globally unique. External edits remain
+    // visible as diagnostics and never let one ambiguous record silently win.
+    const isbnValues = new Map<string, CatalogRecord[]>();
+    const isbnAssignments = new Map<string, CatalogRecord[]>();
+    for (const record of records.filter((candidate) => candidate.type === 'isbn')) {
+      const value = String(record.fields.value);
+      isbnValues.set(value, [...(isbnValues.get(value) ?? []), record]);
+      if (['reserved', 'assigned', 'published'].includes(String(record.fields.status))) {
+        const editionId =
+          typeof record.fields['edition-id'] === 'string' ? record.fields['edition-id'] : 'invalid';
+        const formatId =
+          typeof record.fields['format-id'] === 'string' ? record.fields['format-id'] : 'edition';
+        const assignment = `${editionId}:${formatId}`;
+        isbnAssignments.set(assignment, [...(isbnAssignments.get(assignment) ?? []), record]);
+      }
+    }
+    for (const matches of [...isbnValues.values(), ...isbnAssignments.values()])
+      if (matches.length > 1)
+        for (const record of matches)
+          diagnostics.push({
+            code: 'catalog.isbn-conflict',
+            severity: 'error',
+            path: record.path,
+            entityId: record.id,
+            field: 'value',
+            message: `${matches.length} ISBN records claim the same value or edition/format assignment.`,
+            suggestedAction:
+              'Keep one canonical assignment and correct or retire the conflicting record.'
           });
 
     return diagnostics.sort((left, right) =>
@@ -528,6 +563,19 @@ function inspectRecord(record: CatalogRecord): readonly CatalogDiagnostic[] {
         field: String(diagnostic.field),
         message: diagnostic.message,
         suggestedAction: 'Open this metadata set and correct the named value or scope relationship.'
+      }))
+    );
+  }
+  if (record.type === 'isbn' && schemaDiagnostics.length === 0) {
+    diagnostics.push(
+      ...validateIsbnRecord(record.fields).map((diagnostic) => ({
+        code: 'catalog.invalid-isbn' as const,
+        severity: 'error' as const,
+        path: record.path,
+        entityId: record.id,
+        field: diagnostic.field,
+        message: diagnostic.message,
+        suggestedAction: 'Open the ISBN workspace and correct the value, lifecycle, or assignment.'
       }))
     );
   }

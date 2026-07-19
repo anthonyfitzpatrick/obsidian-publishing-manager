@@ -29,6 +29,8 @@ export interface CatalogDiagnostic {
     | 'catalog.invalid-edition'
     | 'catalog.invalid-format'
     | 'catalog.invalid-metadata'
+    | 'catalog.invalid-isbn'
+    | 'catalog.isbn-conflict'
     | 'catalog.invalid-task'
     | 'catalog.invalid-workflow'
     | 'catalog.malformed-envelope'
@@ -87,6 +89,7 @@ export interface BookCatalogSnapshot {
   readonly formats: readonly CatalogRecord[];
   readonly assets: readonly CatalogRecord[];
   readonly metadataSets: readonly CatalogRecord[];
+  readonly isbns: readonly CatalogRecord[];
   readonly workflows: readonly CatalogRecord[];
   readonly tasks: readonly CatalogRecord[];
   readonly diagnostics: readonly CatalogDiagnostic[];

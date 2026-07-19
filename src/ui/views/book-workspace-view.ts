@@ -24,6 +24,7 @@ import type {
 } from '../../application/assets/asset-reference-service';
 import type { WorkflowProjectService } from '../../application/workflows/workflow-project-service';
 import type { MetadataProjectService } from '../../application/metadata/metadata-project-service';
+import type { IsbnProjectService } from '../../application/isbn/isbn-project-service';
 import { BOOK_STATUSES, type BookStatus } from '../../domain/books/book-project';
 import { ManualCancellationToken } from '../../domain/foundation/cancellation';
 import type {
@@ -45,6 +46,7 @@ import { EditionRevisionModal } from '../dialogs/edition-revision-modal';
 import { LinkAssetModal, RelinkAssetModal } from '../dialogs/link-asset-modal';
 import { createWorkflowWorkspaceState, renderWorkflowWorkspace } from './workflow-workspace';
 import { createMetadataWorkspaceState, renderMetadataWorkspace } from './metadata-workspace';
+import { createIsbnWorkspaceState, renderIsbnWorkspace } from './isbn-workspace';
 import type { BookDraftStore, BookOverviewDraft } from '../state/book-draft-store';
 import {
   ENABLED_WORKSPACE_TABS,
@@ -57,7 +59,6 @@ import {
 export const BOOK_WORKSPACE_VIEW_TYPE = 'publishing-manager-book-workspace';
 
 const FUTURE_TABS = [
-  'ISBNs',
   'Pricing',
   'Distribution',
   'Sales',
@@ -86,6 +87,7 @@ export class BookWorkspaceView extends ItemView {
     private readonly assets: AssetReferenceService,
     private readonly workflows: WorkflowProjectService,
     private readonly metadata: MetadataProjectService,
+    private readonly isbns: IsbnProjectService,
     private readonly drafts: BookDraftStore,
     private readonly openDashboard: () => Promise<void>
   ) {
@@ -98,6 +100,8 @@ export class BookWorkspaceView extends ItemView {
   private readonly workflowState = createWorkflowWorkspaceState();
   /** Profile choice is runtime presentation state; effective metadata remains derived. */
   private readonly metadataState = createMetadataWorkspaceState();
+  /** ISBN import and transaction previews survive catalog-triggered rerenders until applied. */
+  private readonly isbnState = createIsbnWorkspaceState();
 
   /**
    * Renders book-scoped links and fills each evidence card asynchronously. Inspection reads file
@@ -427,6 +431,17 @@ export class BookWorkspaceView extends ItemView {
         snapshot,
         metadata: this.metadata,
         state: this.metadataState,
+        rerender: () => {
+          if (this.snapshot !== undefined) this.render(this.snapshot);
+        }
+      });
+    } else if (this.activeTab === 'isbns') {
+      renderIsbnWorkspace({
+        parent: content,
+        book: record,
+        snapshot,
+        isbns: this.isbns,
+        state: this.isbnState,
         rerender: () => {
           if (this.snapshot !== undefined) this.render(this.snapshot);
         }

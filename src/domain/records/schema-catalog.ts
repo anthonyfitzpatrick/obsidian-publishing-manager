@@ -101,10 +101,17 @@ export const RECORD_SCHEMAS = {
   }),
   isbn: schema('isbn', {
     value: requiredString(),
+    'isbn-10': optionalString(),
     status: requiredString(),
     'edition-id': relation('edition', false),
+    'format-id': relation('format', false),
     publisher: optionalString(),
-    imprint: optionalString()
+    imprint: optionalString(),
+    'acquisition-note': optionalString(),
+    'assigned-at': { kind: 'datetime', required: false },
+    'published-at': { kind: 'datetime', required: false },
+    notes: optionalString(),
+    corrections: { kind: 'object', required: false }
   }),
   workflow: schema('workflow', {
     'book-id': relation('book', true),

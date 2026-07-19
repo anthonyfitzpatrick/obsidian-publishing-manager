@@ -12,6 +12,7 @@ import type { EditionProjectService } from '../../application/editions/edition-p
 import type { AssetReferenceService } from '../../application/assets/asset-reference-service';
 import type { WorkflowProjectService } from '../../application/workflows/workflow-project-service';
 import type { MetadataProjectService } from '../../application/metadata/metadata-project-service';
+import type { IsbnProjectService } from '../../application/isbn/isbn-project-service';
 import type { CatalogRecord } from '../../domain/catalog/catalog-model';
 import { normalizeVaultPath } from '../../domain/storage/vault-path';
 import { CreateBookModal } from '../dialogs/create-book-modal';
@@ -31,6 +32,7 @@ export function registerPublishingViews(
   assets: AssetReferenceService,
   workflows: WorkflowProjectService,
   metadata: MetadataProjectService,
+  isbns: IsbnProjectService,
   drafts: BookDraftStore,
   refreshCatalog: () => Promise<void>
 ): void {
@@ -72,6 +74,7 @@ export function registerPublishingViews(
         assets,
         workflows,
         metadata,
+        isbns,
         drafts,
         openDashboard
       )
