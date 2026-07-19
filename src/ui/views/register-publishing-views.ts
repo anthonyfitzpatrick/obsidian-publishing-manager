@@ -23,6 +23,7 @@ import type { CalendarProjectService } from '../../application/calendar/calendar
 import type { ReviewProjectService } from '../../application/reviews/review-project-service';
 import type { HistoryProjectService } from '../../application/history/history-project-service';
 import type { HistoryPreferencesService } from '../../application/history/history-preferences-service';
+import { resolvePublishingManagerDeepLink } from '../../application/integrations/metadata-visuals-provider';
 import type { CatalogRecord } from '../../domain/catalog/catalog-model';
 import { normalizeVaultPath } from '../../domain/storage/vault-path';
 import { CreateBookModal } from '../dialogs/create-book-modal';
@@ -62,15 +63,37 @@ export function registerPublishingViews(
     await plugin.app.workspace.revealLeaf(leaf);
   };
 
-  const openBook = async (record: CatalogRecord, tab = 'overview'): Promise<void> => {
+  const openBook = async (
+    record: CatalogRecord,
+    tab = 'overview',
+    editionId?: string
+  ): Promise<void> => {
     const leaf = existingOrNewLeaf(plugin, BOOK_WORKSPACE_VIEW_TYPE);
     await leaf.setViewState({
       type: BOOK_WORKSPACE_VIEW_TYPE,
       active: true,
-      state: { bookPath: record.path, tab }
+      state: { bookPath: record.path, tab, ...(editionId === undefined ? {} : { editionId }) }
     });
     await plugin.app.workspace.revealLeaf(leaf);
   };
+
+  // The public URI handler resolves navigation-only data against the current catalog. It never
+  // dispatches a command, saves a record, or accepts arbitrary tab/mutation parameters.
+  plugin.registerObsidianProtocolHandler('publishing-manager', (parameters) => {
+    const target = resolvePublishingManagerDeepLink(parameters, catalog.snapshot());
+    if (target === undefined) {
+      new Notice('Publishing manager rejected an invalid or unavailable navigation link.');
+      return;
+    }
+    const book = catalog.snapshot().books.find(({ id }) => id === target.bookId);
+    if (book === undefined) return;
+    void openBook(book, target.tab, target.editionId).catch(
+      (cause: unknown) =>
+        new Notice(
+          cause instanceof Error ? cause.message : 'Publishing Manager could not open the link.'
+        )
+    );
+  });
 
   plugin.registerView(
     PUBLISHING_DASHBOARD_VIEW_TYPE,

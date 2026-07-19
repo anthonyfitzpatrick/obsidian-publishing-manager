@@ -5,10 +5,13 @@ import {
   METADATA_VISUALS_CONTRACT,
   METADATA_VISUALS_CONTRACT_VERSION,
   MetadataVisualsProviderService,
-  projectMetadataForVisuals
+  projectMetadataForVisuals,
+  resolvePublishingManagerDeepLink
 } from '../../src/application/integrations/metadata-visuals-provider';
 import {
   DEFAULT_PUBLISHING_SETTINGS,
+  METADATA_VISUALS_OPTIONAL_FIELD_GROUPS,
+  type MetadataVisualsOptionalFieldGroup,
   type PublishingManagerSettings
 } from '../../src/application/settings/publishing-settings-service';
 import type { BookCatalogSnapshot } from '../../src/domain/catalog/catalog-model';
@@ -182,40 +185,53 @@ function request(
   };
 }
 
-function fixture(enabled: boolean, readinessRejects = false) {
+function fixture(
+  enabled: boolean,
+  readinessRejects = false,
+  fieldGroups: readonly MetadataVisualsOptionalFieldGroup[] = METADATA_VISUALS_OPTIONAL_FIELD_GROUPS
+) {
+  const calls = { metadata: 0, readiness: 0, dates: 0 };
   let settings: PublishingManagerSettings = structuredClone(DEFAULT_PUBLISHING_SETTINGS);
-  if (enabled)
-    settings = {
-      ...settings,
-      integrations: {
-        ...settings.integrations,
-        enabledCapabilities: [METADATA_VISUALS_CAPABILITY_ID]
-      }
-    };
+  settings = {
+    ...settings,
+    integrations: {
+      ...settings.integrations,
+      enabledCapabilities: enabled ? [METADATA_VISUALS_CAPABILITY_ID] : [],
+      metadataVisualsFieldGroups: fieldGroups
+    }
+  };
   const service = new MetadataVisualsProviderService(
     { snapshot },
     { current: () => structuredClone(settings) },
     new FixedClock(),
     '0.1.0',
     {
-      resolve: (_bookId, editionId) => ({
-        profileId: editionId === undefined ? 'core-book' : 'print-general',
-        profileVersion: 1,
-        completeness: {
-          complete: false,
-          present: 4,
-          required: 6,
-          percent: 67,
-          missing: ['copyright', 'contributors']
-        },
-        fields: [
-          { key: 'title', source: 'book', value: 'Fictional Visible Title' },
-          { key: 'language', source: editionId === undefined ? 'book' : 'edition', value: 'en' }
-        ]
-      })
+      resolve: (_bookId, editionId) => {
+        calls.metadata += 1;
+        return {
+          profileId: editionId === undefined ? 'core-book' : 'print-general',
+          profileVersion: 1,
+          completeness: {
+            complete: false,
+            present: 4,
+            required: 6,
+            percent: 67,
+            missing: ['copyright', 'contributors']
+          },
+          fields: [
+            { key: 'title', source: 'book' as const, value: 'Fictional Visible Title' },
+            {
+              key: 'language',
+              source: editionId === undefined ? ('book' as const) : ('edition' as const),
+              value: 'en'
+            }
+          ]
+        };
+      }
     },
     {
       evaluate: async (_bookId, editionId) => {
+        calls.readiness += 1;
         if (readinessRejects) throw new Error('PRIVATE_READINESS_FAILURE_DETAIL');
         return {
           rulePackCode: 'core-readiness',
@@ -231,18 +247,22 @@ function fixture(enabled: boolean, readinessRejects = false) {
       }
     },
     {
-      events: () => [
-        { kind: 'launch', date: '2026-08-01', entityId: 'pm-launch-visual-0001' },
-        { kind: 'task', date: '2026-07-20', entityId: 'pm-task-private-0001' }
-      ]
+      events: () => {
+        calls.dates += 1;
+        return [
+          { kind: 'launch', date: '2026-08-01', entityId: 'pm-launch-visual-0001' },
+          { kind: 'task', date: '2026-07-20', entityId: 'pm-task-private-0001' }
+        ];
+      }
     }
   );
-  return { service };
+  return { calls, service };
 }
 
 describe('Metadata Visuals provider', () => {
   it('advertises an explicit read-only v1 descriptor and current enablement', () => {
-    expect(fixture(false).service.descriptor()).toMatchObject({
+    const descriptor = fixture(false).service.descriptor();
+    expect(descriptor).toMatchObject({
       contract: METADATA_VISUALS_CONTRACT,
       contractVersion: 1,
       providerId: 'publishing-manager',
@@ -251,6 +271,14 @@ describe('Metadata Visuals provider', () => {
       mode: 'local-event',
       enabled: false,
       capabilities: ['catalog-summary', 'book-snapshot', 'edition-snapshot']
+    });
+    expect(descriptor.fieldGroups.find(({ id }) => id === 'identity')).toMatchObject({
+      optional: false,
+      enabled: true
+    });
+    expect(descriptor.fieldGroups.find(({ id }) => id === 'readiness')).toMatchObject({
+      optional: true,
+      enabled: true
     });
     expect(fixture(true).service.descriptor().enabled).toBe(true);
   });
@@ -301,6 +329,13 @@ describe('Metadata Visuals provider', () => {
       schemaVersion: 2,
       book: { id: 'pm-book-visual-0001', title: 'Fictional Visible Title' },
       editions: [{ id: 'pm-edition-visual-0001', bookId: 'pm-book-visual-0001' }],
+      deepLink: {
+        action: 'publishing-manager',
+        route: 'book-workspace',
+        bookId: 'pm-book-visual-0001',
+        tab: 'overview',
+        uri: 'obsidian://publishing-manager?route=book-workspace&bookId=pm-book-visual-0001&tab=overview'
+      },
       operational: {
         scope: { kind: 'book', id: 'pm-book-visual-0001' },
         effectiveMetadata: {
@@ -399,5 +434,67 @@ describe('Metadata Visuals provider', () => {
     );
     expect(response).toMatchObject({ kind: 'provider-error', code: 'projection-unavailable' });
     expect(JSON.stringify(response)).not.toContain('PRIVATE_READINESS_FAILURE_DETAIL');
+  });
+
+  it('omits disabled field groups and never calls their source adapters', async () => {
+    const state = fixture(true, false, ['relationships']);
+    const response = await state.service.handle(
+      request('book-snapshot-request', { bookId: 'pm-book-visual-0001' })
+    );
+    expect(response).toMatchObject({
+      kind: 'book-snapshot',
+      operational: {
+        enabledFieldGroups: ['relationships'],
+        relationships: { bookId: 'pm-book-visual-0001' }
+      }
+    });
+    const operational = (response as { operational: Record<string, unknown> }).operational;
+    expect(operational).not.toHaveProperty('effectiveMetadata');
+    expect(operational).not.toHaveProperty('workflowCategories');
+    expect(operational).not.toHaveProperty('dates');
+    expect(operational).not.toHaveProperty('readiness');
+    expect(state.calls).toEqual({ metadata: 0, readiness: 0, dates: 0 });
+    expect(
+      state.service.descriptor().fieldGroups.find(({ id }) => id === 'readiness')?.enabled
+    ).toBe(false);
+  });
+
+  it('resolves generated deep links as navigation only and rejects smuggled commands', async () => {
+    const response = await fixture(true).service.handle(
+      request('edition-snapshot-request', {
+        bookId: 'pm-book-visual-0001',
+        editionId: 'pm-edition-visual-0001'
+      })
+    );
+    const link = (response as { deepLink: { uri: string } }).deepLink;
+    expect(link.uri).toBe(
+      'obsidian://publishing-manager?route=book-workspace&bookId=pm-book-visual-0001&tab=editions&editionId=pm-edition-visual-0001'
+    );
+    expect(
+      resolvePublishingManagerDeepLink(
+        {
+          route: 'book-workspace',
+          bookId: 'pm-book-visual-0001',
+          editionId: 'pm-edition-visual-0001',
+          tab: 'editions'
+        },
+        snapshot()
+      )
+    ).toEqual({
+      bookId: 'pm-book-visual-0001',
+      editionId: 'pm-edition-visual-0001',
+      tab: 'editions'
+    });
+    expect(
+      resolvePublishingManagerDeepLink(
+        {
+          route: 'book-workspace',
+          bookId: 'pm-book-visual-0001',
+          tab: 'overview',
+          delete: 'all'
+        },
+        snapshot()
+      )
+    ).toBeUndefined();
   });
 });

@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_PUBLISHING_SETTINGS,
+  METADATA_VISUALS_OPTIONAL_FIELD_GROUPS,
   PublishingSettingsService,
   type ManagedStorageMovePort,
   type SettingsPluginDataPort
@@ -68,6 +69,42 @@ function storageFixture(): MemoryStorage {
 }
 
 describe('publishing settings service', () => {
+  it('migrates field-group controls without enabling or erasing optional capabilities', async () => {
+    const legacy = structuredClone(DEFAULT_PUBLISHING_SETTINGS) as unknown as Record<
+      string,
+      unknown
+    >;
+    legacy.integrations = {
+      enabledCapabilities: ['manuscript-compiler'],
+      discloseExchangedFields: true
+    };
+    const data = new MemoryData({ settings: legacy });
+    const service = new PublishingSettingsService(data, storageFixture(), new FixedClock());
+    await service.initialize();
+    expect(service.current().integrations).toEqual({
+      enabledCapabilities: ['manuscript-compiler'],
+      discloseExchangedFields: true,
+      metadataVisualsFieldGroups: METADATA_VISUALS_OPTIONAL_FIELD_GROUPS
+    });
+    expect(service.current().integrations.enabledCapabilities).not.toContain('metadata-visuals');
+
+    await service.saveSection('integrations', {
+      ...service.current().integrations,
+      enabledCapabilities: ['manuscript-compiler', 'metadata-visuals'],
+      metadataVisualsFieldGroups: ['relationships', 'dates']
+    });
+    expect(service.current().integrations.metadataVisualsFieldGroups).toEqual([
+      'relationships',
+      'dates'
+    ]);
+    await expect(
+      service.saveSection('integrations', {
+        ...service.current().integrations,
+        metadataVisualsFieldGroups: ['unknown-group'] as never
+      })
+    ).rejects.toThrow('recognized identifiers');
+  });
+
   it('validates before save, preserves unrelated data, and resets one section only', async () => {
     const data = new MemoryData({ unrelated: { keep: true } });
     const service = new PublishingSettingsService(data, storageFixture(), new FixedClock());

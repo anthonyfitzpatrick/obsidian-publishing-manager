@@ -21,6 +21,17 @@ export type SettingsSectionName =
   | 'storage'
   | 'tasksDates';
 
+/** Optional Metadata Visuals groups are stable persisted identifiers, not UI labels. */
+export const METADATA_VISUALS_OPTIONAL_FIELD_GROUPS = [
+  'effective-metadata',
+  'relationships',
+  'workflow-categories',
+  'dates',
+  'readiness'
+] as const;
+export type MetadataVisualsOptionalFieldGroup =
+  (typeof METADATA_VISUALS_OPTIONAL_FIELD_GROUPS)[number];
+
 export interface PublishingManagerSettings {
   readonly storage: {
     readonly managedRoot: string;
@@ -68,6 +79,7 @@ export interface PublishingManagerSettings {
   readonly integrations: {
     readonly enabledCapabilities: readonly string[];
     readonly discloseExchangedFields: boolean;
+    readonly metadataVisualsFieldGroups: readonly MetadataVisualsOptionalFieldGroup[];
   };
   readonly performance: {
     readonly pageSize: number;
@@ -160,7 +172,8 @@ export const DEFAULT_PUBLISHING_SETTINGS: PublishingManagerSettings = {
   },
   integrations: {
     enabledCapabilities: [],
-    discloseExchangedFields: true
+    discloseExchangedFields: true,
+    metadataVisualsFieldGroups: METADATA_VISUALS_OPTIONAL_FIELD_GROUPS
   },
   performance: {
     pageSize: 50,
@@ -451,14 +464,34 @@ function validateSection<K extends SettingsSectionName>(
         displayCurrency: optionalCurrency(item.displayCurrency),
         diagnostics: boolean(item.diagnostics, 'Sales diagnostics')
       } as PublishingManagerSettings[K];
-    case 'integrations':
+    case 'integrations': {
+      // Older settings predate per-group Metadata Visuals controls. Preserve their capability
+      // preferences and adopt the reviewed all-groups default instead of resetting the section.
+      const groups =
+        item.metadataVisualsFieldGroups === undefined
+          ? METADATA_VISUALS_OPTIONAL_FIELD_GROUPS
+          : uniqueStrings(
+              item.metadataVisualsFieldGroups,
+              METADATA_VISUALS_OPTIONAL_FIELD_GROUPS.length
+            );
+      if (
+        groups.some(
+          (group) =>
+            !METADATA_VISUALS_OPTIONAL_FIELD_GROUPS.includes(
+              group as MetadataVisualsOptionalFieldGroup
+            )
+        )
+      )
+        throw new Error('Metadata Visuals field groups must use recognized identifiers.');
       return {
         enabledCapabilities: uniqueStrings(item.enabledCapabilities, 32),
         discloseExchangedFields: boolean(
           item.discloseExchangedFields,
           'Integration field disclosure'
-        )
+        ),
+        metadataVisualsFieldGroups: groups as readonly MetadataVisualsOptionalFieldGroup[]
       } as PublishingManagerSettings[K];
+    }
     case 'performance':
       return {
         pageSize: integer(item.pageSize, 10, 500, 'Page size'),

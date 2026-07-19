@@ -7,6 +7,7 @@ import type {
   SettingsSectionName,
   StorageMovePreview
 } from '../../application/settings/publishing-settings-service';
+import { METADATA_VISUALS_FIELD_GROUP_DISCLOSURE } from '../../application/integrations/metadata-visuals-provider';
 
 export interface PublishingSettingsCallbacks {
   readonly refresh: () => void;
@@ -320,13 +321,39 @@ export class PublishingSettingsSections {
     );
     const draft = {
       ...this.value.integrations,
-      enabledCapabilities: [...this.value.integrations.enabledCapabilities]
+      enabledCapabilities: [...this.value.integrations.enabledCapabilities],
+      metadataVisualsFieldGroups: [...this.value.integrations.metadataVisualsFieldGroups]
     };
-    readonlyField(
+    panel.createEl('p', {
+      text: 'Metadata Visuals 0.1.3 does not yet consume this public provider contract. Access stays off by default, and absence or removal changes no Publishing Manager workflow.'
+    });
+    toggle(
       panel,
-      'Enabled capability preferences',
-      draft.enabledCapabilities.join(', ') || 'None'
+      'Enable Metadata Visuals read access',
+      draft.enabledCapabilities.includes('metadata-visuals'),
+      (enabled) => {
+        draft.enabledCapabilities = enabled
+          ? [...new Set([...draft.enabledCapabilities, 'metadata-visuals'])]
+          : draft.enabledCapabilities.filter((id) => id !== 'metadata-visuals');
+      }
     );
+    const disclosure = panel.createEl('details', { cls: 'pm-panel' });
+    disclosure.createEl('summary', { text: 'Metadata visuals exchanged field groups' });
+    for (const group of METADATA_VISUALS_FIELD_GROUP_DISCLOSURE) {
+      if (!group.optional) {
+        readonlyField(disclosure, `${group.label} · always included`, group.description);
+        continue;
+      }
+      const id = group.id;
+      const setting = new Setting(disclosure).setName(group.label).setDesc(group.description);
+      setting.addToggle((control) =>
+        control.setValue(draft.metadataVisualsFieldGroups.includes(id)).onChange((enabled) => {
+          draft.metadataVisualsFieldGroups = enabled
+            ? [...new Set([...draft.metadataVisualsFieldGroups, id])]
+            : draft.metadataVisualsFieldGroups.filter((groupId) => groupId !== id);
+        })
+      );
+    }
     toggle(
       panel,
       'Disclose exchanged fields',

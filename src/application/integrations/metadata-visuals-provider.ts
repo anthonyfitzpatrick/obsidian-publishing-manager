@@ -8,7 +8,10 @@ import type { BookCatalogSnapshot, CatalogRecord } from '../../domain/catalog/ca
 import type { Clock } from '../../domain/foundation/clock';
 import type { ReadinessEvaluation } from '../../domain/readiness/readiness-engine';
 import type { ResolvedMetadataProject } from '../metadata/metadata-project-service';
-import type { PublishingManagerSettings } from '../settings/publishing-settings-service';
+import {
+  type MetadataVisualsOptionalFieldGroup,
+  type PublishingManagerSettings
+} from '../settings/publishing-settings-service';
 
 export const METADATA_VISUALS_CONTRACT = 'publishing-manager.metadata-visuals' as const;
 export const METADATA_VISUALS_CONTRACT_VERSION = 1 as const;
@@ -16,6 +19,47 @@ export const METADATA_VISUALS_CAPABILITY_ID = 'metadata-visuals' as const;
 export const METADATA_VISUALS_MAX_ITEMS = 1_000;
 export const METADATA_VISUALS_MAX_REQUEST_BYTES = 4_096;
 export const METADATA_VISUALS_MAX_RESPONSE_BYTES = 262_144;
+
+export const METADATA_VISUALS_FIELD_GROUP_DISCLOSURE = [
+  {
+    id: 'identity',
+    label: 'Identity and route',
+    description:
+      'Stable book/edition identity, safe labels/status, schema revisions, and an inert Publishing Manager deep link.',
+    optional: false
+  },
+  {
+    id: 'effective-metadata',
+    label: 'Effective metadata and completeness',
+    description:
+      'Allowlisted non-description bibliographic values, provenance, and completeness counts.',
+    optional: true
+  },
+  {
+    id: 'relationships',
+    label: 'Relationships',
+    description: 'Stable related record identities only; no vault paths or record bodies.',
+    optional: true
+  },
+  {
+    id: 'workflow-categories',
+    label: 'Workflow categories',
+    description: 'Stage-category and task-status counts without task or stage prose.',
+    optional: true
+  },
+  {
+    id: 'dates',
+    label: 'Dates',
+    description: 'Date kind, date-only value, and source identity without event titles.',
+    optional: true
+  },
+  {
+    id: 'readiness',
+    label: 'Readiness',
+    description: 'Readiness pack, score/confidence, and rule states without evidence or remedies.',
+    optional: true
+  }
+] as const;
 
 export interface MetadataVisualsProviderDescriptor {
   readonly contract: typeof METADATA_VISUALS_CONTRACT;
@@ -27,6 +71,13 @@ export interface MetadataVisualsProviderDescriptor {
   readonly enabled: boolean;
   readonly capabilities: readonly ['catalog-summary', 'book-snapshot', 'edition-snapshot'];
   readonly schemaVersions: { readonly catalogSummary: 1; readonly entitySnapshot: 2 };
+  readonly fieldGroups: readonly {
+    readonly id: string;
+    readonly label: string;
+    readonly description: string;
+    readonly optional: boolean;
+    readonly enabled: boolean;
+  }[];
   readonly limits: {
     readonly maximumCatalogItems: number;
     readonly maximumRequestBytes: number;
@@ -99,14 +150,27 @@ export interface MetadataVisualsEntitySnapshot {
     readonly status: string;
     readonly revision: number | null;
   }[];
+  readonly deepLink: MetadataVisualsDeepLink;
   readonly operational: {
     readonly scope: { readonly kind: 'book' | 'edition'; readonly id: string };
-    readonly effectiveMetadata: MetadataVisualsMetadataProjection;
-    readonly relationships: MetadataVisualsRelationshipProjection;
-    readonly workflowCategories: readonly MetadataVisualsWorkflowCategory[];
-    readonly dates: readonly MetadataVisualsDateProjection[];
-    readonly readiness: MetadataVisualsReadinessProjection;
+    readonly enabledFieldGroups: readonly MetadataVisualsOptionalFieldGroup[];
+    readonly effectiveMetadata?: MetadataVisualsMetadataProjection;
+    readonly relationships?: MetadataVisualsRelationshipProjection;
+    readonly workflowCategories?: readonly MetadataVisualsWorkflowCategory[];
+    readonly dates?: readonly MetadataVisualsDateProjection[];
+    readonly readiness?: MetadataVisualsReadinessProjection;
   };
+}
+
+/** Route data can ask Publishing Manager to navigate, but carries no command or mutation payload. */
+export interface MetadataVisualsDeepLink {
+  readonly scheme: 'obsidian';
+  readonly action: 'publishing-manager';
+  readonly route: 'book-workspace';
+  readonly bookId: string;
+  readonly editionId?: string;
+  readonly tab: 'overview' | 'editions';
+  readonly uri: string;
 }
 
 /** The allowlisted metadata projection intentionally omits both description fields and raw values. */
@@ -233,6 +297,10 @@ export class MetadataVisualsProviderService {
       enabled: this.enabled(),
       capabilities: ['catalog-summary', 'book-snapshot', 'edition-snapshot'],
       schemaVersions: { catalogSummary: 1, entitySnapshot: 2 },
+      fieldGroups: METADATA_VISUALS_FIELD_GROUP_DISCLOSURE.map((group) => ({
+        ...group,
+        enabled: !group.optional || this.fieldGroupEnabled(group.id)
+      })),
       limits: {
         maximumCatalogItems: METADATA_VISUALS_MAX_ITEMS,
         maximumRequestBytes: METADATA_VISUALS_MAX_REQUEST_BYTES,
@@ -332,8 +400,17 @@ export class MetadataVisualsProviderService {
   ): Promise<MetadataVisualsEntitySnapshot> {
     const edition = request.kind === 'edition-snapshot-request' ? editions[0] : undefined;
     const editionId = edition?.id;
-    const effectiveMetadata = this.metadata.resolve(book.id, editionId);
-    const readiness = await this.readiness.evaluate(book.id, editionId);
+    const enabledFieldGroups = this.settings.current().integrations.metadataVisualsFieldGroups;
+    const includes = (group: MetadataVisualsOptionalFieldGroup): boolean =>
+      enabledFieldGroups.includes(group);
+    // Source adapters are invoked only for enabled groups. Turning a group off therefore removes
+    // both disclosure and data access, rather than merely hiding an already-fetched result.
+    const effectiveMetadata = includes('effective-metadata')
+      ? this.metadata.resolve(book.id, editionId)
+      : undefined;
+    const readiness = includes('readiness')
+      ? await this.readiness.evaluate(book.id, editionId)
+      : undefined;
     return {
       contract: METADATA_VISUALS_CONTRACT,
       contractVersion: METADATA_VISUALS_CONTRACT_VERSION,
@@ -365,16 +442,24 @@ export class MetadataVisualsProviderService {
             ? editionRecord.fields.revision
             : null
       })),
+      deepLink: metadataVisualsDeepLink(book.id, editionId),
       operational: {
         scope:
           edition === undefined
             ? { kind: 'book', id: book.id }
             : { kind: 'edition', id: edition.id },
-        effectiveMetadata,
-        relationships: relationships(snapshot, book.id, editionId),
-        workflowCategories: workflowCategories(snapshot, book.id, editionId),
-        dates: this.dates.events(book.id).slice(0, METADATA_VISUALS_MAX_ITEMS),
-        readiness
+        enabledFieldGroups,
+        ...(effectiveMetadata === undefined ? {} : { effectiveMetadata }),
+        ...(includes('relationships')
+          ? { relationships: relationships(snapshot, book.id, editionId) }
+          : {}),
+        ...(includes('workflow-categories')
+          ? { workflowCategories: workflowCategories(snapshot, book.id, editionId) }
+          : {}),
+        ...(includes('dates')
+          ? { dates: this.dates.events(book.id).slice(0, METADATA_VISUALS_MAX_ITEMS) }
+          : {}),
+        ...(readiness === undefined ? {} : { readiness })
       }
     };
   }
@@ -384,6 +469,58 @@ export class MetadataVisualsProviderService {
       .current()
       .integrations.enabledCapabilities.includes(METADATA_VISUALS_CAPABILITY_ID);
   }
+
+  private fieldGroupEnabled(group: MetadataVisualsOptionalFieldGroup): boolean {
+    return this.settings.current().integrations.metadataVisualsFieldGroups.includes(group);
+  }
+}
+
+/** Builds a percent-encoded navigation-only URI from already-validated canonical identities. */
+export function metadataVisualsDeepLink(
+  bookId: string,
+  editionId?: string
+): MetadataVisualsDeepLink {
+  const tab = editionId === undefined ? 'overview' : 'editions';
+  const query = new URLSearchParams({ route: 'book-workspace', bookId, tab });
+  if (editionId !== undefined) query.set('editionId', editionId);
+  return {
+    scheme: 'obsidian',
+    action: 'publishing-manager',
+    route: 'book-workspace',
+    bookId,
+    ...(editionId === undefined ? {} : { editionId }),
+    tab,
+    uri: `obsidian://publishing-manager?${query.toString()}`
+  };
+}
+
+export interface PublishingManagerDeepLinkTarget {
+  readonly bookId: string;
+  readonly editionId?: string;
+  readonly tab: 'overview' | 'editions';
+}
+
+/**
+ * Resolves only the navigation fields generated above. Unknown keys and invalid relationships are
+ * rejected so a custom URI cannot smuggle a write command through the navigation handler.
+ */
+export function resolvePublishingManagerDeepLink(
+  parameters: Readonly<Record<string, string>>,
+  snapshot: BookCatalogSnapshot
+): PublishingManagerDeepLinkTarget | undefined {
+  if (Object.keys(parameters).some((key) => !['route', 'bookId', 'editionId', 'tab'].includes(key)))
+    return undefined;
+  if (parameters.route !== 'book-workspace') return undefined;
+  const bookId = token(parameters.bookId, 200);
+  if (!bookId || !snapshot.books.some(({ id }) => id === bookId)) return undefined;
+  const editionId = token(parameters.editionId, 200);
+  if (parameters.editionId !== undefined) {
+    const edition = snapshot.editions.find(({ id }) => id === editionId);
+    if (edition === undefined || edition.fields['book-id'] !== bookId) return undefined;
+  }
+  const tab = editionId ? 'editions' : 'overview';
+  if (parameters.tab !== tab) return undefined;
+  return { bookId, ...(editionId ? { editionId } : {}), tab };
 }
 
 /**
