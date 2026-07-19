@@ -6,7 +6,7 @@ The product specification and project backlog in the Publishing Manager Obsidian
 
 ## Current state
 
-Milestones M0 through M3 are complete. The Book Workspace now includes completed M4 Metadata, ISBNs, and Pricing sections. Pricing stores exact decimal-text snapshots with explicit edition/platform/territory/currency, tax, dates, source, optional print cost, local reviewed exchange assumptions, and append-only revision history. Its warnings are planning heuristics, not retailer compliance claims. Distribution is next.
+Milestones M0 through M4 are complete. The Book Workspace includes Metadata, ISBNs, Pricing, and Distribution. Distribution creates editable/versioned local platform profiles and manual edition × platform × territory targets with named readiness blockers and retained external-state evidence. It provides no retailer client, credentials, upload, polling, scraping, or API capability. M5 Readiness is next.
 
 ## Licence boundary
 

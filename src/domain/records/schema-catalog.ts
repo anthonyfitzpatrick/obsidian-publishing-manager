@@ -86,10 +86,32 @@ export const RECORD_SCHEMAS = {
   }),
   'platform-target': schema('platform-target', {
     'edition-id': relation('edition', true),
+    'profile-id': relation('platform-profile', true),
     platform: requiredString(),
     territory: requiredString(),
     'publication-location': requiredString(),
-    status: requiredString()
+    aliases: { kind: 'string-list', required: false },
+    intent: { kind: 'boolean', required: true },
+    checklist: { kind: 'object', required: true },
+    'metadata-ready': { kind: 'boolean', required: true },
+    'assets-ready': { kind: 'boolean', required: true },
+    'pricing-ready': { kind: 'boolean', required: true },
+    'upload-date': { kind: 'date', required: false },
+    'review-state': requiredString(),
+    'publication-state': requiredString(),
+    'retail-links': { kind: 'object', required: false },
+    notes: optionalString(),
+    'last-verified': { kind: 'date', required: false },
+    'profile-version': { kind: 'integer', required: true }
+  }),
+  'platform-profile': schema('platform-profile', {
+    slug: requiredString(),
+    label: requiredString(),
+    version: { kind: 'integer', required: true },
+    'reviewed-at': { kind: 'date', required: true },
+    'official-url': requiredString(),
+    requirements: { kind: 'object', required: true },
+    notes: optionalString()
   }),
   'metadata-set': schema('metadata-set', {
     'book-id': relation('book', true),

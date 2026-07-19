@@ -17,6 +17,10 @@ import { validateMetadataSet } from '../../domain/metadata/metadata-set';
 import { validateIsbnRecord } from '../../domain/isbn/isbn-record';
 import { validatePriceRecord } from '../../domain/pricing/price-record';
 import {
+  validatePlatformProfile,
+  validatePlatformTarget
+} from '../../domain/distribution/distribution-record';
+import {
   type BookCatalogSnapshot,
   type CatalogActivity,
   type CatalogActivityAction,
@@ -238,6 +242,18 @@ export class BookCatalog {
       .sort((left, right) =>
         String(left.fields['effective-from']).localeCompare(String(right.fields['effective-from']))
       );
+    const platformProfiles = [...this.recordsByPath.values()]
+      .filter(
+        (record) => record.type === 'platform-profile' && !hasPathError(record.path, diagnostics)
+      )
+      .sort((left, right) => String(left.fields.label).localeCompare(String(right.fields.label)));
+    const platformTargets = [...this.recordsByPath.values()]
+      .filter(
+        (record) => record.type === 'platform-target' && !hasPathError(record.path, diagnostics)
+      )
+      .sort((left, right) =>
+        String(left.fields.platform).localeCompare(String(right.fields.platform))
+      );
     return {
       availability: this.availability,
       books,
@@ -247,6 +263,8 @@ export class BookCatalog {
       metadataSets,
       isbns,
       prices,
+      platformProfiles,
+      platformTargets,
       workflows,
       tasks,
       diagnostics,
@@ -625,6 +643,31 @@ function inspectRecord(record: CatalogRecord): readonly CatalogDiagnostic[] {
         field: diagnostic.field,
         message: diagnostic.message,
         suggestedAction: 'Open Pricing and review the amount, market, tax, source, and dates.'
+      }))
+    );
+  }
+  if (
+    (record.type === 'platform-profile' || record.type === 'platform-target') &&
+    schemaDiagnostics.length === 0
+  ) {
+    const found =
+      record.type === 'platform-profile'
+        ? validatePlatformProfile(
+            record.fields,
+            typeof record.fields['reviewed-at'] === 'string'
+              ? record.fields['reviewed-at']
+              : '1970-01-01'
+          )
+        : validatePlatformTarget(record.fields);
+    diagnostics.push(
+      ...found.map((diagnostic) => ({
+        code: 'catalog.invalid-distribution' as const,
+        severity: diagnostic.severity,
+        path: record.path,
+        entityId: record.id,
+        field: diagnostic.field,
+        message: diagnostic.message,
+        suggestedAction: 'Open Distribution and review the local profile or target evidence.'
       }))
     );
   }

@@ -33,6 +33,7 @@ export interface CatalogDiagnostic {
     | 'catalog.isbn-conflict'
     | 'catalog.invalid-price'
     | 'catalog.price-conflict'
+    | 'catalog.invalid-distribution'
     | 'catalog.invalid-task'
     | 'catalog.invalid-workflow'
     | 'catalog.malformed-envelope'
@@ -93,6 +94,8 @@ export interface BookCatalogSnapshot {
   readonly metadataSets: readonly CatalogRecord[];
   readonly isbns: readonly CatalogRecord[];
   readonly prices: readonly CatalogRecord[];
+  readonly platformProfiles: readonly CatalogRecord[];
+  readonly platformTargets: readonly CatalogRecord[];
   readonly workflows: readonly CatalogRecord[];
   readonly tasks: readonly CatalogRecord[];
   readonly diagnostics: readonly CatalogDiagnostic[];

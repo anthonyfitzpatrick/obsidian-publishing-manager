@@ -873,6 +873,22 @@
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-m);
 }
+.pm-distribution-page {
+  display: grid;
+  gap: 1rem;
+}
+.pm-distribution-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr));
+  gap: 0.75rem;
+}
+.pm-distribution-card,
+.pm-distribution-profile {
+  padding: 0.75rem;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  margin-block: 0.5rem;
+}
 
 /* Single-column panes keep the same actions/content and replace crowded tabs with a picker. */
 @container (max-width: 800px) {

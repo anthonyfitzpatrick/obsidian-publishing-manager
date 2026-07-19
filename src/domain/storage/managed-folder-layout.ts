@@ -20,6 +20,7 @@ const DEFAULT_FOLDERS: Readonly<Record<ManagedRecordType, string>> = {
   edition: 'Editions',
   format: 'Formats',
   'platform-target': 'Platforms',
+  'platform-profile': 'Platform Profiles',
   'metadata-set': 'Metadata',
   isbn: 'ISBN Pool',
   price: 'Prices',

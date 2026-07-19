@@ -13,6 +13,7 @@ export const MANAGED_RECORD_TYPES = [
   'edition',
   'format',
   'platform-target',
+  'platform-profile',
   'metadata-set',
   'isbn',
   'price',
