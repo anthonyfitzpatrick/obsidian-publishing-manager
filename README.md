@@ -6,7 +6,7 @@ The product specification and project backlog in the Publishing Manager Obsidian
 
 ## Current state
 
-Milestones M0 through M6 are complete. M6 passed all 36 Dashboard, Sales, Launch, Calendar, Reviews, and History items plus the release-equivalent exit gate. M7 Repeatability is current and begins with versioned, data-only publishing templates.
+Milestones M0 through M6 are complete. M7 Repeatability is current at 5/22 items. Its Templates section provides eight versioned, data-only template families, safe copy-before-edit behavior, required-variable previews, bounded portable JSON import, and deterministic local JSON export. The Exports section is next.
 
 ## Licence boundary
 

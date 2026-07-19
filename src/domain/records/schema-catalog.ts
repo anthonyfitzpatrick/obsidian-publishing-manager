@@ -220,6 +220,19 @@ export const RECORD_SCHEMAS = {
     'follow-up-status': requiredString(),
     notes: optionalString()
   }),
+  template: schema('template', {
+    kind: requiredString(),
+    name: requiredString(),
+    description: optionalString(),
+    version: { kind: 'integer', required: true },
+    source: requiredString(),
+    'source-template-id': optionalString(),
+    applicability: { kind: 'object', required: true },
+    defaults: { kind: 'object', required: true },
+    'required-fields': { kind: 'string-list', required: true },
+    variables: { kind: 'object', required: true },
+    extensions: { kind: 'object', required: false }
+  }),
   'asset-reference': schema('asset-reference', {
     'book-id': relation('book', true),
     'edition-id': relation('edition', false),

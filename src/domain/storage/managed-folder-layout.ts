@@ -29,6 +29,7 @@ const DEFAULT_FOLDERS: Readonly<Record<ManagedRecordType, string>> = {
   task: 'Tasks',
   launch: 'Launches',
   review: 'Reviews',
+  template: 'Templates',
   'asset-reference': 'Asset References',
   'history-event': 'History',
   'sales-source': 'Sales/Sources',

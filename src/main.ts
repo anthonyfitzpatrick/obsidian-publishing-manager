@@ -20,6 +20,7 @@ import { ReviewProjectService } from './application/reviews/review-project-servi
 import { HistoryPreferencesService } from './application/history/history-preferences-service';
 import { HistoryProjectService } from './application/history/history-project-service';
 import { HistoryRecordingRepository } from './application/history/history-recording-repository';
+import { TemplateProjectService } from './application/templates/template-project-service';
 import { JournaledOperationRunner } from './application/storage/operation-journal';
 import { ManagedFolderLayout } from './domain/storage/managed-folder-layout';
 import { ObsidianBookCatalogController } from './infrastructure/catalog/obsidian-book-catalog-controller';
@@ -40,6 +41,7 @@ import { registerWorkflowCommands } from './ui/commands/register-workflow-comman
 import { PublishingManagerSettingsTab } from './ui/settings/publishing-manager-settings-tab';
 import { BookDraftStore } from './ui/state/book-draft-store';
 import { registerPublishingViews } from './ui/views/register-publishing-views';
+import { registerTemplateLibraryView } from './ui/views/template-library-view';
 
 export default class PublishingManagerPlugin extends Plugin {
   /**
@@ -121,6 +123,14 @@ export default class PublishingManagerPlugin extends Plugin {
     const launches = new LaunchProjectService(repository, catalog, workflows, layout, clock, ids);
     const calendar = new CalendarProjectService(catalog, workflows, vaultText, layout, clock);
     const reviews = new ReviewProjectService(repository, catalog, layout, clock, ids);
+    const templates = new TemplateProjectService(
+      repository,
+      catalog,
+      layout,
+      vaultText,
+      clock,
+      ids
+    );
     const drafts = new BookDraftStore();
     const catalogController = new ObsidianBookCatalogController(
       this.app.vault,
@@ -157,6 +167,7 @@ export default class PublishingManagerPlugin extends Plugin {
       drafts,
       () => catalogController.initialize()
     );
+    registerTemplateLibraryView(this, catalog, templates);
     this.addSettingTab(
       new PublishingManagerSettingsTab(this.app, this, classificationLicenses, historyPreferences)
     );

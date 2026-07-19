@@ -22,6 +22,7 @@ export const MANAGED_RECORD_TYPES = [
   'task',
   'launch',
   'review',
+  'template',
   'asset-reference',
   'history-event',
   'sales-source',
