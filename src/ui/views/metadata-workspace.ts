@@ -13,10 +13,12 @@ import type { BookCatalogSnapshot, CatalogRecord } from '../../domain/catalog/ca
 import {
   METADATA_COMPLETENESS_PROFILES,
   METADATA_FIELD_KEYS,
+  REGIONAL_SUBJECT_SCHEMES,
   validateMetadataValues,
   type EffectiveMetadata,
   type MetadataFieldKey,
-  type MetadataValues
+  type MetadataValues,
+  type RegionalSubjectCodeAssignment
 } from '../../domain/metadata/metadata-set';
 
 /** Runtime selection is disposable; profile choice never becomes false canonical platform truth. */
@@ -119,7 +121,10 @@ function renderEffectiveGroups(
       label: 'Discoverability',
       fields: ['long-description-markdown', 'short-description-markdown', 'keywords']
     },
-    { label: 'Classification', fields: ['bisac-codes', 'thema-codes', 'audience'] },
+    {
+      label: 'Classification',
+      fields: ['bisac-codes', 'thema-codes', 'regional-subject-codes', 'audience']
+    },
     {
       label: 'Publisher and rights',
       fields: ['publisher', 'imprint', 'copyright', 'contributors']
@@ -185,6 +190,15 @@ function renderMetadataEditor(
       inputs.set(key, textarea(form, fieldLabel(key), contributorsText(values[key])));
     } else if (key.includes('description')) {
       inputs.set(key, textarea(form, fieldLabel(key), textValue(values[key])));
+    } else if (key === 'regional-subject-codes') {
+      inputs.set(
+        key,
+        textarea(
+          form,
+          'Regional subject codes · TERRITORY | scheme | CODE | primary/secondary | optional label',
+          regionalAssignmentsText(values[key])
+        )
+      );
     } else if (['keywords', 'bisac-codes', 'thema-codes'].includes(key)) {
       inputs.set(key, textarea(form, `${fieldLabel(key)} · one per line`, listText(values[key])));
     } else {
@@ -264,12 +278,15 @@ function renderDescriptionExport(
     });
 }
 
-/** Classification disclosure records the offline source boundary and the unresolved BISAC license gate. */
+/** Classification disclosure records current regional practice and exact licensing boundaries. */
 function renderClassificationBoundary(parent: HTMLElement): void {
   const details = parent.createEl('details', { cls: 'pm-panel' });
   details.createEl('summary', { text: 'Classification reference versions and limits' });
   details.createEl('p', {
-    text: `Thema ${METADATA_CLASSIFICATION_VERSIONS.thema} syntax is validated locally. BISAC is labelled ${METADATA_CLASSIFICATION_VERSIONS.bisac}; codes are syntax-checked, but the complete BISG list is not bundled because incorporation requires an End Users’ License Agreement. The plugin makes no lookup request.`
+    text: `Thema ${METADATA_CLASSIFICATION_VERSIONS.thema} is the current regional route for the UK and Australia and is also supported for France and Germany. France additionally accepts CLIL; Germany accepts WGS 2.0; legacy UK BIC 2.1 remains available only for existing records. BISAC is labelled ${METADATA_CLASSIFICATION_VERSIONS.bisac}. Manual codes receive syntax and territory/scheme validation, but headings are not claimed valid without an authorized local vocabulary. Configure the Classification Data EULA in Publishing Manager settings; acceptance records an acknowledgement and does not itself purchase or grant a third-party licence. No network lookup occurs.`
+  });
+  details.createEl('pre', {
+    text: 'Examples:\nGB | thema | FJH | primary | Crime fiction\nAU | thema | FJH | primary\nFR | clil | 3430 | secondary | User-supplied label\nDE | wgs | 1121 | primary | User-supplied label'
   });
 }
 
@@ -280,7 +297,8 @@ function valuesFromInputs(
   for (const [key, control] of inputs) {
     const raw = control.value.trim();
     if (!raw) continue;
-    if (['keywords', 'bisac-codes', 'thema-codes'].includes(key)) values[key] = lines(raw);
+    if (key === 'regional-subject-codes') values[key] = regionalAssignments(raw);
+    else if (['keywords', 'bisac-codes', 'thema-codes'].includes(key)) values[key] = lines(raw);
     else if (key === 'contributors')
       values[key] = lines(raw).map((line) => {
         const separator = line.lastIndexOf('|');
@@ -336,6 +354,47 @@ function contributorsText(value: unknown): string {
         .map(({ name, role }) => `${name} | ${role}`)
         .join('\n')
     : '';
+}
+/** Converts structured assignments to an editable, diff-friendly line representation. */
+function regionalAssignmentsText(value: unknown): string {
+  return Array.isArray(value)
+    ? value
+        .filter(
+          (item): item is RegionalSubjectCodeAssignment =>
+            typeof item === 'object' && item !== null && 'territory' in item && 'scheme' in item
+        )
+        .map(({ territory, scheme, code, primary, label }) =>
+          [territory, scheme, code, primary ? 'primary' : 'secondary', label]
+            .filter((part) => part !== undefined)
+            .join(' | ')
+        )
+        .join('\n')
+    : '';
+}
+
+/** Parses one human-readable assignment per line; domain validation supplies precise rejection. */
+function regionalAssignments(value: string): RegionalSubjectCodeAssignment[] {
+  return lines(value).map((line) => {
+    const [territory = '', scheme = '', code = '', priority = '', ...labelParts] = line
+      .split('|')
+      .map((part) => part.trim());
+    const label = labelParts.join(' | ').trim();
+    const normalizedTerritory =
+      territory.toUpperCase() as RegionalSubjectCodeAssignment['territory'];
+    const normalizedScheme = scheme.toLowerCase() as RegionalSubjectCodeAssignment['scheme'];
+    const definition = REGIONAL_SUBJECT_SCHEMES.find(
+      (entry) => entry.territory === normalizedTerritory && entry.scheme === normalizedScheme
+    );
+    return {
+      territory: normalizedTerritory,
+      scheme: normalizedScheme,
+      version: definition?.version ?? 'unsupported',
+      code: code.toUpperCase(),
+      primary: priority.toLowerCase() === 'primary',
+      ...(label ? { label } : {}),
+      source: 'manual'
+    };
+  });
 }
 function displayValue(value: unknown): string {
   if (value === undefined) return '— Missing';

@@ -62,4 +62,59 @@ describe('metadata set domain', () => {
       '# Heading\r\n\r\nA **bold** [link](https://example.invalid).\r\n\r\n- Final item';
     expect(descriptionMarkdownToPlainText(markdown)).toBe('Heading\nA bold link.\nFinal item');
   });
+
+  it('validates territory-specific subject systems without pretending to validate headings', () => {
+    expect(
+      validateMetadataValues({
+        'regional-subject-codes': [
+          {
+            territory: 'GB',
+            scheme: 'thema',
+            version: '1.6',
+            code: 'FJH',
+            primary: true,
+            source: 'manual'
+          },
+          {
+            territory: 'AU',
+            scheme: 'thema',
+            version: '1.6',
+            code: 'FJH',
+            primary: true,
+            source: 'manual'
+          },
+          {
+            territory: 'FR',
+            scheme: 'clil',
+            version: 'current-user-reference',
+            code: '3430',
+            primary: true,
+            source: 'manual'
+          },
+          {
+            territory: 'DE',
+            scheme: 'wgs',
+            version: '2.0',
+            code: '1121',
+            primary: true,
+            source: 'manual'
+          }
+        ]
+      })
+    ).toEqual([]);
+    expect(
+      validateMetadataValues({
+        'regional-subject-codes': [
+          {
+            territory: 'AU',
+            scheme: 'wgs',
+            version: '2.0',
+            code: '1121',
+            primary: true,
+            source: 'manual'
+          }
+        ]
+      })
+    ).toContainEqual(expect.objectContaining({ field: 'regional-subject-codes' }));
+  });
 });

@@ -16,6 +16,7 @@ export const METADATA_FIELD_KEYS = [
   'keywords',
   'bisac-codes',
   'thema-codes',
+  'regional-subject-codes',
   'audience',
   'publisher',
   'imprint',
@@ -36,6 +37,32 @@ export interface MetadataContributor {
   readonly name: string;
   readonly role: string;
 }
+
+/**
+ * A regional assignment is deliberately richer than a bare code string. Territory and scheme are
+ * retained together because an identical-looking code can mean different things in different
+ * national book trades. Labels are user-readable evidence, not a substitute for a licensed list.
+ */
+export interface RegionalSubjectCodeAssignment {
+  readonly territory: 'GB' | 'AU' | 'FR' | 'DE';
+  readonly scheme: 'thema' | 'bic' | 'clil' | 'wgs';
+  readonly version: string;
+  readonly code: string;
+  readonly primary: boolean;
+  readonly label?: string;
+  readonly source: 'manual';
+}
+
+/** Current and legacy scheme availability is centralized for validation, UI help, and export. */
+export const REGIONAL_SUBJECT_SCHEMES = [
+  { territory: 'GB', scheme: 'thema', version: '1.6', status: 'current' },
+  { territory: 'GB', scheme: 'bic', version: '2.1', status: 'legacy' },
+  { territory: 'AU', scheme: 'thema', version: '1.6', status: 'current' },
+  { territory: 'FR', scheme: 'thema', version: '1.6', status: 'current' },
+  { territory: 'FR', scheme: 'clil', version: 'current-user-reference', status: 'current' },
+  { territory: 'DE', scheme: 'thema', version: '1.6', status: 'current' },
+  { territory: 'DE', scheme: 'wgs', version: '2.0', status: 'current' }
+] as const;
 
 /** One effective field names its exact origin so the UI never hides inherited values. */
 export interface EffectiveMetadataField {
@@ -183,6 +210,15 @@ export function validateMetadataValues(values: unknown): readonly MetadataDiagno
     if (value !== undefined && !isUniqueTextList(value))
       diagnostics.push({ field: key, message: `${key} must be a unique trimmed text list.` });
   }
+  if (
+    values['regional-subject-codes'] !== undefined &&
+    !isRegionalSubjectCodeAssignments(values['regional-subject-codes'])
+  )
+    diagnostics.push({
+      field: 'regional-subject-codes',
+      message:
+        'Regional subject codes must use a supported territory/scheme pair, valid syntax, one primary per pair, and no duplicates.'
+    });
   if (isUniqueTextList(values['bisac-codes']))
     for (const code of values['bisac-codes'])
       if (!/^[A-Z]{3}\d{6}$/u.test(code))
@@ -360,6 +396,48 @@ function isContributors(value: unknown): value is readonly MetadataContributor[]
       : undefined
   );
   return pairs.every((pair) => pair !== undefined) && new Set(pairs).size === pairs.length;
+}
+
+/** Validates national compatibility and the syntax that can be checked without copying headings. */
+function isRegionalSubjectCodeAssignments(
+  value: unknown
+): value is readonly RegionalSubjectCodeAssignment[] {
+  if (!Array.isArray(value)) return false;
+  const identities = new Set<string>();
+  const primaries = new Set<string>();
+  for (const candidate of value) {
+    if (!isRecord(candidate)) return false;
+    const territory = candidate.territory;
+    const scheme = candidate.scheme;
+    const code = candidate.code;
+    const definition = REGIONAL_SUBJECT_SCHEMES.find(
+      (entry) => entry.territory === territory && entry.scheme === scheme
+    );
+    if (
+      definition === undefined ||
+      candidate.version !== definition.version ||
+      typeof code !== 'string' ||
+      code !== code.trim().toUpperCase() ||
+      !subjectCodeSyntax(String(scheme)).test(code) ||
+      typeof candidate.primary !== 'boolean' ||
+      candidate.source !== 'manual' ||
+      (candidate.label !== undefined && !isTrimmedText(candidate.label, 500))
+    )
+      return false;
+    const pair = `${String(territory)}:${String(scheme)}`;
+    const identity = `${pair}:${code}`;
+    if (identities.has(identity) || (candidate.primary && primaries.has(pair))) return false;
+    identities.add(identity);
+    if (candidate.primary) primaries.add(pair);
+  }
+  return true;
+}
+
+/** Scheme-specific syntax is intentionally conservative and never claims heading-level validity. */
+function subjectCodeSyntax(scheme: string): RegExp {
+  if (scheme === 'clil' || scheme === 'wgs') return /^\d{4}$/u;
+  if (scheme === 'bic') return /^[A-Z][A-Z0-9]{1,8}$/u;
+  return /^[A-Z0-9]{2,12}(?:-[A-Z]{2}-)?$/u;
 }
 function isAge(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && value <= 120;

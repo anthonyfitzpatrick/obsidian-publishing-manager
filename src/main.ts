@@ -7,6 +7,7 @@ import { EditionProjectService } from './application/editions/edition-project-se
 import { AssetReferenceService } from './application/assets/asset-reference-service';
 import { WorkflowProjectService } from './application/workflows/workflow-project-service';
 import { MetadataProjectService } from './application/metadata/metadata-project-service';
+import { ClassificationLicenseService } from './application/metadata/classification-license-service';
 import { JournaledOperationRunner } from './application/storage/operation-journal';
 import { ManagedFolderLayout } from './domain/storage/managed-folder-layout';
 import { ObsidianBookCatalogController } from './infrastructure/catalog/obsidian-book-catalog-controller';
@@ -39,6 +40,16 @@ export default class PublishingManagerPlugin extends Plugin {
     const ids = new BrowserIdGenerator();
     const logger = new SilentLogger();
     const getFoundationStatus = new GetFoundationStatus(clock, ids);
+    // Plugin data stores only local acceptance/evidence. It never contains or retrieves a vendor
+    // vocabulary, and the service preserves unrelated settings on every write.
+    const classificationLicenses = new ClassificationLicenseService(
+      {
+        load: () => this.loadData(),
+        save: (value) => this.saveData(value)
+      },
+      clock
+    );
+    await classificationLicenses.initialize();
 
     const layout = new ManagedFolderLayout({ root: 'Publishing Manager' });
     const vaultText = new ObsidianVaultTextPort(this.app.vault);
@@ -95,6 +106,6 @@ export default class PublishingManagerPlugin extends Plugin {
       drafts,
       () => catalogController.initialize()
     );
-    this.addSettingTab(new PublishingManagerSettingsTab(this.app, this));
+    this.addSettingTab(new PublishingManagerSettingsTab(this.app, this, classificationLicenses));
   }
 }
