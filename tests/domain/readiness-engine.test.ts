@@ -117,4 +117,60 @@ describe('readiness engine', () => {
       'Duplicate readiness rule code'
     );
   });
+
+  it('reuses only rules whose declared dependency keys did not change', () => {
+    let firstRuns = 0;
+    let secondRuns = 0;
+    const first = rule('FIRST', 'pass', {
+      inputKeys: ['first'],
+      evaluate: () => {
+        firstRuns += 1;
+        return { state: 'pass', evidence: { summary: 'First.' } };
+      }
+    });
+    const second = rule('SECOND', 'pass', {
+      inputKeys: ['second'],
+      evaluate: () => {
+        secondRuns += 1;
+        return { state: 'pass', evidence: { summary: 'Second.' } };
+      }
+    });
+    const initial = evaluateReadiness(
+      { code: 'CORE', version: 1, rules: [first, second] },
+      { scope: { kind: 'book', id: 'fictional-book' }, inputs: { first: 1, second: 1 } },
+      '2026-07-19T12:00:00.000Z'
+    );
+    const next = evaluateReadiness(
+      { code: 'CORE', version: 1, rules: [first, second] },
+      { scope: { kind: 'book', id: 'fictional-book' }, inputs: { first: 2, second: 1 } },
+      '2026-07-19T12:01:00.000Z',
+      { previous: initial, changedInputKeys: new Set(['first']) }
+    );
+    expect(next.reusedRuleCodes).toEqual(['SECOND']);
+    expect([firstRuns, secondRuns]).toEqual([2, 1]);
+  });
+
+  it('keeps an active override visible and qualifies rather than erases a blocking failure', () => {
+    const result = evaluateReadiness(
+      { code: 'CORE', version: 1, rules: [rule('BLOCK', 'fail', { severity: 'blocking' })] },
+      { scope: { kind: 'book', id: 'fictional-book' }, inputs: {} },
+      '2026-07-19T12:00:00.000Z',
+      {
+        overrides: [
+          {
+            ruleCode: 'BLOCK',
+            scope: { kind: 'book', id: 'fictional-book' },
+            reason: 'Approved fictional exception.',
+            ownerLabel: 'Test owner',
+            createdAt: '2026-07-19T11:00:00.000Z'
+          }
+        ]
+      }
+    );
+    expect(result.state).toBe('attention');
+    expect(result.results[0]).toMatchObject({
+      state: 'fail',
+      override: { qualified: true, ownerLabel: 'Test owner' }
+    });
+  });
 });

@@ -113,6 +113,15 @@ export const RECORD_SCHEMAS = {
     requirements: { kind: 'object', required: true },
     notes: optionalString()
   }),
+  'readiness-override': schema('readiness-override', {
+    'rule-code': requiredString(),
+    'scope-kind': requiredString(),
+    'scope-id': requiredString(),
+    reason: requiredString(),
+    'owner-label': requiredString(),
+    'created-at': { kind: 'datetime', required: true },
+    'expires-at': { kind: 'datetime', required: false }
+  }),
   'metadata-set': schema('metadata-set', {
     'book-id': relation('book', true),
     'edition-id': relation('edition', false),

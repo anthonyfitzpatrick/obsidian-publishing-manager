@@ -14,6 +14,7 @@ export const MANAGED_RECORD_TYPES = [
   'format',
   'platform-target',
   'platform-profile',
+  'readiness-override',
   'metadata-set',
   'isbn',
   'price',

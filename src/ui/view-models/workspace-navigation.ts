@@ -12,6 +12,7 @@ export const ENABLED_WORKSPACE_TABS = [
   'isbns',
   'pricing',
   'distribution',
+  'readiness',
   'assets',
   'diagnostics'
 ] as const;

@@ -87,6 +87,20 @@ export interface ReadinessRuleResult {
   readonly evidence: ReadinessEvidence;
   readonly remedy?: string;
   readonly destination?: ReadinessDestination;
+  readonly override?: ReadinessAppliedOverride;
+}
+
+export interface ReadinessOverride {
+  readonly ruleCode: string;
+  readonly scope: ReadinessScope;
+  readonly reason: string;
+  readonly ownerLabel: string;
+  readonly createdAt: string;
+  readonly expiresAt?: string;
+}
+
+export interface ReadinessAppliedOverride extends ReadinessOverride {
+  readonly qualified: true;
 }
 
 export interface ReadinessEvaluation {
@@ -103,20 +117,47 @@ export interface ReadinessEvaluation {
   readonly knownWeight: number;
   readonly passedWeight: number;
   readonly results: readonly ReadinessRuleResult[];
+  readonly reusedRuleCodes: readonly string[];
+}
+
+export interface ReadinessEvaluationOptions {
+  readonly previous?: ReadinessEvaluation;
+  readonly changedInputKeys?: ReadonlySet<string>;
+  readonly overrides?: readonly ReadinessOverride[];
 }
 
 /** Evaluates a complete rule pack in declared order and returns a deterministic projection. */
 export function evaluateReadiness(
   pack: ReadinessRulePack,
   context: ReadinessRuleContext,
-  evaluatedAt: string
+  evaluatedAt: string,
+  options: ReadinessEvaluationOptions = {}
 ): ReadinessEvaluation {
   validatePack(pack);
   if (!context.scope.id.trim()) throw new Error('Readiness scope identity is required.');
   if (!Number.isFinite(Date.parse(evaluatedAt)))
     throw new Error('Readiness evaluation time must be an ISO-compatible timestamp.');
 
-  const results = pack.rules.map((rule) => evaluateRule(rule, context));
+  const reusable = reusableResults(pack, context.scope, options);
+  const reusedRuleCodes: string[] = [];
+  const results = pack.rules.map((rule) => {
+    const previous = reusable.get(rule.code);
+    const changed = options.changedInputKeys;
+    if (
+      previous !== undefined &&
+      changed !== undefined &&
+      !rule.inputKeys.some((key) => changed.has(key))
+    ) {
+      reusedRuleCodes.push(rule.code);
+      return applyOverride(previous, context.scope, evaluatedAt, options.overrides ?? []);
+    }
+    return applyOverride(
+      evaluateRule(rule, context),
+      context.scope,
+      evaluatedAt,
+      options.overrides ?? []
+    );
+  });
   const applicable = results.filter(({ state }) => state !== 'not-applicable');
   const known = applicable.filter(({ state }) => state !== 'unknown');
   const applicableWeight = sumWeight(applicable);
@@ -125,7 +166,8 @@ export function evaluateReadiness(
   const score = knownWeight === 0 ? null : percentage(passedWeight, knownWeight);
   const confidence = applicableWeight === 0 ? null : percentage(knownWeight, applicableWeight);
   const blockingFailure = known.some(
-    ({ state, severity }) => state === 'fail' && severity === 'blocking'
+    ({ state, severity, override }) =>
+      state === 'fail' && severity === 'blocking' && override === undefined
   );
 
   return {
@@ -139,8 +181,60 @@ export function evaluateReadiness(
     applicableWeight,
     knownWeight,
     passedWeight,
-    results
+    results,
+    reusedRuleCodes
   };
+}
+
+function reusableResults(
+  pack: ReadinessRulePack,
+  scope: ReadinessScope,
+  options: ReadinessEvaluationOptions
+): ReadonlyMap<string, ReadinessRuleResult> {
+  const previous = options.previous;
+  if (
+    previous === undefined ||
+    previous.rulePackCode !== pack.code ||
+    previous.rulePackVersion !== pack.version ||
+    previous.scope.kind !== scope.kind ||
+    previous.scope.id !== scope.id
+  )
+    return new Map();
+  return new Map(previous.results.map((result) => [result.code, result]));
+}
+
+function applyOverride(
+  result: ReadinessRuleResult,
+  scope: ReadinessScope,
+  evaluatedAt: string,
+  overrides: readonly ReadinessOverride[]
+): ReadinessRuleResult {
+  if (result.state !== 'fail') return withoutOverride(result);
+  const active = overrides.find(
+    (candidate) =>
+      candidate.ruleCode === result.code &&
+      candidate.scope.kind === scope.kind &&
+      candidate.scope.id === scope.id &&
+      validOverride(candidate, evaluatedAt)
+  );
+  return active === undefined
+    ? withoutOverride(result)
+    : { ...withoutOverride(result), override: { ...active, qualified: true } };
+}
+
+function withoutOverride(result: ReadinessRuleResult): ReadinessRuleResult {
+  const { override: _override, ...plain } = result;
+  return plain;
+}
+
+function validOverride(override: ReadinessOverride, evaluatedAt: string): boolean {
+  if (!override.reason.trim() || !override.ownerLabel.trim()) return false;
+  const created = Date.parse(override.createdAt);
+  const evaluated = Date.parse(evaluatedAt);
+  if (!Number.isFinite(created) || created > evaluated) return false;
+  if (override.expiresAt === undefined) return true;
+  const expires = Date.parse(override.expiresAt);
+  return Number.isFinite(expires) && expires >= evaluated && expires >= created;
 }
 
 function evaluateRule(rule: ReadinessRule, context: ReadinessRuleContext): ReadinessRuleResult {

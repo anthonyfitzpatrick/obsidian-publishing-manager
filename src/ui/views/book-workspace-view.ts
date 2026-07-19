@@ -27,6 +27,7 @@ import type { MetadataProjectService } from '../../application/metadata/metadata
 import type { IsbnProjectService } from '../../application/isbn/isbn-project-service';
 import type { PriceProjectService } from '../../application/pricing/price-project-service';
 import type { DistributionProjectService } from '../../application/distribution/distribution-project-service';
+import type { ReadinessProjectService } from '../../application/readiness/readiness-project-service';
 import { BOOK_STATUSES, type BookStatus } from '../../domain/books/book-project';
 import { ManualCancellationToken } from '../../domain/foundation/cancellation';
 import type {
@@ -62,6 +63,8 @@ import {
   type WorkspaceTab
 } from '../view-models/workspace-navigation';
 import { buildReadinessSummary } from '../view-models/readiness-summary-view-model';
+import type { ReadinessEvaluation } from '../../domain/readiness/readiness-engine';
+import { renderReadinessWorkspace } from './readiness-workspace';
 
 /** Stable Obsidian view identifier persisted with the selected book and active tab. */
 export const BOOK_WORKSPACE_VIEW_TYPE = 'publishing-manager-book-workspace';
@@ -77,6 +80,7 @@ export class BookWorkspaceView extends ItemView {
   private selectedEditionId: string | undefined;
   private activeTab: WorkspaceTab = 'overview';
   private operationError: string | undefined;
+  private readinessEvaluation: ReadinessEvaluation | undefined;
 
   /** Receives state/services and dashboard navigation without importing persistence adapters. */
   public constructor(
@@ -90,6 +94,7 @@ export class BookWorkspaceView extends ItemView {
     private readonly isbns: IsbnProjectService,
     private readonly prices: PriceProjectService,
     private readonly distribution: DistributionProjectService,
+    private readonly readiness: ReadinessProjectService,
     private readonly drafts: BookDraftStore,
     private readonly openDashboard: () => Promise<void>
   ) {
@@ -344,6 +349,8 @@ export class BookWorkspaceView extends ItemView {
       this.reconcileSelection(snapshot);
       this.reconcileEditionSelection(snapshot);
       this.render(snapshot);
+      const book = snapshot.books.find(({ path }) => path === this.selectedPath);
+      if (book !== undefined) void this.refreshReadiness(book);
     });
     this.unsubscribeAssets = this.assets.subscribe(() => {
       if (this.snapshot !== undefined && this.activeTab === 'assets') this.render(this.snapshot);
@@ -474,6 +481,36 @@ export class BookWorkspaceView extends ItemView {
           if (this.snapshot !== undefined) this.render(this.snapshot);
         }
       });
+    } else if (this.activeTab === 'readiness') {
+      renderReadinessWorkspace({
+        parent: content,
+        evaluation: this.readinessEvaluation,
+        readiness: this.readiness,
+        openWorkspace: (workspace) => {
+          const tab =
+            workspace === 'assets'
+              ? 'assets'
+              : workspace === 'isbns'
+                ? 'isbns'
+                : workspace === 'metadata'
+                  ? 'metadata'
+                  : workspace === 'pricing'
+                    ? 'pricing'
+                    : workspace === 'distribution'
+                      ? 'distribution'
+                      : workspace === 'workflow'
+                        ? 'workflow'
+                        : workspace === 'editions'
+                          ? 'editions'
+                          : 'overview';
+          this.selectTab(tab);
+        },
+        rerender: () => {
+          this.readinessEvaluation = undefined;
+          void this.refreshReadiness(record);
+          if (this.snapshot !== undefined) this.render(this.snapshot);
+        }
+      });
     } else if (this.activeTab === 'assets') {
       this.renderAssets(content, record);
     } else {
@@ -530,7 +567,7 @@ export class BookWorkspaceView extends ItemView {
         ? 'Create an edition to set its publication date.'
         : 'From the selected edition.'
     );
-    const readiness = buildReadinessSummary(undefined);
+    const readiness = buildReadinessSummary(this.readinessEvaluation);
     renderContextItem(
       context,
       'Readiness',
@@ -555,6 +592,8 @@ export class BookWorkspaceView extends ItemView {
       }
       selector.addEventListener('change', () => {
         this.selectedEditionId = selector.value;
+        this.readinessEvaluation = undefined;
+        void this.refreshReadiness(record);
         this.selectTab('editions');
       });
     }
@@ -1079,6 +1118,19 @@ export class BookWorkspaceView extends ItemView {
   private selectTab(tab: WorkspaceTab): void {
     this.activeTab = tab;
     if (this.snapshot !== undefined) this.render(this.snapshot);
+  }
+
+  /** Refreshes derived readiness asynchronously and rejects results for a superseded selection. */
+  private async refreshReadiness(book: CatalogRecord): Promise<void> {
+    const expected = `${book.id}:${this.selectedEditionId ?? ''}`;
+    try {
+      const evaluation = await this.readiness.evaluateBook(book.id, this.selectedEditionId);
+      if (`${book.id}:${this.selectedEditionId ?? ''}` !== expected) return;
+      this.readinessEvaluation = evaluation;
+      if (this.snapshot !== undefined) this.render(this.snapshot);
+    } catch (cause: unknown) {
+      this.operationError = cause instanceof Error ? cause.message : 'Readiness evaluation failed.';
+    }
   }
 
   /** Implements wrapping arrow/home/end tab navigation and moves focus to the selected tab. */

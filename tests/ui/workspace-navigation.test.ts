@@ -16,7 +16,8 @@ describe('workspace keyboard navigation', () => {
     expect(nextWorkspaceTab('metadata', 'ArrowRight')).toBe('isbns');
     expect(nextWorkspaceTab('isbns', 'ArrowRight')).toBe('pricing');
     expect(nextWorkspaceTab('pricing', 'ArrowRight')).toBe('distribution');
-    expect(nextWorkspaceTab('distribution', 'ArrowRight')).toBe('assets');
+    expect(nextWorkspaceTab('distribution', 'ArrowRight')).toBe('readiness');
+    expect(nextWorkspaceTab('readiness', 'ArrowRight')).toBe('assets');
     expect(nextWorkspaceTab('assets', 'ArrowRight')).toBe('diagnostics');
     expect(nextWorkspaceTab('diagnostics', 'ArrowRight')).toBe('overview');
     expect(nextWorkspaceTab('overview', 'ArrowLeft')).toBe('diagnostics');

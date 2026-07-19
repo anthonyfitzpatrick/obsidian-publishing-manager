@@ -15,6 +15,7 @@ import type { MetadataProjectService } from '../../application/metadata/metadata
 import type { IsbnProjectService } from '../../application/isbn/isbn-project-service';
 import type { PriceProjectService } from '../../application/pricing/price-project-service';
 import type { DistributionProjectService } from '../../application/distribution/distribution-project-service';
+import type { ReadinessProjectService } from '../../application/readiness/readiness-project-service';
 import type { CatalogRecord } from '../../domain/catalog/catalog-model';
 import { normalizeVaultPath } from '../../domain/storage/vault-path';
 import { CreateBookModal } from '../dialogs/create-book-modal';
@@ -37,6 +38,7 @@ export function registerPublishingViews(
   isbns: IsbnProjectService,
   prices: PriceProjectService,
   distribution: DistributionProjectService,
+  readiness: ReadinessProjectService,
   drafts: BookDraftStore,
   refreshCatalog: () => Promise<void>
 ): void {
@@ -81,6 +83,7 @@ export function registerPublishingViews(
         isbns,
         prices,
         distribution,
+        readiness,
         drafts,
         openDashboard
       )

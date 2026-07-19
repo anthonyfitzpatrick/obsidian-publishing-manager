@@ -889,6 +889,14 @@
   border-radius: var(--radius-m);
   margin-block: 0.5rem;
 }
+.pm-readiness-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr));
+  gap: 0.75rem;
+}
+.pm-readiness-result {
+  border-inline-start: 0.25rem solid var(--interactive-accent);
+}
 
 /* Single-column panes keep the same actions/content and replace crowded tabs with a picker. */
 @container (max-width: 800px) {

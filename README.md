@@ -6,7 +6,7 @@ The product specification and project backlog in the Publishing Manager Obsidian
 
 ## Current state
 
-Milestones M0 through M4 are complete. M5 Readiness is active at RDY-001–RDY-006: a pure versioned rule engine supports five outcomes and five scopes, scores applicable known weight, caps blocking failures at Not ready, and reports unknown-input confidence separately. The Book Workspace shows an honest pending-rules state until core publishing checks arrive in RDY-007.
+Milestones M0 through M5 are complete. The native Readiness workspace evaluates nine core publishing checks, deep-links remedies, incrementally reuses unchanged rules, stores audited qualified overrides as Markdown, and displays pack version, evaluation time, score, and separate confidence. M6 Operations is next.
 
 ## Licence boundary
 
