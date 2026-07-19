@@ -25,7 +25,11 @@ import { PublishingExportService } from './application/exports/publishing-export
 import { PublishingSettingsService } from './application/settings/publishing-settings-service';
 import { DiagnosticsService } from './application/diagnostics/diagnostics-service';
 import { ManuscriptCompilerIntegrationService } from './application/integrations/manuscript-compiler-integration';
-import { MetadataVisualsProviderService } from './application/integrations/metadata-visuals-provider';
+import {
+  MetadataVisualsProviderService,
+  projectMetadataForVisuals,
+  projectReadinessForVisuals
+} from './application/integrations/metadata-visuals-provider';
 import { JournaledOperationRunner } from './application/storage/operation-journal';
 import { ManagedFolderLayout } from './domain/storage/managed-folder-layout';
 import { ObsidianBookCatalogController } from './infrastructure/catalog/obsidian-book-catalog-controller';
@@ -204,7 +208,40 @@ export default class PublishingManagerPlugin extends Plugin {
       catalog,
       settings,
       clock,
-      this.manifest.version
+      this.manifest.version,
+      {
+        // Only the redacted result crosses this wrapper. The provider never receives the
+        // Metadata service itself and therefore cannot reach its canonical save operations.
+        resolve: (bookId, editionId) => {
+          const selectedEdition =
+            editionId === undefined ? undefined : catalog.recordById(editionId);
+          const profileId =
+            selectedEdition === undefined
+              ? 'core-book'
+              : selectedEdition.fields.medium === 'print'
+                ? 'print-general'
+                : selectedEdition.fields.medium === 'audio'
+                  ? 'audio-general'
+                  : 'digital-general';
+          return projectMetadataForVisuals(metadata.resolve(bookId, editionId, profileId));
+        }
+      },
+      {
+        // Readiness evidence/remedies/overrides may contain human prose. Summarize them before
+        // the provider receives the result so only stable rule identity and state are available.
+        evaluate: async (bookId, editionId) =>
+          projectReadinessForVisuals(await readiness.evaluateBook(bookId, editionId))
+      },
+      {
+        // Calendar titles can contain task free text. The visualization contract retains only
+        // date kind, date, and canonical source identity.
+        events: (bookId) =>
+          calendar.events(new Set([bookId])).map(({ kind, date, record }) => ({
+            kind,
+            date,
+            entityId: record.id
+          }))
+      }
     );
     this.register(new BrowserMetadataVisualsProviderTransport(metadataVisualsProvider).start());
 

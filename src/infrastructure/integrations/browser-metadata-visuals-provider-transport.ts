@@ -32,7 +32,11 @@ export class BrowserMetadataVisualsProviderTransport {
       if (!(event instanceof CustomEvent)) return;
       const detail = queryDetail(event.detail);
       if (detail === undefined) return;
-      detail.respond(structuredClone(this.provider.handle(detail.payload)));
+      // A current readiness evaluation may complete asynchronously. The event carries only data,
+      // and the consumer receives a cloned response after the application service finishes.
+      void this.provider
+        .handle(detail.payload)
+        .then((response) => detail.respond(structuredClone(response)));
     };
     window.addEventListener(METADATA_VISUALS_DISCOVERY_EVENT, discover);
     window.addEventListener(METADATA_VISUALS_QUERY_EVENT, query);

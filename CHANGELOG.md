@@ -10,6 +10,7 @@ All notable changes to Publishing Manager are recorded here using Keep a Changel
 - M8 INT-C-003 and INT-C-004: app-lifetime result reception with strict accepted-request/provider/scope/format/time/path/fingerprint/warning/history validation, session-only evidence cards, and deterministic Current/Stale fingerprint comparison without canonical format/asset writes.
 - M8 INT-C-005 and INT-C-006: reviewed single-format linking through the existing optimistic repository boundary plus timeout, cancellation, decline, malformed/duplicate/reload-late/incompatible failure handling that leaves canonical records untouched.
 - M8 INT-M-001 and INT-M-002: opt-in read-only Metadata Visuals v1 provider, public local discovery/query events, bounded normalized catalog and book/edition snapshots, version/schema/provenance evidence, and fail-closed disabled/malformed behavior.
+- M8 INT-M-003 and INT-M-004: entity schema 2 operational metadata/completeness, stable relationships, workflow category/status counts, title-free dates, and readiness rule states with composition-boundary redaction and adversarial exclusion tests for assets, paths, notes, task/stage/checklist prose, descriptions, detailed history, readiness explanations, and source errors.
 
 - Foundation plugin scaffold, architecture boundaries, deterministic services, and native settings entry.
 - Local and Gitea CI quality gates for formatting, lint, types, support declarations, forbidden APIs, tests, and production builds.

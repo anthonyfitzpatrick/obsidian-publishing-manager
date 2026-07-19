@@ -1,10 +1,13 @@
 /**
  * Publishes a bounded, read-only projection for optional visualization consumers. The service
- * receives only the disposable catalog and local enablement preference; it has no repository,
- * vault, network, mutation, asset-content, or plugin-instance capability.
+ * receives only the disposable catalog, local enablement preference, and already-redacted
+ * metadata/readiness/date ports; it has no repository, vault, network, mutation, asset-content,
+ * or plugin-instance capability.
  */
 import type { BookCatalogSnapshot, CatalogRecord } from '../../domain/catalog/catalog-model';
 import type { Clock } from '../../domain/foundation/clock';
+import type { ReadinessEvaluation } from '../../domain/readiness/readiness-engine';
+import type { ResolvedMetadataProject } from '../metadata/metadata-project-service';
 import type { PublishingManagerSettings } from '../settings/publishing-settings-service';
 
 export const METADATA_VISUALS_CONTRACT = 'publishing-manager.metadata-visuals' as const;
@@ -23,7 +26,7 @@ export interface MetadataVisualsProviderDescriptor {
   readonly mode: 'local-event';
   readonly enabled: boolean;
   readonly capabilities: readonly ['catalog-summary', 'book-snapshot', 'edition-snapshot'];
-  readonly schemaVersions: { readonly catalogSummary: 1; readonly entitySnapshot: 1 };
+  readonly schemaVersions: { readonly catalogSummary: 1; readonly entitySnapshot: 2 };
   readonly limits: {
     readonly maximumCatalogItems: number;
     readonly maximumRequestBytes: number;
@@ -72,7 +75,7 @@ export interface MetadataVisualsCatalogSummary {
 export interface MetadataVisualsEntitySnapshot {
   readonly contract: typeof METADATA_VISUALS_CONTRACT;
   readonly contractVersion: typeof METADATA_VISUALS_CONTRACT_VERSION;
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly kind: 'book-snapshot' | 'edition-snapshot';
   readonly correlationId: string;
   readonly generatedAt: string;
@@ -96,6 +99,76 @@ export interface MetadataVisualsEntitySnapshot {
     readonly status: string;
     readonly revision: number | null;
   }[];
+  readonly operational: {
+    readonly scope: { readonly kind: 'book' | 'edition'; readonly id: string };
+    readonly effectiveMetadata: MetadataVisualsMetadataProjection;
+    readonly relationships: MetadataVisualsRelationshipProjection;
+    readonly workflowCategories: readonly MetadataVisualsWorkflowCategory[];
+    readonly dates: readonly MetadataVisualsDateProjection[];
+    readonly readiness: MetadataVisualsReadinessProjection;
+  };
+}
+
+/** The allowlisted metadata projection intentionally omits both description fields and raw values. */
+export interface MetadataVisualsMetadataProjection {
+  readonly profileId: string;
+  readonly profileVersion: number;
+  readonly completeness: {
+    readonly complete: boolean;
+    readonly present: number;
+    readonly required: number;
+    readonly percent: number;
+    readonly missing: readonly string[];
+  };
+  readonly fields: readonly {
+    readonly key: string;
+    readonly source: 'book' | 'edition';
+    readonly value:
+      string | number | readonly string[] | readonly Readonly<Record<string, unknown>>[];
+  }[];
+}
+
+export interface MetadataVisualsRelationshipProjection {
+  readonly bookId: string;
+  readonly editionIds: readonly string[];
+  readonly formatIds: readonly string[];
+  readonly metadataSetIds: readonly string[];
+  readonly isbnIds: readonly string[];
+  readonly workflowIds: readonly string[];
+  readonly launchIds: readonly string[];
+  readonly platformTargetIds: readonly string[];
+}
+
+export interface MetadataVisualsWorkflowCategory {
+  readonly category: string;
+  readonly stages: number;
+  readonly tasks: {
+    readonly total: number;
+    readonly notStarted: number;
+    readonly active: number;
+    readonly done: number;
+    readonly cancelled: number;
+  };
+}
+
+export interface MetadataVisualsDateProjection {
+  readonly kind: 'launch' | 'preorder' | 'price' | 'publication' | 'task';
+  readonly date: string;
+  readonly entityId: string;
+}
+
+export interface MetadataVisualsReadinessProjection {
+  readonly rulePackCode: string;
+  readonly rulePackVersion: number;
+  readonly evaluatedAt: string;
+  readonly state: 'ready' | 'attention' | 'not-ready' | 'unknown';
+  readonly score: number | null;
+  readonly confidence: number | null;
+  readonly rules: readonly {
+    readonly code: string;
+    readonly state: 'pass' | 'warning' | 'fail' | 'unknown' | 'not-applicable';
+    readonly severity: 'advisory' | 'required' | 'blocking';
+  }[];
 }
 
 export type MetadataVisualsResponse =
@@ -106,7 +179,12 @@ export type MetadataVisualsResponse =
       readonly contractVersion: typeof METADATA_VISUALS_CONTRACT_VERSION;
       readonly kind: 'provider-error';
       readonly correlationId: string;
-      readonly code: 'disabled' | 'invalid-request' | 'not-found' | 'response-too-large';
+      readonly code:
+        | 'disabled'
+        | 'invalid-request'
+        | 'not-found'
+        | 'projection-unavailable'
+        | 'response-too-large';
       readonly message: string;
     };
 
@@ -118,13 +196,27 @@ export interface MetadataVisualsSettingsPort {
   current(): PublishingManagerSettings;
 }
 
+/** Narrow ports return already-redacted projections, never their source services or raw records. */
+export interface MetadataVisualsMetadataPort {
+  resolve(bookId: string, editionId?: string): MetadataVisualsMetadataProjection;
+}
+export interface MetadataVisualsReadinessPort {
+  evaluate(bookId: string, editionId?: string): Promise<MetadataVisualsReadinessProjection>;
+}
+export interface MetadataVisualsDatesPort {
+  events(bookId: string): readonly MetadataVisualsDateProjection[];
+}
+
 /** Generates only normalized JSON-safe read models and never returns catalog field bags directly. */
 export class MetadataVisualsProviderService {
   public constructor(
     private readonly catalog: MetadataVisualsCatalogPort,
     private readonly settings: MetadataVisualsSettingsPort,
     private readonly clock: Clock,
-    private readonly providerVersion: string
+    private readonly providerVersion: string,
+    private readonly metadata: MetadataVisualsMetadataPort,
+    private readonly readiness: MetadataVisualsReadinessPort,
+    private readonly dates: MetadataVisualsDatesPort
   ) {
     if (!semanticVersion(providerVersion))
       throw new Error('Publishing Manager provider version must be semantic x.y.z text.');
@@ -140,7 +232,7 @@ export class MetadataVisualsProviderService {
       mode: 'local-event',
       enabled: this.enabled(),
       capabilities: ['catalog-summary', 'book-snapshot', 'edition-snapshot'],
-      schemaVersions: { catalogSummary: 1, entitySnapshot: 1 },
+      schemaVersions: { catalogSummary: 1, entitySnapshot: 2 },
       limits: {
         maximumCatalogItems: METADATA_VISUALS_MAX_ITEMS,
         maximumRequestBytes: METADATA_VISUALS_MAX_REQUEST_BYTES,
@@ -150,7 +242,7 @@ export class MetadataVisualsProviderService {
   }
 
   /** Validates an untrusted consumer request before selecting one bounded projection. */
-  public handle(value: unknown): MetadataVisualsResponse {
+  public async handle(value: unknown): Promise<MetadataVisualsResponse> {
     const parsed = parseRequest(value);
     if (!parsed.ok) return errorResponse(parsed.correlationId, 'invalid-request', parsed.message);
     const request = parsed.request;
@@ -180,7 +272,17 @@ export class MetadataVisualsProviderService {
           'not-found',
           'The requested canonical book or edition is unavailable.'
         );
-      response = this.entitySnapshot(request, book, selected);
+      try {
+        response = await this.entitySnapshot(snapshot, request, book, selected);
+      } catch {
+        // Source-service errors are untrusted and may contain canonical details. The consumer gets
+        // only a stable generic failure, while Publishing Manager records remain untouched.
+        return errorResponse(
+          request.correlationId,
+          'projection-unavailable',
+          'The requested operational projection is temporarily unavailable.'
+        );
+      }
     }
     return responseBytes(response) <= METADATA_VISUALS_MAX_RESPONSE_BYTES
       ? response
@@ -222,15 +324,20 @@ export class MetadataVisualsProviderService {
     };
   }
 
-  private entitySnapshot(
+  private async entitySnapshot(
+    snapshot: BookCatalogSnapshot,
     request: MetadataVisualsRequest,
     book: CatalogRecord,
     editions: readonly CatalogRecord[]
-  ): MetadataVisualsEntitySnapshot {
+  ): Promise<MetadataVisualsEntitySnapshot> {
+    const edition = request.kind === 'edition-snapshot-request' ? editions[0] : undefined;
+    const editionId = edition?.id;
+    const effectiveMetadata = this.metadata.resolve(book.id, editionId);
+    const readiness = await this.readiness.evaluate(book.id, editionId);
     return {
       contract: METADATA_VISUALS_CONTRACT,
       contractVersion: METADATA_VISUALS_CONTRACT_VERSION,
-      schemaVersion: 1,
+      schemaVersion: 2,
       kind: request.kind === 'book-snapshot-request' ? 'book-snapshot' : 'edition-snapshot',
       correlationId: request.correlationId,
       generatedAt: this.clock.now().toISOString(),
@@ -243,21 +350,32 @@ export class MetadataVisualsProviderService {
         title: text(book.fields.title, 300, 'Untitled book'),
         status: text(book.fields.status, 80, 'unknown')
       },
-      editions: editions.slice(0, METADATA_VISUALS_MAX_ITEMS).map((edition) => ({
-        id: edition.id,
+      editions: editions.slice(0, METADATA_VISUALS_MAX_ITEMS).map((editionRecord) => ({
+        id: editionRecord.id,
         bookId: book.id,
-        recordSchemaVersion: edition.schemaVersion,
-        sourceRevision: edition.sourceRevision,
-        archived: edition.archived,
-        type: text(edition.fields.type, 80, 'unknown'),
-        medium: text(edition.fields.medium, 80, 'unknown'),
-        status: text(edition.fields.status, 80, 'unknown'),
+        recordSchemaVersion: editionRecord.schemaVersion,
+        sourceRevision: editionRecord.sourceRevision,
+        archived: editionRecord.archived,
+        type: text(editionRecord.fields.type, 80, 'unknown'),
+        medium: text(editionRecord.fields.medium, 80, 'unknown'),
+        status: text(editionRecord.fields.status, 80, 'unknown'),
         revision:
-          typeof edition.fields.revision === 'number' &&
-          Number.isSafeInteger(edition.fields.revision)
-            ? edition.fields.revision
+          typeof editionRecord.fields.revision === 'number' &&
+          Number.isSafeInteger(editionRecord.fields.revision)
+            ? editionRecord.fields.revision
             : null
-      }))
+      })),
+      operational: {
+        scope:
+          edition === undefined
+            ? { kind: 'book', id: book.id }
+            : { kind: 'edition', id: edition.id },
+        effectiveMetadata,
+        relationships: relationships(snapshot, book.id, editionId),
+        workflowCategories: workflowCategories(snapshot, book.id, editionId),
+        dates: this.dates.events(book.id).slice(0, METADATA_VISUALS_MAX_ITEMS),
+        readiness
+      }
     };
   }
 
@@ -266,6 +384,195 @@ export class MetadataVisualsProviderService {
       .current()
       .integrations.enabledCapabilities.includes(METADATA_VISUALS_CAPABILITY_ID);
   }
+}
+
+/**
+ * Converts the full metadata result at the composition boundary. Descriptions are useful
+ * publishing prose but are deliberately withheld; completeness may name a missing description
+ * field without disclosing its content.
+ */
+export function projectMetadataForVisuals(
+  resolved: ResolvedMetadataProject
+): MetadataVisualsMetadataProjection {
+  const fields = SAFE_EFFECTIVE_METADATA_FIELDS.flatMap((key) => {
+    const field = resolved.effective.fields[key];
+    const value = safeMetadataValue(key, field.value);
+    return field.source === 'missing' || value === undefined
+      ? []
+      : [{ key, source: field.source, value }];
+  });
+  return {
+    profileId: resolved.profile.id,
+    profileVersion: resolved.profile.version,
+    completeness: {
+      complete: resolved.coverage.complete,
+      present: resolved.coverage.present,
+      required: resolved.coverage.required,
+      percent: resolved.coverage.percent,
+      missing: [...resolved.coverage.missing]
+    },
+    fields
+  };
+}
+
+/** Reduces readiness to rule identity/state; evidence prose, remedies, destinations, and overrides stay private. */
+export function projectReadinessForVisuals(
+  evaluation: ReadinessEvaluation
+): MetadataVisualsReadinessProjection {
+  return {
+    rulePackCode: evaluation.rulePackCode,
+    rulePackVersion: evaluation.rulePackVersion,
+    evaluatedAt: evaluation.evaluatedAt,
+    state: evaluation.state,
+    score: evaluation.score,
+    confidence: evaluation.confidence,
+    rules: evaluation.results
+      .slice(0, METADATA_VISUALS_MAX_ITEMS)
+      .map(({ code, state, severity }) => ({ code, state, severity }))
+  };
+}
+
+const SAFE_EFFECTIVE_METADATA_FIELDS = [
+  'title',
+  'subtitle',
+  'series-title',
+  'series-number',
+  'keywords',
+  'bisac-codes',
+  'thema-codes',
+  'regional-subject-codes',
+  'audience',
+  'publisher',
+  'imprint',
+  'copyright',
+  'contributors',
+  'edition-statement',
+  'language',
+  'reading-age-min',
+  'reading-age-max'
+] as const;
+
+function safeMetadataValue(
+  key: (typeof SAFE_EFFECTIVE_METADATA_FIELDS)[number],
+  value: unknown
+): MetadataVisualsMetadataProjection['fields'][number]['value'] | undefined {
+  if (typeof value === 'string') return text(value, 1_000, '') || undefined;
+  if (typeof value === 'number' && Number.isSafeInteger(value)) return value;
+  if (!Array.isArray(value)) return undefined;
+  if (key === 'contributors')
+    return value.slice(0, 100).flatMap((candidate) => {
+      const item = object(candidate);
+      const name = text(item.name, 500, '');
+      const role = text(item.role, 160, '');
+      return name && role ? [{ name, role }] : [];
+    });
+  if (key === 'regional-subject-codes')
+    return value.slice(0, 100).flatMap((candidate) => {
+      const item = object(candidate);
+      const territory = token(item.territory, 8);
+      const scheme = token(item.scheme, 40);
+      const version = text(item.version, 160, '');
+      const code = text(item.code, 160, '');
+      if (!territory || !scheme || !version || !code || typeof item.primary !== 'boolean')
+        return [];
+      return [{ territory, scheme, version, code, primary: item.primary }];
+    });
+  return value.slice(0, 100).flatMap((entry) => {
+    const result = text(entry, 500, '');
+    return result ? [result] : [];
+  });
+}
+
+function relationships(
+  snapshot: BookCatalogSnapshot,
+  bookId: string,
+  selectedEditionId?: string
+): MetadataVisualsRelationshipProjection {
+  const editions = snapshot.editions.filter(
+    (item) =>
+      item.fields['book-id'] === bookId &&
+      (selectedEditionId === undefined || item.id === selectedEditionId)
+  );
+  const editionIds = new Set(editions.map(({ id }) => id));
+  return {
+    bookId,
+    editionIds: sortedIds(editions),
+    formatIds: sortedIds(
+      snapshot.formats.filter((item) => editionIds.has(String(item.fields['edition-id'])))
+    ),
+    metadataSetIds: sortedIds(
+      snapshot.metadataSets.filter(
+        (item) =>
+          item.fields['book-id'] === bookId &&
+          (selectedEditionId === undefined ||
+            item.fields['edition-id'] === undefined ||
+            item.fields['edition-id'] === selectedEditionId)
+      )
+    ),
+    isbnIds: sortedIds(
+      snapshot.isbns.filter((item) => editionIds.has(String(item.fields['edition-id'])))
+    ),
+    workflowIds: sortedIds(snapshot.workflows.filter((item) => item.fields['book-id'] === bookId)),
+    launchIds: sortedIds(snapshot.launches.filter((item) => item.fields['book-id'] === bookId)),
+    platformTargetIds: sortedIds(
+      snapshot.platformTargets.filter((item) => editionIds.has(String(item.fields['edition-id'])))
+    )
+  };
+}
+
+function workflowCategories(
+  snapshot: BookCatalogSnapshot,
+  bookId: string,
+  selectedEditionId?: string
+): readonly MetadataVisualsWorkflowCategory[] {
+  const workflows = snapshot.workflows.filter((item) => item.fields['book-id'] === bookId);
+  const workflowIds = new Set(workflows.map(({ id }) => id));
+  const tasks = snapshot.tasks.filter(
+    (item) =>
+      workflowIds.has(String(item.fields['workflow-id'])) &&
+      (selectedEditionId === undefined ||
+        item.fields['edition-id'] === undefined ||
+        item.fields['edition-id'] === selectedEditionId)
+  );
+  const categories = new Map<string, { stages: number; stageIds: Set<string> }>();
+  for (const workflow of workflows) {
+    const stages = object(workflow.fields.stages).items;
+    if (!Array.isArray(stages)) continue;
+    for (const value of stages) {
+      const stage = object(value);
+      const category = token(stage.category, 80);
+      const stageId = token(stage.id, 200);
+      if (!category || !stageId) continue;
+      const current = categories.get(category) ?? { stages: 0, stageIds: new Set<string>() };
+      current.stages += 1;
+      current.stageIds.add(stageId);
+      categories.set(category, current);
+    }
+  }
+  return [...categories.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .slice(0, METADATA_VISUALS_MAX_ITEMS)
+    .map(([category, group]) => {
+      const grouped = tasks.filter((task) => group.stageIds.has(String(task.fields['stage-id'])));
+      return {
+        category,
+        stages: group.stages,
+        tasks: {
+          total: grouped.length,
+          notStarted: grouped.filter((item) => item.fields.status === 'not-started').length,
+          active: grouped.filter((item) => item.fields.status === 'active').length,
+          done: grouped.filter((item) => item.fields.status === 'done').length,
+          cancelled: grouped.filter((item) => item.fields.status === 'cancelled').length
+        }
+      };
+    });
+}
+
+function sortedIds(records: readonly CatalogRecord[]): readonly string[] {
+  return records
+    .map(({ id }) => id)
+    .sort()
+    .slice(0, METADATA_VISUALS_MAX_ITEMS);
 }
 
 function parseRequest(
