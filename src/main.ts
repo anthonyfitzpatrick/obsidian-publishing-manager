@@ -1,4 +1,4 @@
-import { Plugin } from 'obsidian';
+import { Notice, Plugin } from 'obsidian';
 
 import { GetFoundationStatus } from './application/foundation/get-foundation-status';
 import { BookProjectService } from './application/books/book-project-service';
@@ -24,6 +24,10 @@ import { TemplateProjectService } from './application/templates/template-project
 import { PublishingExportService } from './application/exports/publishing-export-service';
 import { PublishingSettingsService } from './application/settings/publishing-settings-service';
 import { DiagnosticsService } from './application/diagnostics/diagnostics-service';
+import {
+  runReferenceHostPerformance,
+  serializeReferenceHostPerformance
+} from './application/diagnostics/reference-host-performance';
 import { ManuscriptCompilerIntegrationService } from './application/integrations/manuscript-compiler-integration';
 import {
   MetadataVisualsProviderService,
@@ -33,6 +37,7 @@ import {
 import { JournaledOperationRunner } from './application/storage/operation-journal';
 import { BoundedHydratedRecordRepository } from './application/storage/bounded-hydrated-record-repository';
 import { ManagedFolderLayout } from './domain/storage/managed-folder-layout';
+import { joinVaultPath } from './domain/storage/vault-path';
 import { ObsidianBookCatalogController } from './infrastructure/catalog/obsidian-book-catalog-controller';
 import { SilentLogger } from './infrastructure/diagnostics/silent-logger';
 import { BrowserIdGenerator } from './infrastructure/platform/browser-id-generator';
@@ -283,6 +288,29 @@ export default class PublishingManagerPlugin extends Plugin {
     registerTemplateLibraryView(this, catalog, templates);
     registerPublishingExportView(this, catalog, exports);
     registerDiagnosticsView(this, diagnostics);
+    this.addCommand({
+      id: 'run-reference-host-performance',
+      name: 'Run reference-host performance review',
+      callback: () => {
+        void runReferenceHostPerformance()
+          .then(async (report) => {
+            const folder = joinVaultPath(layout.rootPath(), 'Exports/Diagnostics');
+            await vaultText.ensureFolder(folder);
+            const stamp = report.generatedAt.replace(/[-:.]/gu, '');
+            const target = joinVaultPath(folder, `m9-reference-host-${stamp}.md`);
+            await vaultText.create(target, serializeReferenceHostPerformance(report));
+            new Notice(
+              `${report.passed ? 'Reference-host performance passed' : 'Reference-host performance failed'}: ${target}`
+            );
+          })
+          .catch(
+            (error: unknown) =>
+              new Notice(
+                error instanceof Error ? error.message : 'Reference-host performance review failed.'
+              )
+          );
+      }
+    });
     registerManuscriptCompilerIntegrationView(this, catalog, compilerIntegration, editions);
     this.addSettingTab(
       new PublishingManagerSettingsTab(

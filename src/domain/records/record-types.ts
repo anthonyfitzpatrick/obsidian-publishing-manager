@@ -26,6 +26,7 @@ export const MANAGED_RECORD_TYPES = [
   'asset-reference',
   'history-event',
   'sales-source',
+  'sales-partition',
   'sales-line',
   'sales-correction'
 ] as const;

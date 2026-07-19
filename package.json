@@ -16,6 +16,7 @@
     "check:lifecycle-preservation": "node scripts/verify-disable-uninstall-preservation.mjs",
     "check:mobile": "node scripts/check-mobile-boundaries.mjs",
     "check:performance": "node scripts/benchmark-performance.mjs",
+    "check:reference-host": "node scripts/benchmark-reference-host.mjs",
     "check:offline-bundle": "node scripts/verify-offline-runtime.mjs",
     "check:package": "node scripts/audit-release-package.mjs",
     "check:privacy": "node scripts/check-privacy-boundaries.mjs",

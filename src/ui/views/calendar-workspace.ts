@@ -6,6 +6,7 @@ import type {
   CalendarProjectService
 } from '../../application/calendar/calendar-project-service';
 import type { BookCatalogSnapshot, CatalogRecord } from '../../domain/catalog/catalog-model';
+import { pageCollection, pagedCollectionWindow } from '../view-models/paged-collection';
 
 export interface CalendarWorkspaceState {
   view: 'month' | 'agenda' | 'book-timeline';
@@ -15,6 +16,9 @@ export interface CalendarWorkspaceState {
   proposedDate: string;
   movePreview?: CalendarMovePreview;
   acceptConflicts: boolean;
+  eventPage: number;
+  impactPage: number;
+  bookPage: number;
 }
 export function createCalendarWorkspaceState(today: string): CalendarWorkspaceState {
   return {
@@ -23,7 +27,10 @@ export function createCalendarWorkspaceState(today: string): CalendarWorkspaceSt
     bookId: '',
     moveEventId: '',
     proposedDate: '',
-    acceptConflicts: false
+    acceptConflicts: false,
+    eventPage: 0,
+    impactPage: 0,
+    bookPage: 0
   };
 }
 
@@ -52,6 +59,7 @@ export function renderCalendarWorkspace(context: {
   view.value = context.state.view;
   view.addEventListener('change', () => {
     context.state.view = view.value as CalendarWorkspaceState['view'];
+    context.state.eventPage = 0;
     context.rerender();
   });
   const month = controls.createEl('input', {
@@ -60,17 +68,33 @@ export function renderCalendarWorkspace(context: {
   });
   month.addEventListener('change', () => {
     context.state.month = month.value;
+    context.state.eventPage = 0;
     context.rerender();
   });
   const book = controls.createEl('select', { attr: { 'aria-label': 'Calendar book' } });
   book.createEl('option', { value: '', text: 'All visible books' });
-  for (const item of context.snapshot.books.filter(
+  const books = context.snapshot.books.filter(
     (item) => context.visibleBookIds === undefined || context.visibleBookIds.has(item.id)
-  ))
+  );
+  const bookWindow = pagedCollectionWindow(books.length, context.state.bookPage, 50);
+  context.state.bookPage = bookWindow.page;
+  const visibleBooks = pageCollection(books, bookWindow);
+  for (const item of visibleBooks)
     book.createEl('option', { value: item.id, text: text(item.fields.title, item.id) });
+  const selectedBook = books.find(({ id }) => id === context.state.bookId);
+  if (selectedBook !== undefined && !visibleBooks.some(({ id }) => id === selectedBook.id))
+    book.createEl('option', {
+      value: selectedBook.id,
+      text: `${text(selectedBook.fields.title, selectedBook.id)} · selected`
+    });
   book.value = context.state.bookId;
   book.addEventListener('change', () => {
     context.state.bookId = book.value;
+    context.state.eventPage = 0;
+    context.rerender();
+  });
+  renderNavigation(controls, bookWindow, 'book option', (page) => {
+    context.state.bookPage = page;
     context.rerender();
   });
   const visible = context.state.bookId ? new Set([context.state.bookId]) : context.visibleBookIds;
@@ -79,6 +103,9 @@ export function renderCalendarWorkspace(context: {
     context.state.view === 'agenda'
       ? allEvents
       : allEvents.filter(({ date }) => date.startsWith(context.state.month));
+  const eventWindow = pagedCollectionWindow(events.length, context.state.eventPage, 50);
+  context.state.eventPage = eventWindow.page;
+  const visibleEvents = pageCollection(events, eventWindow);
   const exportButton = controls.createEl('button', {
     cls: 'pm-button pm-button--secondary',
     text: 'Export visible dates to ICS',
@@ -99,10 +126,14 @@ export function renderCalendarWorkspace(context: {
       text: 'No canonical publishing dates match this view.'
     });
   } else if (context.state.view === 'month') {
-    renderMonth(section, events, context);
+    renderMonth(section, visibleEvents, context);
   } else {
-    renderAgenda(section, events, context, context.state.view === 'book-timeline');
+    renderAgenda(section, visibleEvents, context, context.state.view === 'book-timeline');
   }
+  renderNavigation(section, eventWindow, 'calendar', (page) => {
+    context.state.eventPage = page;
+    context.rerender();
+  });
   renderMovePreview(section, context);
 }
 
@@ -156,6 +187,7 @@ function renderEvent(
       context.state.moveEventId = event.id;
       context.state.proposedDate = event.date;
       delete context.state.movePreview;
+      context.state.impactPage = 0;
       context.rerender();
     });
   }
@@ -197,11 +229,17 @@ function renderMovePreview(
   panel.createEl('p', {
     text: `${model.event.date} → ${model.proposedDate} · ${model.impacts.length} dependent tasks`
   });
+  const impactWindow = pagedCollectionWindow(model.impacts.length, context.state.impactPage, 50);
+  context.state.impactPage = impactWindow.page;
   const list = panel.createEl('ul');
-  for (const impact of model.impacts)
+  for (const impact of pageCollection(model.impacts, impactWindow))
     list.createEl('li', {
       text: `${impact.conflict ? 'Conflict' : 'Review'} · ${impact.title} · ${impact.explanation}`
     });
+  renderNavigation(panel, impactWindow, 'dependency impact', (page) => {
+    context.state.impactPage = page;
+    context.rerender();
+  });
   const hasConflicts = model.impacts.some(({ conflict }) => conflict);
   if (hasConflicts) {
     const label = panel.createEl('label');
@@ -238,4 +276,25 @@ function renderMovePreview(
 }
 function text(value: unknown, fallback: string): string {
   return typeof value === 'string' && value ? value : fallback;
+}
+
+/** Renders an exact native range without retaining off-page event elements. */
+function renderNavigation(
+  parent: HTMLElement,
+  window: ReturnType<typeof pagedCollectionWindow>,
+  label: string,
+  move: (page: number) => void
+): void {
+  if (window.total <= window.pageSize) return;
+  const row = parent.createDiv({ cls: 'pm-pagination' });
+  row.createSpan({ text: `${window.offset + 1}–${window.end} of ${window.total}` });
+  const previous = row.createEl('button', {
+    text: `Previous ${label} page`,
+    attr: { type: 'button' }
+  });
+  previous.disabled = window.page === 0;
+  previous.addEventListener('click', () => move(Math.max(0, window.page - 1)));
+  const next = row.createEl('button', { text: `Next ${label} page`, attr: { type: 'button' } });
+  next.disabled = window.page + 1 >= window.totalPages;
+  next.addEventListener('click', () => move(window.page + 1));
 }

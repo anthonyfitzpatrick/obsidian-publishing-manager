@@ -304,6 +304,28 @@ export const RECORD_SCHEMAS = {
     defaults: { kind: 'object', required: false },
     notes: optionalString()
   }),
+  'sales-partition': schema('sales-partition', {
+    /** One bounded canonical Markdown note owns at most 1,000 immutable JSONL sales rows. */
+    'partition-key': constrainedString(true, { maximumBytes: 512 }),
+    'source-id': relation('sales-source', true),
+    'isbn-id': relation('isbn', true),
+    'edition-id': relation('edition', true),
+    'format-id': relation('format', false),
+    'platform-target-id': relation('platform-target', true),
+    country: constrainedString(true, { format: 'country', maximumBytes: 2 }),
+    currency: constrainedString(true, { format: 'currency', maximumBytes: 3 }),
+    period: constrainedString(true, { format: 'token', maximumBytes: 7 }),
+    shard: { kind: 'integer', required: true },
+    'line-count': { kind: 'integer', required: true },
+    'start-date-min': { kind: 'date', required: true },
+    'end-date-max': { kind: 'date', required: true },
+    units: { kind: 'integer', required: true },
+    returns: { kind: 'integer', required: true },
+    'gross-revenue': { kind: 'decimal', required: false },
+    'net-revenue': { kind: 'decimal', required: false },
+    proceeds: { kind: 'decimal', required: false },
+    rows: constrainedString(true, { maximumBytes: 786_432 })
+  }),
   'sales-line': schema('sales-line', {
     'source-id': relation('sales-source', true),
     'isbn-id': relation('isbn', true),
@@ -332,7 +354,8 @@ export const RECORD_SCHEMAS = {
     status: constrainedString(true, { allowedValues: ['accepted', 'superseded', 'void'] })
   }),
   'sales-correction': schema('sales-correction', {
-    'sales-line-id': relation('sales-line', true),
+    // A correction may point to a legacy sales-line note or a row inside a sales partition.
+    'sales-line-id': requiredString(),
     kind: constrainedString(true, {
       allowedValues: ['correction', 'refund', 'return', 'reversal']
     }),

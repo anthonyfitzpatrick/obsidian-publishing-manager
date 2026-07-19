@@ -100,13 +100,19 @@ describe('sales project service', () => {
     expect(sales.preview(overlap).overlappingIds).toEqual([line.id]);
     await expect(sales.record(overlap)).rejects.toThrow('explicit acceptance');
     await sales.record(overlap, true);
-    await sales.correct({
+    expect(catalog.recordsOfType('sales-line')).toHaveLength(0);
+    const [partition] = catalog.recordsOfType('sales-partition');
+    expect(partition?.fields['line-count']).toBe(2);
+    expect(partition?.fields.country).toBe('GB');
+    expect(partition?.fields.currency).toBe('GBP');
+    const correction = await sales.correct({
       lineId: line.id,
       kind: 'return',
       reason: 'Fictional return.',
       ownerLabel: 'Sales owner',
       adjustment: { returns: 1, proceeds: '-1.25' }
     });
+    expect(correction.fields['sales-partition-id']).toBe(partition?.id);
     expect(sales.aggregates(book.book.id)).toEqual([
       expect.objectContaining({
         currency: 'GBP',

@@ -7,6 +7,7 @@ import {
   type DiagnosticsExportPreview,
   type DiagnosticsService
 } from '../../application/diagnostics/diagnostics-service';
+import { pageCollection, pagedCollectionWindow } from '../view-models/paged-collection';
 
 export const DIAGNOSTICS_VIEW_TYPE = 'publishing-manager-diagnostics';
 const CATEGORIES: readonly DiagnosticCategory[] = [
@@ -26,6 +27,7 @@ export class DiagnosticsView extends ItemView {
   private rebuildPreview: CacheRebuildPreview | undefined;
   private category: DiagnosticCategory | 'all' = 'all';
   private includeSensitive = false;
+  private evidencePage = 0;
 
   public constructor(
     leaf: WorkspaceLeaf,
@@ -114,6 +116,7 @@ export class DiagnosticsView extends ItemView {
     select.value = this.category;
     select.addEventListener('change', () => {
       this.category = select.value as DiagnosticCategory | 'all';
+      this.evidencePage = 0;
       this.render();
     });
   }
@@ -125,8 +128,17 @@ export class DiagnosticsView extends ItemView {
     const visible = this.report.items.filter(
       ({ category }) => this.category === 'all' || category === this.category
     );
+    const window = pagedCollectionWindow(visible.length, this.evidencePage, 50);
+    this.evidencePage = window.page;
+    panel.createEl('p', {
+      cls: 'pm-muted',
+      text:
+        visible.length === 0
+          ? 'No diagnostic evidence matches this filter.'
+          : `Showing ${window.offset + 1}–${window.end} of ${window.total}.`
+    });
     const list = panel.createEl('ol', { cls: 'pm-diagnostic-list pm-diagnostic-list--full' });
-    for (const item of visible) {
+    for (const item of pageCollection(visible, window)) {
       const row = list.createEl('li');
       row.createEl('strong', {
         text: `${symbol(item.severity)} ${sentence(item.category)} · ${item.title}`
@@ -159,6 +171,26 @@ export class DiagnosticsView extends ItemView {
             );
         });
     }
+    this.renderEvidenceNavigation(panel, window);
+  }
+
+  /** Keeps diagnostic DOM proportional to one visible evidence window. */
+  private renderEvidenceNavigation(
+    parent: HTMLElement,
+    window: ReturnType<typeof pagedCollectionWindow>
+  ): void {
+    if (window.total <= window.pageSize) return;
+    const navigation = parent.createDiv({ cls: 'pm-pagination' });
+    const previous = button(navigation, 'Previous diagnostic page', 'chevron-left', () => {
+      this.evidencePage = Math.max(0, window.page - 1);
+      this.render();
+    });
+    previous.disabled = window.page === 0;
+    const next = button(navigation, 'Next diagnostic page', 'chevron-right', () => {
+      this.evidencePage = window.page + 1;
+      this.render();
+    });
+    next.disabled = window.page + 1 >= window.totalPages;
   }
 
   private renderRebuild(root: HTMLElement): void {
@@ -232,7 +264,15 @@ export class DiagnosticsView extends ItemView {
     box.createEl('p', {
       text: `Target: ${this.exportPreview.target} · Never overwrite · Redactions: ${this.exportPreview.redactions.join(', ') || 'none'}`
     });
-    box.createEl('pre').createEl('code', { text: this.exportPreview.content });
+    const previewLimit = 16_384;
+    const visibleContent = this.exportPreview.content.slice(0, previewLimit);
+    box.createEl('pre').createEl('code', {
+      text:
+        visibleContent +
+        (visibleContent.length < this.exportPreview.content.length
+          ? `\n\n… Preview limited to ${previewLimit.toLocaleString()} characters; the confirmed export retains the complete report.`
+          : '')
+    });
     button(box, 'Create this local diagnostics export', 'file-plus-2', () => {
       const preview = this.exportPreview;
       if (preview === undefined) return;

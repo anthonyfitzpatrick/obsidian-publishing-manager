@@ -22,6 +22,13 @@ const tasks = Array.from({ length: 50_000 }, (_, index) => ({
   bookId: `book-${index % 1_000}`,
   status: index % 3
 }));
+// A million canonical logical rows are grouped into 1,000 bounded Markdown-equivalent shards.
+// The compact fixture stores row-varying values once and keeps attribution on the shard header,
+// mirroring production partitioning without manufacturing one million retained object graphs.
+const salesPartitions = buildSalesPartitions(1_000_000);
+const salesPartitionIndex = new Map(
+  salesPartitions.map((partition) => [partition.partitionKey, partition])
+);
 
 const results = [];
 const sourceViolations = [];
@@ -46,7 +53,19 @@ benchmark('single event/coalescing burst', 9, 100, () => {
     coalesced.set(`record-${index % 100}`, index % 2 === 0 ? 'modified' : 'created');
   return coalesced.size;
 });
-benchmark('target sales aggregate', 7, 250, () => aggregateSales(1_000_000));
+benchmark(
+  'cold target partition index',
+  7,
+  3_000,
+  () => new Map(salesPartitions.map((partition) => [partition.partitionKey, partition]))
+);
+benchmark('direct sales-entry partition lookup', 9, 250, () =>
+  salesPartitionIndex.get('partition-0042')
+);
+benchmark('target sales aggregate', 7, 250, () => aggregateSalesPartitions(salesPartitions));
+benchmark('first sales chart/table page', 9, 1_000, () =>
+  parsePartitionPage(salesPartitions[42], 50)
+);
 benchmark(
   'target migration projection',
   7,
@@ -113,6 +132,53 @@ function aggregateSales(count, cancelAt = Number.POSITIVE_INFINITY) {
   return { cancelled: false, lines: count, units, countries };
 }
 
+/** Creates bounded canonical shard text while retaining attribution once on each header. */
+function buildSalesPartitions(count) {
+  const partitions = [];
+  for (let offset = 0; offset < count; offset += 1_000) {
+    const rows = [];
+    let units = 0;
+    let returns = 0;
+    const end = Math.min(count, offset + 1_000);
+    for (let index = offset; index < end; index += 1) {
+      const rowUnits = (index % 5) + 1;
+      const rowReturns = index % 19 === 0 ? 1 : 0;
+      units += rowUnits;
+      returns += rowReturns;
+      rows.push(`${index},${rowUnits},${rowReturns}`);
+    }
+    partitions.push({
+      partitionKey: `partition-${String(offset / 1_000).padStart(4, '0')}`,
+      lineCount: end - offset,
+      units,
+      returns,
+      rows: rows.join('\n')
+    });
+  }
+  return partitions;
+}
+
+/** Aggregates exact totals from partition headers without hydrating individual rows. */
+function aggregateSalesPartitions(partitions) {
+  let lines = 0;
+  let units = 0;
+  let returns = 0;
+  for (const partition of partitions) {
+    lines += partition.lineCount;
+    units += partition.units;
+    returns += partition.returns;
+  }
+  return { lines, units, returns };
+}
+
+/** Parses only the visible evidence page from one bounded canonical shard. */
+function parsePartitionPage(partition, limit) {
+  if (partition === undefined) return [];
+  return partition.rows
+    .split('\n', limit)
+    .map((row) => row.split(',').map((value) => Number(value)));
+}
+
 function percentile(samples, fraction) {
   return samples[Math.max(0, Math.ceil(samples.length * fraction) - 1)] ?? 0;
 }
@@ -141,6 +207,14 @@ async function verifySourceContracts() {
     [
       'tests/fixtures/catalog-fixtures.ts',
       ['salesLineCount: 1_000_000', 'salesLineCount: 2_000_000']
+    ],
+    [
+      'src/application/sales/sales-project-service.ts',
+      ['MAX_PARTITION_ROWS = 1_000', 'appendPartitionedLine(', 'partitionPage(']
+    ],
+    [
+      'src/domain/records/schema-catalog.ts',
+      ["'sales-partition': schema('sales-partition'", "'line-count'", 'rows: constrainedString']
     ]
   ]) {
     const source = await readFile(file, 'utf8');

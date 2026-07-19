@@ -7,12 +7,15 @@ import type {
   PublishingTemplate,
   TemplateResolutionPreview
 } from '../../domain/templates/publishing-template';
+import { pageCollection, pagedCollectionWindow } from '../view-models/paged-collection';
 
 export const TEMPLATE_LIBRARY_VIEW_TYPE = 'publishing-manager-template-library';
 
 export class TemplateLibraryView extends ItemView {
   private unsubscribe?: () => void;
   private importSource = '';
+  /** Runtime-only page selection bounds installed template DOM without changing canonical order. */
+  private installedPage = 0;
   private readonly supplied = new Map<string, Record<string, unknown>>();
   private readonly previews = new Map<string, TemplateResolutionPreview>();
   public constructor(
@@ -120,6 +123,8 @@ export class TemplateLibraryView extends ItemView {
 
   private renderInstalled(parent: HTMLElement): void {
     const records = this.templates.installed();
+    const window = pagedCollectionWindow(records.length, this.installedPage, 50);
+    this.installedPage = window.page;
     const section = parent.createEl('section', { cls: 'pm-panel' });
     section.createEl('h3', { text: `Installed templates · ${records.length}` });
     if (records.length === 0) {
@@ -130,7 +135,7 @@ export class TemplateLibraryView extends ItemView {
       return;
     }
     const list = section.createEl('ol');
-    for (const record of records) {
+    for (const record of pageCollection(records, window)) {
       try {
         this.renderInstalledTemplate(list, record);
       } catch (cause) {
@@ -143,6 +148,34 @@ export class TemplateLibraryView extends ItemView {
         });
       }
     }
+    this.renderInstalledNavigation(section, window);
+  }
+
+  /** Keeps native range controls beside the collection they replace. */
+  private renderInstalledNavigation(
+    parent: HTMLElement,
+    window: ReturnType<typeof pagedCollectionWindow>
+  ): void {
+    const navigation = parent.createDiv({ cls: 'pm-pagination' });
+    navigation.createSpan({
+      text:
+        window.total === 0
+          ? 'No installed templates'
+          : `${window.offset + 1}–${window.end} of ${window.total}`,
+      attr: { 'aria-live': 'polite' }
+    });
+    const previous = button(navigation, 'Previous template page');
+    previous.disabled = window.page === 0;
+    previous.addEventListener('click', () => {
+      this.installedPage = Math.max(0, window.page - 1);
+      this.render();
+    });
+    const next = button(navigation, 'Next template page');
+    next.disabled = window.page + 1 >= window.totalPages;
+    next.addEventListener('click', () => {
+      this.installedPage = window.page + 1;
+      this.render();
+    });
   }
 
   private renderInstalledTemplate(parent: HTMLElement, record: CatalogRecord): void {

@@ -33,6 +33,7 @@ const DEFAULT_FOLDERS: Readonly<Record<ManagedRecordType, string>> = {
   'asset-reference': 'Asset References',
   'history-event': 'History',
   'sales-source': 'Sales/Sources',
+  'sales-partition': 'Sales/Partitions',
   'sales-line': 'Sales/Lines',
   'sales-correction': 'Sales/Corrections'
 };
