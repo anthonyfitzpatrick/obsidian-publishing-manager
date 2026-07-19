@@ -31,6 +31,7 @@ import {
   projectReadinessForVisuals
 } from './application/integrations/metadata-visuals-provider';
 import { JournaledOperationRunner } from './application/storage/operation-journal';
+import { BoundedHydratedRecordRepository } from './application/storage/bounded-hydrated-record-repository';
 import { ManagedFolderLayout } from './domain/storage/managed-folder-layout';
 import { ObsidianBookCatalogController } from './infrastructure/catalog/obsidian-book-catalog-controller';
 import { SilentLogger } from './infrastructure/diagnostics/silent-logger';
@@ -104,9 +105,18 @@ export default class PublishingManagerPlugin extends Plugin {
       ids,
       historyPreferences
     );
+    // Full fields/body hydration is retained only inside the user's configured memory ceiling.
+    // Catalog source fingerprints invalidate stale entries after external edits, while every save
+    // still crosses the canonical optimistic repository before a cache entry can be refreshed.
+    const hydratedRepository = new BoundedHydratedRecordRepository(
+      canonicalRepository,
+      (path) => catalog.sourceRevisionForPath(path),
+      settings.current().performance.cacheLimitMb * 1024 * 1024
+    );
     // Every successful application write crosses this decorator. History writes use the canonical
     // repository directly, so evidence cannot recursively generate evidence about itself.
-    const repository = new HistoryRecordingRepository(canonicalRepository, history);
+    const repository = new HistoryRecordingRepository(hydratedRepository, history);
+    this.register(() => hydratedRepository.clear());
     const books = new BookProjectService(repository, catalog, layout, clock, ids);
     const vaultAssets = new ObsidianVaultAssetPort(this.app.vault);
     const editions = new EditionProjectService(

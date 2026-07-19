@@ -200,6 +200,11 @@ export class BookCatalog {
     return new Set([...this.recordsByPath.keys(), ...this.directDiagnosticsByPath.keys()]);
   }
 
+  /** Supplies a source-fingerprint token to bounded hydration without exposing mutable storage. */
+  public sourceRevisionForPath(path: VaultPath): string | undefined {
+    return this.recordsByPath.get(path)?.sourceRevision;
+  }
+
   /** Resolves one valid projected record by stable identity, rejecting ambiguous duplicates. */
   public recordById(id: string): CatalogRecord | undefined {
     const matches = [...(this.pathsById.get(id) ?? [])].flatMap((path) => {
