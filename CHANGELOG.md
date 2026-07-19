@@ -33,6 +33,7 @@ All notable changes to Publishing Manager are recorded here using Keep a Changel
 - M6 LCH-001–LCH-006 with a versioned relative launch template, complete preview diff, completed/pinned protection, three reflow modes, dependency/estimate critical paths, timezone-safe date-only working-day arithmetic, canonical launch records, and generated workflow tasks.
 - M6 CAL-001–CAL-003 with Dashboard-filtered month/agenda/book-timeline projections, source navigation, transitive dependency-impact date previews, pinned/conflict/stale safeguards, and collision-safe local RFC 5545 ICS export without cloud events.
 - M6 REV-001–REV-002 with canonical book/edition review evidence, bounded quote/reference capture, HTTP(S) sources, zero-to-five ratings, explicit permission/follow-up states, newest-first chronology, compound filters, and stable-identity edits without scraping.
+- M6 HIS-001–HIS-003 with repository-wide automatic append-only mutation evidence, actor/time/action/entity fields, privacy-bounded before/after summaries, newest-first book filters, non-destructive retention preferences, and retryable post-commit capture failures.
 
 ## [0.1.0] - 2026-07-18
 

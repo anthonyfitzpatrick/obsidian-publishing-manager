@@ -234,11 +234,17 @@ export const RECORD_SCHEMAS = {
     'externally-managed': { kind: 'boolean', required: false }
   }),
   'history-event': schema('history-event', {
+    'book-id': relation('book', false),
     'entity-id': requiredString(),
     'entity-type': requiredString(),
+    'entity-label': requiredString(),
+    'actor-label': requiredString(),
     action: requiredString(),
     timestamp: { kind: 'datetime', required: true },
-    summary: requiredString()
+    summary: requiredString(),
+    'before-summary': optionalString(),
+    'after-summary': optionalString(),
+    'changed-fields': { kind: 'string-list', required: true }
   }),
   'sales-source': schema('sales-source', {
     label: requiredString(),

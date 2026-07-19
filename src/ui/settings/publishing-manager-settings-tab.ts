@@ -5,13 +5,18 @@ import {
   CLASSIFICATION_DATA_ACKNOWLEDGEMENT_VERSION,
   type ClassificationLicenseService
 } from '../../application/metadata/classification-license-service';
+import {
+  type HistoryPreferencesService,
+  type HistoryRetentionDays
+} from '../../application/history/history-preferences-service';
 
 /** Provides the native Settings entry while product settings are introduced incrementally. */
 export class PublishingManagerSettingsTab extends PluginSettingTab {
   public constructor(
     app: App,
     plugin: Plugin,
-    private readonly classificationLicenses: ClassificationLicenseService
+    private readonly classificationLicenses: ClassificationLicenseService,
+    private readonly historyPreferences: HistoryPreferencesService
   ) {
     super(app, plugin);
   }
@@ -31,6 +36,10 @@ export class PublishingManagerSettingsTab extends PluginSettingTab {
       {
         name: 'Sales entry defaults',
         desc: 'Reusable local sales-source notes hold channel, publication-location, country, currency, date-grain, and sign defaults without credentials or endpoints.'
+      },
+      {
+        name: 'History evidence',
+        desc: 'Set the local actor label and non-destructive history retention window.'
       }
     ];
   }
@@ -51,7 +60,51 @@ export class PublishingManagerSettingsTab extends PluginSettingTab {
         'Install and edit local Sales/Sources notes to maintain channel, publication-location, country, currency, date-grain, and sign defaults. Publishing manager stores no sales credentials or endpoints.'
       );
 
+    this.renderHistoryPreferences();
+
     this.renderClassificationLicensing();
+  }
+
+  /** Retention changes only the default visible window; canonical append-only notes stay intact. */
+  private renderHistoryPreferences(): void {
+    const current = this.historyPreferences.current();
+    new Setting(this.containerEl).setName('History evidence').setHeading();
+    new Setting(this.containerEl)
+      .setName('Local actor label')
+      .setDesc(
+        'Written into future history events. This is a human label, not an account or login.'
+      )
+      .addText((control) => {
+        control.setValue(current.actorLabel);
+        control.inputEl.addEventListener('change', () => {
+          const value = control.getValue();
+          if (!value.trim()) return;
+          void this.historyPreferences
+            .save({ ...this.historyPreferences.current(), actorLabel: value })
+            .catch((cause: unknown) => new Notice(errorMessage(cause)));
+        });
+      });
+    new Setting(this.containerEl)
+      .setName('History retention window')
+      .setDesc(
+        'Controls the default visible history window. Canonical history Markdown is not automatically edited or deleted.'
+      )
+      .addDropdown((control) => {
+        control
+          .addOption('0', 'All canonical history')
+          .addOption('365', 'Most recent year')
+          .addOption('1095', 'Most recent 3 years')
+          .addOption('1825', 'Most recent 5 years')
+          .setValue(String(current.retentionDays))
+          .onChange((value) => {
+            void this.historyPreferences
+              .save({
+                ...this.historyPreferences.current(),
+                retentionDays: Number(value) as HistoryRetentionDays
+              })
+              .catch((cause: unknown) => new Notice(errorMessage(cause)));
+          });
+      });
   }
 
   /**

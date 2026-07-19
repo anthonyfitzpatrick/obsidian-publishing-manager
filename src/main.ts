@@ -17,6 +17,9 @@ import { SalesProjectService } from './application/sales/sales-project-service';
 import { LaunchProjectService } from './application/launch/launch-project-service';
 import { CalendarProjectService } from './application/calendar/calendar-project-service';
 import { ReviewProjectService } from './application/reviews/review-project-service';
+import { HistoryPreferencesService } from './application/history/history-preferences-service';
+import { HistoryProjectService } from './application/history/history-project-service';
+import { HistoryRecordingRepository } from './application/history/history-recording-repository';
 import { JournaledOperationRunner } from './application/storage/operation-journal';
 import { ManagedFolderLayout } from './domain/storage/managed-folder-layout';
 import { ObsidianBookCatalogController } from './infrastructure/catalog/obsidian-book-catalog-controller';
@@ -63,8 +66,24 @@ export default class PublishingManagerPlugin extends Plugin {
     const layout = new ManagedFolderLayout({ root: 'Publishing Manager' });
     const vaultText = new ObsidianVaultTextPort(this.app.vault);
     const frontmatter = new ObsidianFrontmatterCodec();
-    const repository = new VaultManagedRecordRepository(vaultText, frontmatter);
-    const catalog = new BookCatalog(repository, clock);
+    const canonicalRepository = new VaultManagedRecordRepository(vaultText, frontmatter);
+    const catalog = new BookCatalog(canonicalRepository, clock);
+    const historyPreferences = new HistoryPreferencesService({
+      load: () => this.loadData(),
+      save: (value) => this.saveData(value)
+    });
+    await historyPreferences.initialize();
+    const history = new HistoryProjectService(
+      canonicalRepository,
+      catalog,
+      layout,
+      clock,
+      ids,
+      historyPreferences
+    );
+    // Every successful application write crosses this decorator. History writes use the canonical
+    // repository directly, so evidence cannot recursively generate evidence about itself.
+    const repository = new HistoryRecordingRepository(canonicalRepository, history);
     const books = new BookProjectService(repository, catalog, layout, clock, ids);
     const editions = new EditionProjectService(repository, catalog, layout, clock, ids);
     const assets = new AssetReferenceService(
@@ -133,9 +152,13 @@ export default class PublishingManagerPlugin extends Plugin {
       launches,
       calendar,
       reviews,
+      history,
+      historyPreferences,
       drafts,
       () => catalogController.initialize()
     );
-    this.addSettingTab(new PublishingManagerSettingsTab(this.app, this, classificationLicenses));
+    this.addSettingTab(
+      new PublishingManagerSettingsTab(this.app, this, classificationLicenses, historyPreferences)
+    );
   }
 }

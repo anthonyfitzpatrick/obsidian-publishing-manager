@@ -21,6 +21,8 @@ import type { SalesProjectService } from '../../application/sales/sales-project-
 import type { LaunchProjectService } from '../../application/launch/launch-project-service';
 import type { CalendarProjectService } from '../../application/calendar/calendar-project-service';
 import type { ReviewProjectService } from '../../application/reviews/review-project-service';
+import type { HistoryProjectService } from '../../application/history/history-project-service';
+import type { HistoryPreferencesService } from '../../application/history/history-preferences-service';
 import type { CatalogRecord } from '../../domain/catalog/catalog-model';
 import { normalizeVaultPath } from '../../domain/storage/vault-path';
 import { CreateBookModal } from '../dialogs/create-book-modal';
@@ -49,6 +51,8 @@ export function registerPublishingViews(
   launches: LaunchProjectService,
   calendar: CalendarProjectService,
   reviews: ReviewProjectService,
+  history: HistoryProjectService,
+  historyPreferences: HistoryPreferencesService,
   drafts: BookDraftStore,
   refreshCatalog: () => Promise<void>
 ): void {
@@ -101,6 +105,8 @@ export function registerPublishingViews(
         sales,
         launches,
         reviews,
+        history,
+        historyPreferences,
         drafts,
         openDashboard
       )

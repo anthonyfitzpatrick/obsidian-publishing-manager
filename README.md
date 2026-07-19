@@ -6,7 +6,7 @@ The product specification and project backlog in the Publishing Manager Obsidian
 
 ## Current state
 
-Milestones M0 through M5 are complete. M6 Dashboard, Sales, Launch, Calendar, and Reviews sections are complete. Reviews retain source/date/rating, bounded quote/reference, explicit permission evidence, optional edition/follow-up, newest-first filters, and safe source links without scraping. History is next.
+Milestones M0 through M5 are complete. All 36 M6 Dashboard, Sales, Launch, Calendar, Reviews, and History delivery items are implemented; the M6 exit review is next. History records successful canonical mutations as append-only book-scoped evidence with privacy-bounded summaries, filters, and a non-destructive visible retention window.
 
 ## Licence boundary
 
