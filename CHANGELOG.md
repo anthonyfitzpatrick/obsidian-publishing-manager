@@ -34,6 +34,7 @@ All notable changes to Publishing Manager are recorded here using Keep a Changel
 - M6 CAL-001–CAL-003 with Dashboard-filtered month/agenda/book-timeline projections, source navigation, transitive dependency-impact date previews, pinned/conflict/stale safeguards, and collision-safe local RFC 5545 ICS export without cloud events.
 - M6 REV-001–REV-002 with canonical book/edition review evidence, bounded quote/reference capture, HTTP(S) sources, zero-to-five ratings, explicit permission/follow-up states, newest-first chronology, compound filters, and stable-identity edits without scraping.
 - M6 HIS-001–HIS-003 with repository-wide automatic append-only mutation evidence, actor/time/action/entity fields, privacy-bounded before/after summaries, newest-first book filters, non-destructive retention preferences, and retryable post-commit capture failures.
+- M6 exit review passed all 36 operational items, 45 test files/140 tests, production build, coverage, production dependency audit, and disposable test-vault creation; M7 Repeatability is current.
 
 ## [0.1.0] - 2026-07-18
 

@@ -6,7 +6,7 @@ The product specification and project backlog in the Publishing Manager Obsidian
 
 ## Current state
 
-Milestones M0 through M5 are complete. All 36 M6 Dashboard, Sales, Launch, Calendar, Reviews, and History delivery items are implemented; the M6 exit review is next. History records successful canonical mutations as append-only book-scoped evidence with privacy-bounded summaries, filters, and a non-destructive visible retention window.
+Milestones M0 through M6 are complete. M6 passed all 36 Dashboard, Sales, Launch, Calendar, Reviews, and History items plus the release-equivalent exit gate. M7 Repeatability is current and begins with versioned, data-only publishing templates.
 
 ## Licence boundary
 
