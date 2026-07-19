@@ -39,6 +39,7 @@ All notable changes to Publishing Manager are recorded here using Keep a Changel
 - M7 EXP-001–EXP-008 with a native Export Center for human-readable Markdown dossiers/readiness, seven operational and sales CSV tables, versioned stable-ID JSON graphs, and local all-day ICS. Every exact single-file preview reports schema/generator/time/scope/warnings, sensitive fields, unresolved references, target collisions, never-overwrite behavior, and reference-only linked binaries; apply rechecks live source revisions before one atomic create.
 - M7 SET-001–SET-005 with nine typed independently validated settings sections, section-local default restoration, performance controls, exact collision-safe managed-root move previews, plugin-data journaling/recovery, runtime root adoption, and a confirmed Forget action that cannot delete canonical projects or linked assets.
 - M7 DIA-001–DIA-004 with a seven-category native Diagnostics Center, default-redacted collision-safe Markdown evidence export, stale-preview guards, derived-only catalog rebuild, and guided source navigation without automatic canonical repair.
+- M7 exit review passed all 22 Repeatability items, 51 test files/158 tests, coverage, production build, zero production dependency vulnerabilities, and disposable-vault installation; M8 Optional plugin integrations is current.
 
 ## [0.1.0] - 2026-07-18
 
