@@ -9,14 +9,21 @@ import {
   type HistoryPreferencesService,
   type HistoryRetentionDays
 } from '../../application/history/history-preferences-service';
+import type { PublishingSettingsService } from '../../application/settings/publishing-settings-service';
+import {
+  PublishingSettingsSections,
+  type PublishingSettingsCallbacks
+} from './publishing-settings-sections';
 
 /** Provides the native Settings entry while product settings are introduced incrementally. */
 export class PublishingManagerSettingsTab extends PluginSettingTab {
   public constructor(
     app: App,
     plugin: Plugin,
+    private readonly settings: PublishingSettingsService,
     private readonly classificationLicenses: ClassificationLicenseService,
-    private readonly historyPreferences: HistoryPreferencesService
+    private readonly historyPreferences: HistoryPreferencesService,
+    private readonly callbacks: Omit<PublishingSettingsCallbacks, 'refresh'>
   ) {
     super(app, plugin);
   }
@@ -34,8 +41,28 @@ export class PublishingManagerSettingsTab extends PluginSettingTab {
         desc: `Version ${CLASSIFICATION_DATA_ACKNOWLEDGEMENT_VERSION}; the MIT software licence and third-party dataset authorization remain separate.`
       },
       {
-        name: 'Sales entry defaults',
-        desc: 'Reusable local sales-source notes hold channel, publication-location, country, currency, date-grain, and sign defaults without credentials or endpoints.'
+        name: 'Storage',
+        desc: 'Managed root, naming, archive, and journaled move/recovery.'
+      },
+      {
+        name: 'Defaults',
+        desc: 'Future imprint, language, currency, workflow, platform, and template defaults.'
+      },
+      { name: 'Readiness', desc: 'Rule packs, weights, blocker policy, and score threshold.' },
+      { name: 'Tasks and dates', desc: 'Week, working days, estimates, and overdue policy.' },
+      { name: 'Assets', desc: 'Fingerprint mode, stale tolerance, and allowed vault locations.' },
+      {
+        name: 'Sales',
+        desc: 'Local source, attribution, currency, date-grain, and entry defaults.'
+      },
+      {
+        name: 'Integrations',
+        desc: 'Detected optional capabilities and exchanged-field disclosure.'
+      },
+      { name: 'Performance', desc: 'Page, cache, indexing, and low-resource preferences.' },
+      {
+        name: 'Privacy and diagnostics',
+        desc: 'Redaction, local retention, diagnostics export, and Forget.'
       },
       {
         name: 'History evidence',
@@ -54,11 +81,10 @@ export class PublishingManagerSettingsTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName('Local-first operation')
       .setDesc('Publishing manager uses local vault data and makes no network requests.');
-    new Setting(containerEl)
-      .setName('Sales entry defaults')
-      .setDesc(
-        'Install and edit local Sales/Sources notes to maintain channel, publication-location, country, currency, date-grain, and sign defaults. Publishing manager stores no sales credentials or endpoints.'
-      );
+    new PublishingSettingsSections(containerEl, this.settings, {
+      ...this.callbacks,
+      refresh: () => this.display()
+    }).render();
 
     this.renderHistoryPreferences();
 

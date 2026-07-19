@@ -17,7 +17,7 @@ import { joinVaultPath, normalizeVaultPath, type VaultPath } from '../../domain/
 
 /** Vault-backed durable journal store used by multi-record operations and migrations. */
 export class VaultOperationJournalStore implements OperationJournalStore {
-  private readonly folder: VaultPath;
+  private folder: VaultPath;
 
   /** Validates the journal folder once and retains only platform-safe storage capabilities. */
   public constructor(
@@ -25,6 +25,11 @@ export class VaultOperationJournalStore implements OperationJournalStore {
     private readonly vault: VaultTextPort,
     private readonly codec: MarkdownFrontmatterCodec
   ) {
+    this.folder = normalizeVaultPath(folder);
+  }
+
+  /** Follows a successfully moved managed root so future workflow journals stay in managed data. */
+  public setFolder(folder: string): void {
     this.folder = normalizeVaultPath(folder);
   }
 

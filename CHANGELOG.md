@@ -37,6 +37,7 @@ All notable changes to Publishing Manager are recorded here using Keep a Changel
 - M6 exit review passed all 36 operational items, 45 test files/140 tests, production build, coverage, production dependency audit, and disposable test-vault creation; M7 Repeatability is current.
 - M7 TPL-001–TPL-005 with eight versioned inert template families, immutable bundled starters, editable canonical Markdown copies, typed required-variable previews, bounded executable-rejecting JSON import, private-field exclusion, safe-extension preservation, deterministic local JSON export, and the native Template Library.
 - M7 EXP-001–EXP-008 with a native Export Center for human-readable Markdown dossiers/readiness, seven operational and sales CSV tables, versioned stable-ID JSON graphs, and local all-day ICS. Every exact single-file preview reports schema/generator/time/scope/warnings, sensitive fields, unresolved references, target collisions, never-overwrite behavior, and reference-only linked binaries; apply rechecks live source revisions before one atomic create.
+- M7 SET-001–SET-005 with nine typed independently validated settings sections, section-local default restoration, performance controls, exact collision-safe managed-root move previews, plugin-data journaling/recovery, runtime root adoption, and a confirmed Forget action that cannot delete canonical projects or linked assets.
 
 ## [0.1.0] - 2026-07-18
 

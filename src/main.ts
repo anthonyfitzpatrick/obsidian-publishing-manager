@@ -22,6 +22,7 @@ import { HistoryProjectService } from './application/history/history-project-ser
 import { HistoryRecordingRepository } from './application/history/history-recording-repository';
 import { TemplateProjectService } from './application/templates/template-project-service';
 import { PublishingExportService } from './application/exports/publishing-export-service';
+import { PublishingSettingsService } from './application/settings/publishing-settings-service';
 import { JournaledOperationRunner } from './application/storage/operation-journal';
 import { ManagedFolderLayout } from './domain/storage/managed-folder-layout';
 import { ObsidianBookCatalogController } from './infrastructure/catalog/obsidian-book-catalog-controller';
@@ -36,6 +37,7 @@ import {
 } from './infrastructure/storage/obsidian-vault-asset-port';
 import { VaultManagedRecordRepository } from './infrastructure/storage/vault-managed-record-repository';
 import { VaultOperationJournalStore } from './infrastructure/storage/vault-operation-journal-store';
+import { ObsidianManagedStoragePort } from './infrastructure/settings/obsidian-managed-storage-port';
 import { registerBookCommands } from './ui/commands/register-book-commands';
 import { registerFoundationCommand } from './ui/commands/register-foundation-command';
 import { registerWorkflowCommands } from './ui/commands/register-workflow-commands';
@@ -56,26 +58,29 @@ export default class PublishingManagerPlugin extends Plugin {
     const ids = new BrowserIdGenerator();
     const logger = new SilentLogger();
     const getFoundationStatus = new GetFoundationStatus(clock, ids);
-    // Plugin data stores only local acceptance/evidence. It never contains or retrieves a vendor
-    // vocabulary, and the service preserves unrelated settings on every write.
-    const classificationLicenses = new ClassificationLicenseService(
-      {
-        load: () => this.loadData(),
-        save: (value) => this.saveData(value)
-      },
+    const pluginData = {
+      load: () => this.loadData(),
+      save: (value: unknown) => this.saveData(value)
+    };
+    // Settings load before the layout so a previously reviewed managed-root move is authoritative
+    // on the next startup. Storage moves themselves use only Obsidian's abstract-file rename API.
+    const settings = new PublishingSettingsService(
+      pluginData,
+      new ObsidianManagedStoragePort(this.app.vault),
       clock
     );
+    await settings.initialize();
+    // Plugin data stores only local acceptance/evidence. It never contains or retrieves a vendor
+    // vocabulary, and the service preserves unrelated settings on every write.
+    const classificationLicenses = new ClassificationLicenseService(pluginData, clock);
     await classificationLicenses.initialize();
 
-    const layout = new ManagedFolderLayout({ root: 'Publishing Manager' });
+    const layout = new ManagedFolderLayout({ root: settings.current().storage.managedRoot });
     const vaultText = new ObsidianVaultTextPort(this.app.vault);
     const frontmatter = new ObsidianFrontmatterCodec();
     const canonicalRepository = new VaultManagedRecordRepository(vaultText, frontmatter);
     const catalog = new BookCatalog(canonicalRepository, clock);
-    const historyPreferences = new HistoryPreferencesService({
-      load: () => this.loadData(),
-      save: (value) => this.saveData(value)
-    });
+    const historyPreferences = new HistoryPreferencesService(pluginData);
     await historyPreferences.initialize();
     const history = new HistoryProjectService(
       canonicalRepository,
@@ -101,9 +106,12 @@ export default class PublishingManagerPlugin extends Plugin {
     );
     // WFL-012 batch edits reuse the same durable, human-readable journal boundary as migrations.
     // A crash can therefore resume pending task steps instead of silently leaving a partial batch.
-    const workflowJournals = new JournaledOperationRunner(
-      new VaultOperationJournalStore('Publishing Manager/System/Journals', vaultText, frontmatter)
+    const workflowJournalStore = new VaultOperationJournalStore(
+      `${layout.rootPath()}/System/Journals`,
+      vaultText,
+      frontmatter
     );
+    const workflowJournals = new JournaledOperationRunner(workflowJournalStore);
     const workflows = new WorkflowProjectService(
       repository,
       catalog,
@@ -117,10 +125,7 @@ export default class PublishingManagerPlugin extends Plugin {
     const prices = new PriceProjectService(repository, catalog, layout, clock, ids);
     const distribution = new DistributionProjectService(repository, catalog, layout, clock, ids);
     const readiness = new ReadinessProjectService(repository, catalog, layout, assets, clock, ids);
-    const dashboardPreferences = new DashboardPreferencesService({
-      load: () => this.loadData(),
-      save: (value) => this.saveData(value)
-    });
+    const dashboardPreferences = new DashboardPreferencesService(pluginData);
     const sales = new SalesProjectService(repository, catalog, layout, clock, ids);
     const launches = new LaunchProjectService(repository, catalog, workflows, layout, clock, ids);
     const calendar = new CalendarProjectService(catalog, workflows, vaultText, layout, clock);
@@ -185,7 +190,26 @@ export default class PublishingManagerPlugin extends Plugin {
     registerTemplateLibraryView(this, catalog, templates);
     registerPublishingExportView(this, catalog, exports);
     this.addSettingTab(
-      new PublishingManagerSettingsTab(this.app, this, classificationLicenses, historyPreferences)
+      new PublishingManagerSettingsTab(
+        this.app,
+        this,
+        settings,
+        classificationLicenses,
+        historyPreferences,
+        {
+          storageMoved: async (target) => {
+            layout.setRoot(target);
+            catalogController.setRoot(layout.rootPath());
+            workflowJournalStore.setFolder(`${layout.rootPath()}/System/Journals`);
+            await catalogController.initialize();
+          },
+          settingsForgotten: async () => {
+            await settings.initialize();
+            await classificationLicenses.initialize();
+            await historyPreferences.initialize();
+          }
+        }
+      )
     );
   }
 }

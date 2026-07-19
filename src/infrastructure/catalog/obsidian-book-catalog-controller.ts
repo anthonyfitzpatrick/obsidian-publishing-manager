@@ -17,11 +17,16 @@ export class ObsidianBookCatalogController {
   /** Receives the host Vault event surface, validated root, catalog, and local-only logger. */
   public constructor(
     private readonly vault: Vault,
-    private readonly root: VaultPath,
+    private root: VaultPath,
     private readonly catalog: BookCatalog,
     private readonly logger: Logger,
     private readonly assets?: AssetReferenceService
   ) {}
+
+  /** Switches event filtering only after a completed journaled managed-root move. */
+  public setRoot(root: VaultPath): void {
+    this.root = root;
+  }
 
   /** Registers event cleanup with the owning plugin before the first asynchronous catalog scan. */
   public register(plugin: Plugin): void {

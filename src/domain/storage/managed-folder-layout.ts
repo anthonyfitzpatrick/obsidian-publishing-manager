@@ -39,7 +39,7 @@ const DEFAULT_FOLDERS: Readonly<Record<ManagedRecordType, string>> = {
 
 /** Resolves managed locations without performing I/O or deriving record identity from paths. */
 export class ManagedFolderLayout {
-  private readonly root: VaultPath;
+  private root: VaultPath;
   private readonly folders: Readonly<Record<ManagedRecordType, string>>;
 
   /** Validates the configured root and every type override before any path is requested. */
@@ -62,6 +62,15 @@ export class ManagedFolderLayout {
   /** Exposes the validated managed root for catalog scanning and event filtering. */
   public rootPath(): VaultPath {
     return this.root;
+  }
+
+  /**
+   * Updates the shared runtime root only after SET-003 finishes its journaled folder move and
+   * preference write. Every application service retains this same layout instance, so future
+   * creates immediately use the reviewed location without rewriting existing record identities.
+   */
+  public setRoot(root: string): void {
+    this.root = normalizeVaultPath(root);
   }
 
   /**
