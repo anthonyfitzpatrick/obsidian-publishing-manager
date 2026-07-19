@@ -6,7 +6,7 @@ The product specification and project backlog in the Publishing Manager Obsidian
 
 ## Current state
 
-Milestones M0 through M7 are complete. M8 Optional plugin integrations is current at 3/18 items. The versioned local Manuscript Compiler negotiation/request contract and complete manual Assets fallback are implemented; result evidence and currentness are next.
+Milestones M0 through M7 are complete. M8 Optional plugin integrations is current at 5/18 items. Compiler negotiation/request, complete result evidence, current/stale derivation, and manual Assets fallback are implemented; validated canonical linking and lifecycle hardening are next.
 
 ## Licence boundary
 

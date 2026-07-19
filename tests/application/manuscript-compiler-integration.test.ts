@@ -30,12 +30,22 @@ class MemoryTransport implements CompilerCapabilityTransport {
   public descriptors: unknown[] = [];
   public requests: CompilerExportRequest[] = [];
   public acknowledgement: unknown;
+  private resultListener: ((payload: unknown) => void) | undefined;
   public async discover(): Promise<readonly unknown[]> {
     return structuredClone(this.descriptors);
   }
   public async request(payload: CompilerExportRequest): Promise<unknown> {
     this.requests.push(structuredClone(payload));
     return structuredClone(this.acknowledgement);
+  }
+  public subscribeResults(listener: (payload: unknown) => void): () => void {
+    this.resultListener = listener;
+    return () => {
+      this.resultListener = undefined;
+    };
+  }
+  public emitResult(payload: unknown): void {
+    this.resultListener?.(structuredClone(payload));
   }
 }
 
@@ -125,6 +135,28 @@ function fixture() {
     new FixedIds()
   );
   return { service, transport, settings: () => settings };
+}
+
+function result(correlationId: string, overrides: Record<string, unknown> = {}): unknown {
+  return {
+    contract: COMPILER_CONTRACT,
+    contractVersion: COMPILER_CONTRACT_VERSION,
+    kind: 'export-result',
+    correlationId,
+    providerId: 'manuscript-compiler',
+    compilerVersion: '1.0.0',
+    compiledAt: '2026-07-19T19:01:00.000Z',
+    bookId: 'pm-book-0001',
+    editionId: 'pm-edition-0001',
+    semanticFingerprint: 'sha256:source-current',
+    sourceFingerprint: 'sha256:source-current',
+    outputFingerprint: 'sha256:output-docx',
+    format: 'docx',
+    vaultPath: 'Books/Private/output.docx',
+    warnings: ['Fictional warning.'],
+    historyId: 'compiler-history-0001',
+    ...overrides
+  };
 }
 
 describe('Manuscript Compiler integration', () => {
@@ -227,5 +259,83 @@ describe('Manuscript Compiler integration', () => {
       providerId: 'manuscript-compiler'
     };
     await expect(state.service.applyRequest(preview)).rejects.toThrow('does not match');
+  });
+
+  it('validates complete compiler evidence and derives current or stale from fingerprints', async () => {
+    const state = fixture();
+    state.transport.descriptors = [descriptor()];
+    await state.service.setEnabled(true);
+    const preview = await state.service.previewRequest({
+      bookId: 'pm-book-0001',
+      editionId: 'pm-edition-0001',
+      formats: ['docx']
+    });
+    state.transport.acknowledgement = {
+      contract: COMPILER_CONTRACT,
+      contractVersion: 1,
+      kind: 'request-accepted',
+      correlationId: preview.request.correlationId,
+      providerId: 'manuscript-compiler'
+    };
+    await state.service.applyRequest(preview);
+    const current = await state.service.acceptResult(result(preview.request.correlationId));
+    expect(current).toMatchObject({
+      freshness: 'current',
+      result: {
+        compilerVersion: '1.0.0',
+        compiledAt: '2026-07-19T19:01:00.000Z',
+        semanticFingerprint: 'sha256:source-current',
+        sourceFingerprint: 'sha256:source-current',
+        outputFingerprint: 'sha256:output-docx',
+        format: 'docx',
+        vaultPath: 'Books/Private/output.docx',
+        warnings: ['Fictional warning.'],
+        historyId: 'compiler-history-0001'
+      }
+    });
+    const stale = await state.service.acceptResult(
+      result(preview.request.correlationId, {
+        sourceFingerprint: 'sha256:older-source',
+        historyId: 'compiler-history-0002'
+      })
+    );
+    expect(stale.freshness).toBe('stale');
+    expect(stale.freshnessExplanation).toContain('differs');
+  });
+
+  it('rejects uncorrelated, unsafe, incomplete, or out-of-scope result evidence', async () => {
+    const state = fixture();
+    state.transport.descriptors = [descriptor()];
+    await state.service.setEnabled(true);
+    await expect(state.service.acceptResult(result('unknown'))).rejects.toThrow('accepted');
+    const preview = await state.service.previewRequest({
+      bookId: 'pm-book-0001',
+      editionId: 'pm-edition-0001',
+      formats: ['docx']
+    });
+    state.transport.acknowledgement = {
+      contract: COMPILER_CONTRACT,
+      contractVersion: 1,
+      kind: 'request-accepted',
+      correlationId: preview.request.correlationId,
+      providerId: 'manuscript-compiler'
+    };
+    await state.service.applyRequest(preview);
+    await expect(
+      state.service.acceptResult(
+        result(preview.request.correlationId, { vaultPath: '../outside.docx' })
+      )
+    ).rejects.toThrow('safe vault-relative');
+    await expect(
+      state.service.acceptResult(result(preview.request.correlationId, { format: 'epub' }))
+    ).rejects.toThrow('format');
+    await expect(
+      state.service.acceptResult(
+        result(preview.request.correlationId, { compilerVersion: '2.0.0' })
+      )
+    ).rejects.toThrow('version');
+    await expect(
+      state.service.acceptResult(result(preview.request.correlationId, { warnings: 'not-a-list' }))
+    ).rejects.toThrow('warnings');
   });
 });

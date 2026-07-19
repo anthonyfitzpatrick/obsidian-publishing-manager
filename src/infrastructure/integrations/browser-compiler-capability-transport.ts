@@ -10,6 +10,7 @@ import type {
 
 export const COMPILER_DISCOVERY_EVENT = 'publishing-manager:compiler:discover:v1';
 export const COMPILER_REQUEST_EVENT = 'publishing-manager:compiler:request:v1';
+export const COMPILER_RESULT_EVENT = 'publishing-manager:compiler:result:v1';
 
 interface DiscoveryDetail {
   readonly requester: 'publishing-manager';
@@ -43,5 +44,15 @@ export class BrowserCompilerCapabilityTransport implements CompilerCapabilityTra
     if (responses.length === 0) throw new Error('Compiler did not acknowledge the local request.');
     if (responses.length > 1) throw new Error('More than one compiler acknowledged the request.');
     return responses[0];
+  }
+
+  /** Receives data-only completion evidence; application validation remains the trust boundary. */
+  public subscribeResults(listener: (payload: unknown) => void): () => void {
+    const receive = (event: Event): void => {
+      if (!(event instanceof CustomEvent)) return;
+      listener(structuredClone(event.detail));
+    };
+    window.addEventListener(COMPILER_RESULT_EVENT, receive);
+    return () => window.removeEventListener(COMPILER_RESULT_EVENT, receive);
   }
 }

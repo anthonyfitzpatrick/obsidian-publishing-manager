@@ -3,6 +3,7 @@ import { ItemView, Notice, setIcon, type Plugin, type WorkspaceLeaf } from 'obsi
 import {
   COMPILER_EXPORT_FORMATS,
   type CompilerExportFormat,
+  type CompilerResultState,
   type CompilerNegotiation,
   type CompilerRequestPreview,
   type ManuscriptCompilerIntegrationService
@@ -14,13 +15,15 @@ import { BOOK_WORKSPACE_VIEW_TYPE } from './book-workspace-view';
 export const COMPILER_INTEGRATION_VIEW_TYPE = 'publishing-manager-compiler-integration';
 
 export class ManuscriptCompilerIntegrationView extends ItemView {
-  private unsubscribe: (() => void) | undefined;
+  private unsubscribeCatalog: (() => void) | undefined;
+  private unsubscribeResults: (() => void) | undefined;
   private snapshot: BookCatalogSnapshot | undefined;
   private negotiation: CompilerNegotiation | undefined;
   private bookId = '';
   private editionId = '';
   private readonly formats = new Set<CompilerExportFormat>();
   private preview: CompilerRequestPreview | undefined;
+  private resultState: CompilerResultState = { results: [] };
 
   public constructor(
     leaf: WorkspaceLeaf,
@@ -38,16 +41,22 @@ export class ManuscriptCompilerIntegrationView extends ItemView {
     return 'Compiler integration';
   }
   protected override async onOpen(): Promise<void> {
-    this.unsubscribe = this.catalog.subscribe((snapshot) => {
+    this.unsubscribeCatalog = this.catalog.subscribe((snapshot) => {
       this.snapshot = snapshot;
       this.reconcileScope();
+      this.render();
+    });
+    this.unsubscribeResults = this.compiler.subscribeResults((state) => {
+      this.resultState = state;
       this.render();
     });
     await this.refreshCapability();
   }
   protected override async onClose(): Promise<void> {
-    this.unsubscribe?.();
-    this.unsubscribe = undefined;
+    this.unsubscribeCatalog?.();
+    this.unsubscribeCatalog = undefined;
+    this.unsubscribeResults?.();
+    this.unsubscribeResults = undefined;
     this.contentEl.empty();
   }
 
@@ -91,6 +100,7 @@ export class ManuscriptCompilerIntegrationView extends ItemView {
     control(actions, 'Refresh capability', 'refresh-cw', () => void this.refreshCapability());
     this.renderCapability(root);
     this.renderRequest(root);
+    this.renderResults(root);
   }
 
   private renderCapability(root: HTMLElement): void {
@@ -278,6 +288,54 @@ export class ManuscriptCompilerIntegrationView extends ItemView {
       state: { bookPath: book.path, tab: 'assets' }
     });
     await this.app.workspace.revealLeaf(leaf);
+  }
+
+  /** Shows validated provider evidence without updating canonical format or asset records yet. */
+  private renderResults(root: HTMLElement): void {
+    const panel = root.createEl('section', { cls: 'pm-panel' });
+    panel.createEl('h2', { text: 'Validated compiler results' });
+    panel.createEl('p', {
+      text: 'These are session-only result records. Current or stale is fingerprint evidence, not byte inspection, and linked formats are unchanged until the next validation stage.'
+    });
+    if (this.resultState.lastRejected !== undefined) {
+      panel.createEl('p', {
+        cls: 'pm-notice pm-notice--warning',
+        text: `Last result rejected — ${this.resultState.lastRejected}`
+      });
+    }
+    const scoped = this.resultState.results.filter(
+      ({ result }) => this.bookId.length === 0 || result.bookId === this.bookId
+    );
+    if (scoped.length === 0) {
+      panel.createEl('p', {
+        cls: 'pm-muted',
+        text: 'No validated result evidence has been received in this plugin session.'
+      });
+      return;
+    }
+    for (const evidence of scoped) {
+      const details = panel.createEl('details');
+      details.createEl('summary', {
+        text: `${evidence.freshness === 'current' ? '✓ Current' : '⚠ Stale'} · ${evidence.result.format.toUpperCase()} · ${evidence.result.vaultPath}`
+      });
+      details.createEl('p', { text: evidence.freshnessExplanation });
+      const list = details.createEl('ul');
+      for (const line of [
+        `Compiler: ${evidence.result.providerId} ${evidence.result.compilerVersion}`,
+        `Compiled: ${evidence.result.compiledAt}`,
+        `Semantic fingerprint: ${evidence.result.semanticFingerprint}`,
+        `Recorded source fingerprint: ${evidence.result.sourceFingerprint}`,
+        `Output fingerprint: ${evidence.result.outputFingerprint}`,
+        `History ID: ${evidence.result.historyId}`,
+        `Correlation ID: ${evidence.result.correlationId}`
+      ])
+        list.createEl('li', { text: line });
+      if (evidence.result.warnings.length > 0) {
+        details.createEl('h3', { text: 'Compiler warnings' });
+        const warnings = details.createEl('ul');
+        for (const warning of evidence.result.warnings) warnings.createEl('li', { text: warning });
+      }
+    }
   }
 }
 

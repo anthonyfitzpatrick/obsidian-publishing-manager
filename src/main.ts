@@ -173,13 +173,17 @@ export default class PublishingManagerPlugin extends Plugin {
     );
     // The compiler coordinator uses a browser-local versioned event transport. No Compiler module
     // or private plugin instance enters this composition root, and an absent provider is normal.
+    const compilerTransport = new BrowserCompilerCapabilityTransport();
     const compilerIntegration = new ManuscriptCompilerIntegrationService(
       catalog,
       settings,
-      new BrowserCompilerCapabilityTransport(),
+      compilerTransport,
       clock,
       ids
     );
+    // Result listening is app-lifetime rather than view-lifetime so a closed integration tab does
+    // not cause a valid asynchronous completion event to disappear silently.
+    this.register(compilerIntegration.start());
 
     registerFoundationCommand(this, getFoundationStatus);
     registerBookCommands(this, books);

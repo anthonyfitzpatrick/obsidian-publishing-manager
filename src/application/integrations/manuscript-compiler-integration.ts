@@ -6,6 +6,7 @@
 import type { BookCatalogSnapshot, CatalogRecord } from '../../domain/catalog/catalog-model';
 import type { Clock } from '../../domain/foundation/clock';
 import type { IdGenerator } from '../../domain/foundation/id-generator';
+import { normalizeVaultPath, type VaultPath } from '../../domain/storage/vault-path';
 import type {
   PublishingManagerSettings,
   PublishingSettingsService
@@ -65,6 +66,38 @@ export interface CompilerRequestPreview {
   readonly consequences: readonly string[];
 }
 
+/** Untrusted provider result after strict correlation, scope, path, and evidence validation. */
+export interface CompilerExportResult {
+  readonly contract: typeof COMPILER_CONTRACT;
+  readonly contractVersion: typeof COMPILER_CONTRACT_VERSION;
+  readonly kind: 'export-result';
+  readonly correlationId: string;
+  readonly providerId: string;
+  readonly compilerVersion: string;
+  readonly compiledAt: string;
+  readonly bookId: string;
+  readonly editionId: string;
+  readonly semanticFingerprint: string;
+  readonly sourceFingerprint: string;
+  readonly outputFingerprint: string;
+  readonly format: CompilerExportFormat;
+  readonly vaultPath: VaultPath;
+  readonly warnings: readonly string[];
+  readonly historyId: string;
+}
+
+export interface CompilerExportEvidence {
+  readonly result: CompilerExportResult;
+  readonly freshness: 'current' | 'stale';
+  readonly freshnessExplanation: string;
+  readonly receivedAt: string;
+}
+
+export interface CompilerResultState {
+  readonly results: readonly CompilerExportEvidence[];
+  readonly lastRejected?: string;
+}
+
 export type CompilerRequestAcknowledgement =
   | {
       readonly state: 'accepted';
@@ -82,6 +115,7 @@ export type CompilerRequestAcknowledgement =
 export interface CompilerCapabilityTransport {
   discover(): Promise<readonly unknown[]>;
   request(payload: CompilerExportRequest): Promise<unknown>;
+  subscribeResults(listener: (payload: unknown) => void): () => void;
 }
 
 export interface CompilerCatalogPort {
@@ -98,6 +132,12 @@ export interface CompilerSettingsPort {
 
 /** Owns capability negotiation, opt-in state, preview, and one correlated local request. */
 export class ManuscriptCompilerIntegrationService {
+  private readonly acceptedRequests = new Map<string, AcceptedCompilerRequest>();
+  private readonly resultListeners = new Set<(state: CompilerResultState) => void>();
+  private readonly results = new Map<string, CompilerExportEvidence>();
+  private stopTransport: (() => void) | undefined;
+  private lastRejected: string | undefined;
+
   public constructor(
     private readonly catalog: CompilerCatalogPort,
     private readonly settings: CompilerSettingsPort | PublishingSettingsService,
@@ -105,6 +145,26 @@ export class ManuscriptCompilerIntegrationService {
     private readonly clock: Clock,
     private readonly ids: IdGenerator
   ) {}
+
+  /** Starts one app-lifetime result listener so completion is not dependent on the view being open. */
+  public start(): () => void {
+    if (this.stopTransport !== undefined) return this.stopTransport;
+    const stop = this.transport.subscribeResults((payload) => {
+      void this.acceptResult(payload).catch(() => undefined);
+    });
+    this.stopTransport = () => {
+      stop();
+      this.stopTransport = undefined;
+    };
+    return this.stopTransport;
+  }
+
+  /** Supplies a deterministic in-memory evidence projection; canonical linking belongs to INT-C-005. */
+  public subscribeResults(listener: (state: CompilerResultState) => void): () => void {
+    this.resultListeners.add(listener);
+    listener(this.resultState());
+    return () => this.resultListeners.delete(listener);
+  }
 
   /** Discovers declarations every time so disable/reload never leaves a trusted stale reference. */
   public async negotiate(): Promise<CompilerNegotiation> {
@@ -217,11 +277,71 @@ export class ManuscriptCompilerIntegrationService {
     // Re-resolve stable scope immediately before sending; removed or reassigned projects therefore
     // cannot leave Publishing Manager as stale integration requests.
     requireScope(this.catalog.snapshot(), preview.request.bookId, preview.request.editionId);
-    return parseAcknowledgement(
+    const acknowledgement = parseAcknowledgement(
       await this.transport.request(preview.request),
       preview.request.correlationId,
       negotiation.descriptor.providerId
     );
+    if (acknowledgement.state === 'accepted') {
+      this.acceptedRequests.set(preview.request.correlationId, {
+        request: structuredClone(preview.request),
+        providerId: negotiation.descriptor.providerId,
+        providerVersion: negotiation.descriptor.providerVersion,
+        descriptorFingerprint: negotiation.descriptorFingerprint
+      });
+    }
+    return acknowledgement;
+  }
+
+  /** Validates one asynchronous completion event and derives evidence-only freshness. */
+  public async acceptResult(payload: unknown): Promise<CompilerExportEvidence> {
+    try {
+      const envelope = object(payload);
+      const correlationId = boundedText(envelope.correlationId, 200);
+      const accepted = this.acceptedRequests.get(correlationId);
+      if (accepted === undefined)
+        throw new Error('Compiler result has no accepted matching request in this session.');
+      const negotiation = await this.requireEnabledCapability();
+      if (
+        negotiation.descriptorFingerprint !== accepted.descriptorFingerprint ||
+        negotiation.descriptor.providerId !== accepted.providerId
+      )
+        throw new Error('Compiler capability changed before the result arrived.');
+      const result = parseResult(payload, accepted);
+      requireScope(this.catalog.snapshot(), result.bookId, result.editionId);
+      const freshness = deriveCompilerFreshness(
+        result.semanticFingerprint,
+        result.sourceFingerprint
+      );
+      const evidence: CompilerExportEvidence = {
+        result,
+        freshness: freshness.state,
+        freshnessExplanation: freshness.explanation,
+        receivedAt: this.clock.now().toISOString()
+      };
+      this.results.set(resultKey(result), evidence);
+      this.lastRejected = undefined;
+      this.publishResults();
+      return evidence;
+    } catch (error) {
+      this.lastRejected = error instanceof Error ? error.message : 'Compiler result was rejected.';
+      this.publishResults();
+      throw error;
+    }
+  }
+
+  private resultState(): CompilerResultState {
+    return {
+      results: [...this.results.values()].sort((left, right) =>
+        right.result.compiledAt.localeCompare(left.result.compiledAt)
+      ),
+      ...(this.lastRejected === undefined ? {} : { lastRejected: this.lastRejected })
+    };
+  }
+
+  private publishResults(): void {
+    const state = this.resultState();
+    for (const listener of this.resultListeners) listener(state);
   }
 
   private async requireEnabledCapability(): Promise<
@@ -235,6 +355,31 @@ export class ManuscriptCompilerIntegrationService {
       );
     return negotiation;
   }
+}
+
+interface AcceptedCompilerRequest {
+  readonly request: CompilerExportRequest;
+  readonly providerId: string;
+  readonly providerVersion: string;
+  readonly descriptorFingerprint: string;
+}
+
+/** Compares the provider's latest semantic evidence with the source evidence used for this output. */
+export function deriveCompilerFreshness(
+  semanticFingerprint: string,
+  sourceFingerprint: string
+): { readonly state: 'current' | 'stale'; readonly explanation: string } {
+  return semanticFingerprint === sourceFingerprint
+    ? {
+        state: 'current',
+        explanation:
+          'Current — the provider’s latest semantic fingerprint matches the source fingerprint recorded for this output.'
+      }
+    : {
+        state: 'stale',
+        explanation:
+          'Stale — the provider’s latest semantic fingerprint differs from the source fingerprint recorded for this output.'
+      };
 }
 
 function parseDescriptor(
@@ -308,6 +453,98 @@ function parseAcknowledgement(
       reason: boundedText(item.reason, 500) || 'Compiler declined the local request.'
     };
   throw new Error('Compiler acknowledgement kind is not recognized.');
+}
+
+function parseResult(value: unknown, accepted: AcceptedCompilerRequest): CompilerExportResult {
+  const serialized = JSON.stringify(value);
+  if (serialized === undefined || new TextEncoder().encode(serialized).byteLength > 16_384)
+    throw new Error('Compiler result exceeds the 16 KiB evidence limit.');
+  const item = object(value);
+  if (
+    item.contract !== COMPILER_CONTRACT ||
+    item.contractVersion !== COMPILER_CONTRACT_VERSION ||
+    item.kind !== 'export-result'
+  )
+    throw new Error('Compiler result contract is not recognized.');
+  if (
+    item.correlationId !== accepted.request.correlationId ||
+    item.providerId !== accepted.providerId ||
+    item.bookId !== accepted.request.bookId ||
+    item.editionId !== accepted.request.editionId
+  )
+    throw new Error('Compiler result does not match the accepted request scope.');
+  const compilerVersion = boundedText(item.compilerVersion, 40);
+  if (
+    compilerVersion !== accepted.providerVersion ||
+    !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u.test(compilerVersion)
+  )
+    throw new Error('Compiler result version does not match the accepted provider.');
+  const compiledAt = strictUtcTimestamp(item.compiledAt);
+  const semanticFingerprint = evidenceToken(item.semanticFingerprint, 'semantic fingerprint');
+  const sourceFingerprint = evidenceToken(item.sourceFingerprint, 'source fingerprint');
+  const outputFingerprint = evidenceToken(item.outputFingerprint, 'output fingerprint');
+  if (!isCompilerFormat(item.format) || !accepted.request.formats.includes(item.format))
+    throw new Error('Compiler result format was not included in the accepted request.');
+  const vaultPath = safeResultPath(item.vaultPath);
+  const warnings = parseWarnings(item.warnings);
+  const historyId = evidenceToken(item.historyId, 'history ID');
+  return {
+    contract: COMPILER_CONTRACT,
+    contractVersion: COMPILER_CONTRACT_VERSION,
+    kind: 'export-result',
+    correlationId: accepted.request.correlationId,
+    providerId: accepted.providerId,
+    compilerVersion,
+    compiledAt,
+    bookId: accepted.request.bookId,
+    editionId: accepted.request.editionId,
+    semanticFingerprint,
+    sourceFingerprint,
+    outputFingerprint,
+    format: item.format,
+    vaultPath,
+    warnings,
+    historyId
+  };
+}
+
+function strictUtcTimestamp(value: unknown): string {
+  if (typeof value !== 'string' || value.length > 40 || !value.endsWith('Z'))
+    throw new Error('Compiler result timestamp must be bounded UTC ISO text.');
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.valueOf()) || parsed.toISOString() !== value)
+    throw new Error('Compiler result timestamp must be canonical UTC ISO text.');
+  return value;
+}
+
+function evidenceToken(value: unknown, label: string): string {
+  const token = boundedText(value, 200);
+  if (token.length === 0 || !/^[0-9A-Za-z][0-9A-Za-z._:+/-]*$/u.test(token))
+    throw new Error(`Compiler result ${label} is invalid.`);
+  return token;
+}
+
+function safeResultPath(value: unknown): VaultPath {
+  if (typeof value !== 'string' || value.length > 500)
+    throw new Error('Compiler result vault path is invalid.');
+  try {
+    return normalizeVaultPath(value);
+  } catch {
+    throw new Error('Compiler result vault path is not a safe vault-relative path.');
+  }
+}
+
+function parseWarnings(value: unknown): readonly string[] {
+  if (!Array.isArray(value) || value.length > 20)
+    throw new Error('Compiler result warnings must be a list of at most 20 messages.');
+  const warnings = value.map((warning) => boundedText(warning, 500));
+  if (warnings.some((warning) => warning.length === 0))
+    throw new Error('Compiler result warning is invalid.');
+  return warnings;
+}
+
+function resultKey(result: CompilerExportResult): string {
+  return `${result.correlationId}:${result.format}:${result.historyId}`;
 }
 
 function requireScope(
