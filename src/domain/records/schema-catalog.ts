@@ -113,6 +113,22 @@ export const RECORD_SCHEMAS = {
     notes: optionalString(),
     corrections: { kind: 'object', required: false }
   }),
+  price: schema('price', {
+    'edition-id': relation('edition', true),
+    platform: requiredString(),
+    territory: requiredString(),
+    currency: requiredString(),
+    amount: { kind: 'decimal', required: true },
+    'tax-included': { kind: 'boolean', required: true },
+    'tax-rate': { kind: 'decimal', required: false },
+    'effective-from': { kind: 'date', required: true },
+    'effective-to': { kind: 'date', required: false },
+    source: requiredString(),
+    notes: optionalString(),
+    'print-cost': { kind: 'decimal', required: false },
+    assumption: { kind: 'object', required: false },
+    'supersedes-price-id': relation('price', false)
+  }),
   workflow: schema('workflow', {
     'book-id': relation('book', true),
     name: requiredString(),

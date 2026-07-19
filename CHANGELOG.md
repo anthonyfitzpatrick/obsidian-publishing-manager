@@ -24,6 +24,7 @@ All notable changes to Publishing Manager are recorded here using Keep a Changel
 - MET-008–MET-009 with the exact versioned Classification Data EULA, named acceptance, separate external authorization evidence, revocation/locking, and structured manual UK/Australia/France/Germany subject assignments using Thema, French CLIL, German WGS, and visibly legacy UK BIC.
 - Reframed the product EULA as an MIT-safe Classification Data Licence Acknowledgement, added official BISAC/Thema/BIC/CLIL/WGS source links and third-party notices, and confirmed that no complete external vocabulary is bundled or relicensed.
 - M4 ISBN-001–ISBN-007 with canonical ISBN-10/13 validation, global lifecycle/assignment diagnostics, previewed transactions, protected published corrections, per-row pool imports, and the responsive native ISBN workspace.
+- M4 PRC-001–PRC-007 with exact decimal price snapshots, explicit market/tax/date/source evidence, heuristic warnings, reviewed local-rate seeding, append-only history, and responsive matrix/mobile pricing views.
 
 ## [0.1.0] - 2026-07-18
 

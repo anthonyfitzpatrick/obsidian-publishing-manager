@@ -22,6 +22,7 @@ const DEFAULT_FOLDERS: Readonly<Record<ManagedRecordType, string>> = {
   'platform-target': 'Platforms',
   'metadata-set': 'Metadata',
   isbn: 'ISBN Pool',
+  price: 'Prices',
   workflow: 'Workflows',
   task: 'Tasks',
   launch: 'Launches',

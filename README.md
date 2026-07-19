@@ -6,7 +6,7 @@ The product specification and project backlog in the Publishing Manager Obsidian
 
 ## Current state
 
-Milestones M0 through M3 are complete. The live plugin provides canonical records, conflict-aware persistence, book lifecycle/catalog reconciliation, a native graphical Dashboard, and a Book Workspace with Overview, Workflow, Editions, Metadata, ISBNs, Assets, and Diagnostics. M4 metadata adds structured inheritance, coverage, descriptions, an MIT-safe classification acknowledgement, official-source links, and manual UK/Australia/France/Germany subject assignments. The completed M4 ISBN section adds ISBN-10/13 normalization, a guarded global pool lifecycle, assignment conflict detection, row-level import evidence, and immutable published corrections. Pricing is next.
+Milestones M0 through M3 are complete. The Book Workspace now includes completed M4 Metadata, ISBNs, and Pricing sections. Pricing stores exact decimal-text snapshots with explicit edition/platform/territory/currency, tax, dates, source, optional print cost, local reviewed exchange assumptions, and append-only revision history. Its warnings are planning heuristics, not retailer compliance claims. Distribution is next.
 
 ## Licence boundary
 

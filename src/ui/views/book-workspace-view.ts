@@ -25,6 +25,7 @@ import type {
 import type { WorkflowProjectService } from '../../application/workflows/workflow-project-service';
 import type { MetadataProjectService } from '../../application/metadata/metadata-project-service';
 import type { IsbnProjectService } from '../../application/isbn/isbn-project-service';
+import type { PriceProjectService } from '../../application/pricing/price-project-service';
 import { BOOK_STATUSES, type BookStatus } from '../../domain/books/book-project';
 import { ManualCancellationToken } from '../../domain/foundation/cancellation';
 import type {
@@ -47,6 +48,7 @@ import { LinkAssetModal, RelinkAssetModal } from '../dialogs/link-asset-modal';
 import { createWorkflowWorkspaceState, renderWorkflowWorkspace } from './workflow-workspace';
 import { createMetadataWorkspaceState, renderMetadataWorkspace } from './metadata-workspace';
 import { createIsbnWorkspaceState, renderIsbnWorkspace } from './isbn-workspace';
+import { createPricingWorkspaceState, renderPricingWorkspace } from './pricing-workspace';
 import type { BookDraftStore, BookOverviewDraft } from '../state/book-draft-store';
 import {
   ENABLED_WORKSPACE_TABS,
@@ -58,15 +60,7 @@ import {
 /** Stable Obsidian view identifier persisted with the selected book and active tab. */
 export const BOOK_WORKSPACE_VIEW_TYPE = 'publishing-manager-book-workspace';
 
-const FUTURE_TABS = [
-  'Pricing',
-  'Distribution',
-  'Sales',
-  'Launch',
-  'Reviews',
-  'Notes',
-  'History'
-] as const;
+const FUTURE_TABS = ['Distribution', 'Sales', 'Launch', 'Reviews', 'Notes', 'History'] as const;
 
 /** Native book workspace with per-book draft continuity and immutable catalog subscriptions. */
 export class BookWorkspaceView extends ItemView {
@@ -88,6 +82,7 @@ export class BookWorkspaceView extends ItemView {
     private readonly workflows: WorkflowProjectService,
     private readonly metadata: MetadataProjectService,
     private readonly isbns: IsbnProjectService,
+    private readonly prices: PriceProjectService,
     private readonly drafts: BookDraftStore,
     private readonly openDashboard: () => Promise<void>
   ) {
@@ -102,6 +97,8 @@ export class BookWorkspaceView extends ItemView {
   private readonly metadataState = createMetadataWorkspaceState();
   /** ISBN import and transaction previews survive catalog-triggered rerenders until applied. */
   private readonly isbnState = createIsbnWorkspaceState();
+  /** Draft, seed assumptions, and review models remain stable across catalog rerenders. */
+  private readonly pricingState = createPricingWorkspaceState();
 
   /**
    * Renders book-scoped links and fills each evidence card asynchronously. Inspection reads file
@@ -442,6 +439,17 @@ export class BookWorkspaceView extends ItemView {
         snapshot,
         isbns: this.isbns,
         state: this.isbnState,
+        rerender: () => {
+          if (this.snapshot !== undefined) this.render(this.snapshot);
+        }
+      });
+    } else if (this.activeTab === 'pricing') {
+      renderPricingWorkspace({
+        parent: content,
+        book: record,
+        snapshot,
+        prices: this.prices,
+        state: this.pricingState,
         rerender: () => {
           if (this.snapshot !== undefined) this.render(this.snapshot);
         }

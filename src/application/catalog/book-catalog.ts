@@ -15,6 +15,7 @@ import {
 import { validateWorkflowProject, validateWorkflowTask } from '../../domain/workflows/workflow';
 import { validateMetadataSet } from '../../domain/metadata/metadata-set';
 import { validateIsbnRecord } from '../../domain/isbn/isbn-record';
+import { validatePriceRecord } from '../../domain/pricing/price-record';
 import {
   type BookCatalogSnapshot,
   type CatalogActivity,
@@ -232,6 +233,11 @@ export class BookCatalog {
     const isbns = [...this.recordsByPath.values()]
       .filter((record) => record.type === 'isbn' && !hasPathError(record.path, diagnostics))
       .sort((left, right) => String(left.fields.value).localeCompare(String(right.fields.value)));
+    const prices = [...this.recordsByPath.values()]
+      .filter((record) => record.type === 'price' && !hasPathError(record.path, diagnostics))
+      .sort((left, right) =>
+        String(left.fields['effective-from']).localeCompare(String(right.fields['effective-from']))
+      );
     return {
       availability: this.availability,
       books,
@@ -240,6 +246,7 @@ export class BookCatalog {
       assets,
       metadataSets,
       isbns,
+      prices,
       workflows,
       tasks,
       diagnostics,
@@ -417,6 +424,35 @@ export class BookCatalog {
               'Keep one canonical assignment and correct or retire the conflicting record.'
           });
 
+    // A price scope may have history, but two snapshots cannot begin on the same date because
+    // neither would be an unambiguous effective value for that edition/platform/territory/currency.
+    const priceScopes = new Map<string, CatalogRecord[]>();
+    for (const record of records.filter((candidate) => candidate.type === 'price')) {
+      const key = [
+        record.fields['edition-id'],
+        record.fields.platform,
+        record.fields.territory,
+        record.fields.currency,
+        record.fields['effective-from']
+      ]
+        .map((value) => (typeof value === 'string' ? value : 'invalid'))
+        .join(':');
+      priceScopes.set(key, [...(priceScopes.get(key) ?? []), record]);
+    }
+    for (const matches of priceScopes.values())
+      if (matches.length > 1)
+        for (const record of matches)
+          diagnostics.push({
+            code: 'catalog.price-conflict',
+            severity: 'error',
+            path: record.path,
+            entityId: record.id,
+            field: 'effective-from',
+            message: `${matches.length} price snapshots claim the same scope and effective date.`,
+            suggestedAction:
+              'Retain one canonical snapshot or move the correction to a distinct effective date.'
+          });
+
     return diagnostics.sort((left, right) =>
       `${left.path}:${left.code}:${left.field ?? ''}`.localeCompare(
         `${right.path}:${right.code}:${right.field ?? ''}`
@@ -576,6 +612,19 @@ function inspectRecord(record: CatalogRecord): readonly CatalogDiagnostic[] {
         field: diagnostic.field,
         message: diagnostic.message,
         suggestedAction: 'Open the ISBN workspace and correct the value, lifecycle, or assignment.'
+      }))
+    );
+  }
+  if (record.type === 'price' && schemaDiagnostics.length === 0) {
+    diagnostics.push(
+      ...validatePriceRecord(record.fields).map((diagnostic) => ({
+        code: 'catalog.invalid-price' as const,
+        severity: diagnostic.severity,
+        path: record.path,
+        entityId: record.id,
+        field: diagnostic.field,
+        message: diagnostic.message,
+        suggestedAction: 'Open Pricing and review the amount, market, tax, source, and dates.'
       }))
     );
   }

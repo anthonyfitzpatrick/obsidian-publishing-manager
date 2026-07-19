@@ -842,8 +842,47 @@
   overflow-wrap: anywhere;
 }
 
+/* Pricing uses the same data in a wide semantic matrix and narrow cards; CSS switches visibility
+   without changing the operations or evidence available to keyboard and touch users. */
+.pm-pricing-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.pm-price-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.pm-price-table th,
+.pm-price-table td {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--background-modifier-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.pm-price-cards {
+  display: none;
+  gap: 0.75rem;
+}
+
+.pm-price-card {
+  padding: 0.75rem;
+  margin-block: 0.5rem;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+}
+
 /* Single-column panes keep the same actions/content and replace crowded tabs with a picker. */
 @container (max-width: 800px) {
+  .pm-price-table {
+    display: none;
+  }
+
+  .pm-price-cards {
+    display: grid;
+  }
   .pm-page-header,
   .pm-workspace-header__identity,
   .pm-book-card {

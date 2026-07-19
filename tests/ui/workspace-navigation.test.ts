@@ -14,7 +14,8 @@ describe('workspace keyboard navigation', () => {
     expect(nextWorkspaceTab('workflow', 'ArrowRight')).toBe('editions');
     expect(nextWorkspaceTab('editions', 'ArrowRight')).toBe('metadata');
     expect(nextWorkspaceTab('metadata', 'ArrowRight')).toBe('isbns');
-    expect(nextWorkspaceTab('isbns', 'ArrowRight')).toBe('assets');
+    expect(nextWorkspaceTab('isbns', 'ArrowRight')).toBe('pricing');
+    expect(nextWorkspaceTab('pricing', 'ArrowRight')).toBe('assets');
     expect(nextWorkspaceTab('assets', 'ArrowRight')).toBe('diagnostics');
     expect(nextWorkspaceTab('diagnostics', 'ArrowRight')).toBe('overview');
     expect(nextWorkspaceTab('overview', 'ArrowLeft')).toBe('diagnostics');
@@ -29,5 +30,6 @@ describe('workspace keyboard navigation', () => {
     expect(isWorkspaceTab('workflow')).toBe(true);
     expect(isWorkspaceTab('metadata')).toBe(true);
     expect(isWorkspaceTab('isbns')).toBe(true);
+    expect(isWorkspaceTab('pricing')).toBe(true);
   });
 });

@@ -9,6 +9,7 @@ import { WorkflowProjectService } from './application/workflows/workflow-project
 import { MetadataProjectService } from './application/metadata/metadata-project-service';
 import { ClassificationLicenseService } from './application/metadata/classification-license-service';
 import { IsbnProjectService } from './application/isbn/isbn-project-service';
+import { PriceProjectService } from './application/pricing/price-project-service';
 import { JournaledOperationRunner } from './application/storage/operation-journal';
 import { ManagedFolderLayout } from './domain/storage/managed-folder-layout';
 import { ObsidianBookCatalogController } from './infrastructure/catalog/obsidian-book-catalog-controller';
@@ -83,6 +84,7 @@ export default class PublishingManagerPlugin extends Plugin {
     );
     const metadata = new MetadataProjectService(repository, catalog, layout, clock, ids);
     const isbns = new IsbnProjectService(repository, catalog, layout, clock, ids);
+    const prices = new PriceProjectService(repository, catalog, layout, clock, ids);
     const drafts = new BookDraftStore();
     const catalogController = new ObsidianBookCatalogController(
       this.app.vault,
@@ -106,6 +108,7 @@ export default class PublishingManagerPlugin extends Plugin {
       workflows,
       metadata,
       isbns,
+      prices,
       drafts,
       () => catalogController.initialize()
     );
