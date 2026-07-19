@@ -6,7 +6,7 @@ The product specification and project backlog in the Publishing Manager Obsidian
 
 ## Current state
 
-Milestones M0 through M4 are complete. The Book Workspace includes Metadata, ISBNs, Pricing, and Distribution. Distribution creates editable/versioned local platform profiles and manual edition × platform × territory targets with named readiness blockers and retained external-state evidence. It provides no retailer client, credentials, upload, polling, scraping, or API capability. M5 Readiness is next.
+Milestones M0 through M4 are complete. M5 Readiness is active at RDY-001–RDY-006: a pure versioned rule engine supports five outcomes and five scopes, scores applicable known weight, caps blocking failures at Not ready, and reports unknown-input confidence separately. The Book Workspace shows an honest pending-rules state until core publishing checks arrive in RDY-007.
 
 ## Licence boundary
 

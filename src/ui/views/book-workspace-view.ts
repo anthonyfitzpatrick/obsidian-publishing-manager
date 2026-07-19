@@ -61,6 +61,7 @@ import {
   nextWorkspaceTab,
   type WorkspaceTab
 } from '../view-models/workspace-navigation';
+import { buildReadinessSummary } from '../view-models/readiness-summary-view-model';
 
 /** Stable Obsidian view identifier persisted with the selected book and active tab. */
 export const BOOK_WORKSPACE_VIEW_TYPE = 'publishing-manager-book-workspace';
@@ -529,7 +530,13 @@ export class BookWorkspaceView extends ItemView {
         ? 'Create an edition to set its publication date.'
         : 'From the selected edition.'
     );
-    renderContextItem(context, 'Readiness', '○ Not calculated', 'Readiness scoring begins in M5.');
+    const readiness = buildReadinessSummary(undefined);
+    renderContextItem(
+      context,
+      'Readiness',
+      `${readiness.stateLabel} · ${readiness.scoreLabel} · ${readiness.confidenceLabel}`,
+      readiness.explanation
+    );
     const edition = context.createDiv({ cls: 'pm-context-item' });
     edition.createSpan({ text: 'Edition' });
     const selector = edition.createEl('select', {
