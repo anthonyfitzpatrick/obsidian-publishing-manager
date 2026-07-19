@@ -6,6 +6,8 @@ All notable changes to Publishing Manager are recorded here using Keep a Changel
 
 ### Added
 
+- M9 PERF-002, PERF-004, PERF-006, and PERF-007: cooperative initial/background catalog hydration with exact partial progress, teardown cancellation, 50 ms path-event coalescing, 50-row Dashboard paging, target/2× streaming fixtures, and a source-coupled p50/p95/heap performance gate.
+
 - M9 MOB-001 through MOB-004: complete mobile surface inventory, labelled card projections for every wide table, safe-area and virtual-keyboard action clearance, background/close cancellation for long in-memory work, and a permanent mobile build gate.
 
 - M9 A11Y-001 through A11Y-004: build-enforced semantic controls and tab behavior, repaired focus after re-render/navigation, assertive focused error summaries, theme-relative visible focus, text-labelled status, narrow-pane reflow, reduced-motion behavior, and 44 CSS-pixel labelled targets.

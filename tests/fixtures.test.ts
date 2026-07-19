@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { createCatalogFixture, FIXTURE_PROFILES } from './fixtures/catalog-fixtures';
+import {
+  aggregateFixtureSales,
+  createCatalogFixture,
+  FIXTURE_PROFILES
+} from './fixtures/catalog-fixtures';
 import { MALFORMED_FIXTURES } from './fixtures/malformed-fixtures';
 import { UPGRADE_FIXTURES } from './fixtures/upgrade-fixtures';
 
@@ -35,6 +39,14 @@ describe('foundation fixtures', () => {
       fixture.tasks.every(({ dependsOn }) => dependsOn === undefined || taskIds.has(dependsOn))
     ).toBe(true);
     expect(fixture.editions.some(({ assetPath }) => assetPath !== undefined)).toBe(true);
+  });
+
+  it('streams one million target sales lines with bounded aggregate state and cancellation', () => {
+    const aggregate = aggregateFixtureSales('targetScale');
+    expect(aggregate.lines).toBe(1_000_000);
+    expect(aggregate.units).toBeGreaterThan(0);
+    expect(aggregate.countries).toBe(5);
+    expect(() => aggregateFixtureSales('stress', () => true)).toThrow('cancelled');
   });
 
   it('provides named malformed cases with expected diagnostics', () => {

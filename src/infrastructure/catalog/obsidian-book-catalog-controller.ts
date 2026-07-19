@@ -14,6 +14,8 @@ import { normalizeVaultPath, type VaultPath } from '../../domain/storage/vault-p
 
 /** Registers incremental create/modify/rename/delete reconciliation and initial reload scanning. */
 export class ObsidianBookCatalogController {
+  private readonly pendingReconciliations = new Map<string, 'created' | 'modified'>();
+  private reconciliationTimer: number | undefined;
   /** Receives the host Vault event surface, validated root, catalog, and local-only logger. */
   public constructor(
     private readonly vault: Vault,
@@ -33,7 +35,7 @@ export class ObsidianBookCatalogController {
     plugin.registerEvent(
       this.vault.on('create', (file) => {
         if (this.isManagedMarkdown(file)) {
-          void this.reconcile(file.path, 'created');
+          this.queueReconcile(file.path, 'created');
         }
       })
     );
@@ -41,10 +43,15 @@ export class ObsidianBookCatalogController {
       this.vault.on('modify', (file) => {
         this.assets?.notifyFileChanged();
         if (this.isManagedMarkdown(file)) {
-          void this.reconcile(file.path, 'modified');
+          this.queueReconcile(file.path, 'modified');
         }
       })
     );
+    plugin.register(() => {
+      if (this.reconciliationTimer !== undefined) window.clearTimeout(this.reconciliationTimer);
+      this.pendingReconciliations.clear();
+      this.catalog.cancelInitialization();
+    });
     plugin.registerEvent(
       this.vault.on('rename', (file, previousPath) => {
         if (file instanceof TFile) void this.reconcileAssetRename(previousPath, file.path);
@@ -90,12 +97,30 @@ export class ObsidianBookCatalogController {
         .map((file) => file.path)
         .filter((path) => this.isManagedPath(path))
         .map((path) => normalizeVaultPath(path));
-      await this.catalog.initialize(paths);
+      await this.catalog.initialize(paths, {
+        initialBatchSize: 100,
+        batchSize: 100,
+        yieldToHost: () => new Promise((resolve) => window.setTimeout(resolve, 0))
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Catalog rebuild failed.';
       this.catalog.markError(message);
       this.logger.error('Catalog initialization failed.', { error: message });
     }
+  }
+
+  /** Coalesces create/modify storms by path while preserving the stronger created activity label. */
+  private queueReconcile(path: string, action: 'created' | 'modified'): void {
+    const previous = this.pendingReconciliations.get(path);
+    this.pendingReconciliations.set(path, previous === 'created' ? previous : action);
+    if (this.reconciliationTimer !== undefined) return;
+    this.reconciliationTimer = window.setTimeout(() => {
+      this.reconciliationTimer = undefined;
+      const pending = [...this.pendingReconciliations.entries()];
+      this.pendingReconciliations.clear();
+      for (const [queuedPath, queuedAction] of pending)
+        void this.reconcile(queuedPath, queuedAction);
+    }, 50);
   }
 
   /** Safely reconciles one event without allowing an async rejection to escape Obsidian. */

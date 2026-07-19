@@ -2,6 +2,7 @@ export interface FixtureProfile {
   readonly bookCount: number;
   readonly editionCount: number;
   readonly taskCount: number;
+  readonly salesLineCount: number;
 }
 
 export interface FixtureBook {
@@ -37,8 +38,19 @@ export interface CatalogFixture {
 }
 
 export const FIXTURE_PROFILES = {
-  small: { bookCount: 25, editionCount: 100, taskCount: 250 },
-  targetScale: { bookCount: 1_000, editionCount: 10_000, taskCount: 50_000 }
+  small: { bookCount: 25, editionCount: 100, taskCount: 250, salesLineCount: 10_000 },
+  targetScale: {
+    bookCount: 1_000,
+    editionCount: 10_000,
+    taskCount: 50_000,
+    salesLineCount: 1_000_000
+  },
+  stress: {
+    bookCount: 2_000,
+    editionCount: 20_000,
+    taskCount: 100_000,
+    salesLineCount: 2_000_000
+  }
 } as const satisfies Record<string, FixtureProfile>;
 
 export type FixtureProfileName = keyof typeof FIXTURE_PROFILES;
@@ -111,4 +123,27 @@ export function createCatalogFixture(profile: FixtureProfileName): CatalogFixtur
   }
 
   return { profile, books, editions, tasks };
+}
+
+/**
+ * Streams deterministic sales rows instead of allocating a million-object fixture. This mirrors
+ * the production requirement that large ledgers be aggregated/page-read without retaining file
+ * bodies or manufacturing one second in-memory copy of every canonical line.
+ */
+export function aggregateFixtureSales(
+  profile: FixtureProfileName,
+  isCancelled: () => boolean = () => false
+): { readonly lines: number; readonly units: number; readonly countries: number } {
+  const count = FIXTURE_PROFILES[profile].salesLineCount;
+  const countries = ['US', 'GB', 'AU', 'DE', 'FR'] as const;
+  const totals = new Map<string, number>();
+  let units = 0;
+  for (let index = 0; index < count; index += 1) {
+    if (index % 1024 === 0 && isCancelled()) throw new Error('Fixture aggregation cancelled.');
+    const country = countries[index % countries.length] ?? 'US';
+    const net = (index % 5) + 1 - (index % 19 === 0 ? 1 : 0);
+    units += net;
+    totals.set(country, (totals.get(country) ?? 0) + net);
+  }
+  return { lines: count, units, countries: totals.size };
 }

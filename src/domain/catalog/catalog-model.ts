@@ -79,7 +79,12 @@ export interface NextMilestoneSummary {
 /** Explicit catalog lifecycle prevents empty, loading, and failure states from being conflated. */
 export type CatalogAvailability =
   | { readonly state: 'loading' }
-  | { readonly state: 'rebuilding'; readonly message: string }
+  | {
+      readonly state: 'rebuilding';
+      readonly message: string;
+      readonly completed?: number;
+      readonly total?: number;
+    }
   | { readonly state: 'ready' }
   | { readonly state: 'unavailable'; readonly message: string }
   | { readonly state: 'error'; readonly message: string };

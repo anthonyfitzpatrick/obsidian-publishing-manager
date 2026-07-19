@@ -41,6 +41,13 @@ import type {
 /** Callback used by views without exposing mutable catalog collections. */
 export type BookCatalogSubscriber = (snapshot: BookCatalogSnapshot) => void;
 
+/** Controls whether initial hydration blocks the caller or continues in cooperative host batches. */
+export interface CatalogInitializationOptions {
+  readonly initialBatchSize?: number;
+  readonly batchSize?: number;
+  readonly yieldToHost?: () => Promise<void>;
+}
+
 /** Stateful projection with bounded local activity and immutable public snapshots. */
 export class BookCatalog {
   private readonly recordsByPath = new Map<VaultPath, CatalogRecord>();
@@ -48,6 +55,8 @@ export class BookCatalog {
   private readonly recentActivity: CatalogActivity[] = [];
   private readonly subscribers = new Set<BookCatalogSubscriber>();
   private availability: CatalogAvailability = { state: 'loading' };
+  private initializationGeneration = 0;
+  private pendingInitialization: Promise<void> = Promise.resolve();
 
   /** Binds inspection to a deterministic clock; neither dependency grants write capability. */
   public constructor(
@@ -56,19 +65,57 @@ export class BookCatalog {
   ) {}
 
   /** Rebuilds the disposable projection without manufacturing user activity on plugin reload. */
-  public async initialize(paths: readonly VaultPath[]): Promise<void> {
+  public async initialize(
+    paths: readonly VaultPath[],
+    options: CatalogInitializationOptions = {}
+  ): Promise<void> {
+    const generation = ++this.initializationGeneration;
+    const orderedPaths = [...paths].sort();
+    const initialBatchSize = Math.max(
+      0,
+      Math.min(options.initialBatchSize ?? orderedPaths.length, orderedPaths.length)
+    );
     this.availability = {
       state: 'rebuilding',
-      message: 'Rebuilding the local catalog from managed Markdown records.'
+      message: `Rebuilding the local catalog: 0 of ${orderedPaths.length} records inspected.`,
+      completed: 0,
+      total: orderedPaths.length
     };
     this.publish();
     this.recordsByPath.clear();
     this.directDiagnosticsByPath.clear();
-    for (const path of [...paths].sort()) {
-      await this.inspectPath(path);
+    for (const path of orderedPaths.slice(0, initialBatchSize)) await this.inspectPath(path);
+    this.publishRebuildProgress(initialBatchSize, orderedPaths.length);
+    if (initialBatchSize === orderedPaths.length) {
+      this.availability = { state: 'ready' };
+      this.publish();
+      this.pendingInitialization = Promise.resolve();
+      return;
     }
-    this.availability = { state: 'ready' };
-    this.publish();
+
+    // Production startup returns after the useful initial slice. Remaining notes hydrate in
+    // bounded tasks so Obsidian can paint, accept edits, and service mobile lifecycle events.
+    this.pendingInitialization = this.hydrateRemaining(
+      generation,
+      orderedPaths,
+      initialBatchSize,
+      Math.max(1, options.batchSize ?? 100),
+      options.yieldToHost ?? (() => Promise.resolve())
+    );
+    void this.pendingInitialization.catch((error: unknown) => {
+      if (generation !== this.initializationGeneration) return;
+      this.markError(error instanceof Error ? error.message : 'Catalog background rebuild failed.');
+    });
+  }
+
+  /** Lets tests, diagnostics, and explicit rebuild workflows await deferred hydration deterministically. */
+  public async whenIdle(): Promise<void> {
+    await this.pendingInitialization;
+  }
+
+  /** Supersedes deferred hydration without mutating canonical records or the safe partial snapshot. */
+  public cancelInitialization(): void {
+    this.initializationGeneration += 1;
   }
 
   /** Marks catalog access unavailable while retaining any last safe partial projection. */
@@ -301,6 +348,38 @@ export class BookCatalog {
       this.directDiagnosticsByPath.set(path, [diagnoseInspectionFailure(path, error)]);
       return undefined;
     }
+  }
+
+  /** Hydrates deferred paths cooperatively and publishes bounded, honest partial progress. */
+  private async hydrateRemaining(
+    generation: number,
+    paths: readonly VaultPath[],
+    start: number,
+    batchSize: number,
+    yieldToHost: () => Promise<void>
+  ): Promise<void> {
+    for (let offset = start; offset < paths.length; offset += batchSize) {
+      await yieldToHost();
+      if (generation !== this.initializationGeneration) return;
+      const end = Math.min(paths.length, offset + batchSize);
+      for (const path of paths.slice(offset, end)) await this.inspectPath(path);
+      this.publishRebuildProgress(end, paths.length);
+    }
+    if (generation === this.initializationGeneration) {
+      this.availability = { state: 'ready' };
+      this.publish();
+    }
+  }
+
+  /** Reports exact inspected/total counts while retaining the usable partial projection. */
+  private publishRebuildProgress(completed: number, total: number): void {
+    this.availability = {
+      state: 'rebuilding',
+      message: `Rebuilding the local catalog: ${completed} of ${total} records inspected.`,
+      completed,
+      total
+    };
+    this.publish();
   }
 
   /** Combines direct parse/schema failures with cross-record identity and link diagnostics. */

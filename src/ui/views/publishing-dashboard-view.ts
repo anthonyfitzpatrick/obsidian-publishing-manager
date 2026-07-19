@@ -44,6 +44,7 @@ export class PublishingDashboardView extends ItemView {
   private filters: DashboardFilterState = { ...EMPTY_DASHBOARD_FILTERS };
   private columns: readonly string[] = [...DEFAULT_DASHBOARD_COLUMNS];
   private savedViews: readonly DashboardSavedView[] = [];
+  private portfolioPage = 0;
   private readonly salesState = createSalesWorkspaceState();
   private readonly calendarState = createCalendarWorkspaceState(
     new Date().toISOString().slice(0, 10)
@@ -168,18 +169,30 @@ export class PublishingDashboardView extends ItemView {
       update: (filters, columns) => {
         this.filters = filters;
         this.columns = columns;
+        this.portfolioPage = 0;
         if (this.snapshot !== undefined) this.render(this.snapshot);
       },
       save: (name) => void this.saveCurrentView(name),
       apply: (view) => {
         this.filters = { ...view.filters };
         this.columns = [...view.columns];
+        this.portfolioPage = 0;
         if (this.snapshot !== undefined) this.render(this.snapshot);
       }
     });
     const layout = root.createDiv({ cls: 'pm-dashboard-grid' });
     const primary = layout.createEl('main', { cls: 'pm-dashboard-main' });
-    renderPortfolioTable(primary, operations, this.columns, (record) => void this.openBook(record));
+    renderPortfolioTable(
+      primary,
+      operations,
+      this.columns,
+      this.portfolioPage,
+      (page) => {
+        this.portfolioPage = page;
+        if (this.snapshot !== undefined) this.render(this.snapshot);
+      },
+      (record) => void this.openBook(record)
+    );
     renderTimeline(primary, operations, (bookId) => this.openBookById(bookId));
     renderWorkload(primary, operations);
     renderSalesWorkspace({
@@ -455,8 +468,14 @@ function renderPortfolioTable(
   parent: HTMLElement,
   model: OperationalDashboardModel,
   columns: readonly string[],
+  requestedPage: number,
+  changePage: (page: number) => void,
   openBook: (record: CatalogRecord) => void
 ): void {
+  const pageSize = 50;
+  const pageCount = Math.max(1, Math.ceil(model.portfolio.length / pageSize));
+  const page = Math.min(Math.max(0, requestedPage), pageCount - 1);
+  const rows = model.portfolio.slice(page * pageSize, (page + 1) * pageSize);
   const section = parent.createEl('section', {
     cls: 'pm-panel pm-portfolio',
     attr: { id: 'pm-dashboard-portfolio', tabindex: '-1' }
@@ -464,11 +483,35 @@ function renderPortfolioTable(
   const heading = section.createDiv({ cls: 'pm-section-heading' });
   heading.createDiv().createEl('h2', { text: 'Book portfolio' });
   heading.createSpan({ cls: 'pm-count-badge', text: `${model.portfolio.length} books` });
+  if (model.portfolio.length > pageSize) {
+    const paging = section.createDiv({
+      cls: 'pm-action-row',
+      attr: { 'aria-label': 'Portfolio pages' }
+    });
+    const previous = paging.createEl('button', {
+      cls: 'pm-button pm-button--secondary',
+      text: 'Previous page',
+      attr: { type: 'button' }
+    });
+    previous.disabled = page === 0;
+    previous.addEventListener('click', () => changePage(page - 1));
+    paging.createSpan({
+      text: `Page ${page + 1} of ${pageCount} · ${rows.length} visible`,
+      attr: { 'aria-live': 'polite' }
+    });
+    const next = paging.createEl('button', {
+      cls: 'pm-button pm-button--secondary',
+      text: 'Next page',
+      attr: { type: 'button' }
+    });
+    next.disabled = page + 1 >= pageCount;
+    next.addEventListener('click', () => changePage(page + 1));
+  }
   const table = section.createEl('table', { cls: 'pm-dashboard-table pm-mobile-table' });
   const head = table.createEl('thead').createEl('tr');
   for (const column of columns) head.createEl('th', { text: column, attr: { scope: 'col' } });
   const body = table.createEl('tbody');
-  for (const row of model.portfolio) {
+  for (const row of rows) {
     const tr = body.createEl('tr');
     for (const column of columns) {
       const cell = tr.createEl('td', { attr: { 'data-label': dashboardColumnLabel(column) } });

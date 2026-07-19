@@ -6,7 +6,7 @@ The product specification and project backlog in the Publishing Manager Obsidian
 
 ## Current state
 
-Milestones M0 through M8 are complete. M9 Hardening is current at 17/24. Security, privacy/lifecycle, accessibility, and mobile source contracts are active; target-scale performance work is next.
+Milestones M0 through M8 are complete. M9 Hardening is current at 21/24. Cooperative startup, event coalescing, paging, progress/cancellation, and target/2× benchmark gates are active; production-scale storage and actual-host budgets remain.
 
 ## Licence boundary
 
@@ -63,6 +63,7 @@ Start with a Gitea issue and reference the permanent backlog ID. See [CONTRIBUTI
 - `npm run check:accessibility` — keyboard semantics, focus/error contracts, reflow, motion, colour, and touch-target audit
 - `npm run check:lifecycle-preservation` — disposable-vault uninstall preservation proof
 - `npm run check:mobile` — responsive tables/layouts, virtual-keyboard, safe-area, and interruption audit
+- `npm run check:performance` — source-coupled S/L/XL p50/p95, heap, burst, sales, migration, export, and cancellation budgets
 - `npm run check:conventions` — required contributor, issue, pull-request, commit, and release conventions
 - `npm run check:test-vault` — disposable test-vault safety and installation workflow
 - `npm run check:support` — manifest, version map, platform, and toolchain policy alignment
