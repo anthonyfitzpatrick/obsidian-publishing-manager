@@ -53,10 +53,25 @@ export function buildOperationalDashboardModel(
   const overdue = tasks.filter(
     (task) => task.fields.status !== 'done' && isPast(task.fields.deadline, now)
   );
-  const timeline = snapshot.editions
-    .flatMap((edition) => {
-      const book = snapshot.books.find(({ id }) => id === edition.fields['book-id']);
-      const date = edition.fields['publication-date'];
+  const plannedBookIds = new Set(
+    snapshot.launches.map((launch) => String(launch.fields['book-id']))
+  );
+  const timelineSources = [
+    ...snapshot.launches.map((launch) => ({
+      bookId: launch.fields['book-id'],
+      date: launch.fields['publication-date']
+    })),
+    ...snapshot.editions
+      .filter((edition) => !plannedBookIds.has(String(edition.fields['book-id'])))
+      .map((edition) => ({
+        bookId: edition.fields['book-id'],
+        date: edition.fields['publication-date']
+      }))
+  ];
+  const timeline = timelineSources
+    .flatMap((source) => {
+      const book = snapshot.books.find(({ id }) => id === source.bookId);
+      const date = source.date;
       if (book === undefined || !visibleIds.has(book.id) || typeof date !== 'string') return [];
       return [
         { bookId: book.id, title: String(book.fields.title), date, days: daysFrom(date, now) }

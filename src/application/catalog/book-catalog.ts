@@ -231,6 +231,13 @@ export class BookCatalog {
     const tasks = [...this.recordsByPath.values()]
       .filter((record) => record.type === 'task' && !hasPathError(record.path, diagnostics))
       .sort((left, right) => left.id.localeCompare(right.id));
+    const launches = [...this.recordsByPath.values()]
+      .filter((record) => record.type === 'launch' && !hasPathError(record.path, diagnostics))
+      .sort((left, right) =>
+        String(left.fields['publication-date']).localeCompare(
+          String(right.fields['publication-date'])
+        )
+      );
     const metadataSets = [...this.recordsByPath.values()]
       .filter((record) => record.type === 'metadata-set' && !hasPathError(record.path, diagnostics))
       .sort((left, right) => left.id.localeCompare(right.id));
@@ -267,6 +274,7 @@ export class BookCatalog {
       platformTargets,
       workflows,
       tasks,
+      launches,
       diagnostics,
       recentActivity: [...this.recentActivity],
       nextMilestone: nextMilestoneFor(books, editions, formats, diagnostics)

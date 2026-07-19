@@ -14,6 +14,7 @@ export const ENABLED_WORKSPACE_TABS = [
   'distribution',
   'readiness',
   'sales',
+  'launch',
   'assets',
   'diagnostics'
 ] as const;

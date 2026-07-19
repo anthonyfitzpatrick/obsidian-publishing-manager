@@ -14,6 +14,7 @@ import { DistributionProjectService } from './application/distribution/distribut
 import { ReadinessProjectService } from './application/readiness/readiness-project-service';
 import { DashboardPreferencesService } from './application/dashboard/dashboard-preferences-service';
 import { SalesProjectService } from './application/sales/sales-project-service';
+import { LaunchProjectService } from './application/launch/launch-project-service';
 import { JournaledOperationRunner } from './application/storage/operation-journal';
 import { ManagedFolderLayout } from './domain/storage/managed-folder-layout';
 import { ObsidianBookCatalogController } from './infrastructure/catalog/obsidian-book-catalog-controller';
@@ -96,6 +97,7 @@ export default class PublishingManagerPlugin extends Plugin {
       save: (value) => this.saveData(value)
     });
     const sales = new SalesProjectService(repository, catalog, layout, clock, ids);
+    const launches = new LaunchProjectService(repository, catalog, workflows, layout, clock, ids);
     const drafts = new BookDraftStore();
     const catalogController = new ObsidianBookCatalogController(
       this.app.vault,
@@ -124,6 +126,7 @@ export default class PublishingManagerPlugin extends Plugin {
       readiness,
       dashboardPreferences,
       sales,
+      launches,
       drafts,
       () => catalogController.initialize()
     );

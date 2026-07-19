@@ -199,7 +199,11 @@ export const RECORD_SCHEMAS = {
     'book-id': relation('book', true),
     'edition-id': relation('edition', false),
     'publication-date': { kind: 'date', required: true },
-    milestones: { kind: 'object', required: true }
+    'template-id': requiredString(),
+    'template-version': { kind: 'integer', required: true },
+    'reflow-mode': requiredString(),
+    milestones: { kind: 'object', required: true },
+    'critical-path': { kind: 'string-list', required: true }
   }),
   review: schema('review', {
     'book-id': relation('book', true),

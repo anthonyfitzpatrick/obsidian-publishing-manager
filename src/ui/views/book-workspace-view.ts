@@ -29,6 +29,7 @@ import type { PriceProjectService } from '../../application/pricing/price-projec
 import type { DistributionProjectService } from '../../application/distribution/distribution-project-service';
 import type { ReadinessProjectService } from '../../application/readiness/readiness-project-service';
 import type { SalesProjectService } from '../../application/sales/sales-project-service';
+import type { LaunchProjectService } from '../../application/launch/launch-project-service';
 import { BOOK_STATUSES, type BookStatus } from '../../domain/books/book-project';
 import { ManualCancellationToken } from '../../domain/foundation/cancellation';
 import type {
@@ -67,11 +68,12 @@ import { buildReadinessSummary } from '../view-models/readiness-summary-view-mod
 import type { ReadinessEvaluation } from '../../domain/readiness/readiness-engine';
 import { renderReadinessWorkspace } from './readiness-workspace';
 import { createSalesWorkspaceState, renderSalesWorkspace } from './sales-workspace';
+import { createLaunchWorkspaceState, renderLaunchWorkspace } from './launch-workspace';
 
 /** Stable Obsidian view identifier persisted with the selected book and active tab. */
 export const BOOK_WORKSPACE_VIEW_TYPE = 'publishing-manager-book-workspace';
 
-const FUTURE_TABS = ['Launch', 'Reviews', 'Notes', 'History'] as const;
+const FUTURE_TABS = ['Reviews', 'Notes', 'History'] as const;
 
 /** Native book workspace with per-book draft continuity and immutable catalog subscriptions. */
 export class BookWorkspaceView extends ItemView {
@@ -98,6 +100,7 @@ export class BookWorkspaceView extends ItemView {
     private readonly distribution: DistributionProjectService,
     private readonly readiness: ReadinessProjectService,
     private readonly sales: SalesProjectService,
+    private readonly launches: LaunchProjectService,
     private readonly drafts: BookDraftStore,
     private readonly openDashboard: () => Promise<void>
   ) {
@@ -118,6 +121,8 @@ export class BookWorkspaceView extends ItemView {
   private readonly distributionState = createDistributionWorkspaceState();
   /** Manual-entry values survive rerenders; accepted records remain in the canonical ledger. */
   private readonly salesState = createSalesWorkspaceState();
+  /** Anchor/mode/preview survive catalog-driven rerenders until explicitly applied or changed. */
+  private readonly launchState = createLaunchWorkspaceState();
 
   /**
    * Renders book-scoped links and fills each evidence card asynchronously. Inspection reads file
@@ -523,6 +528,15 @@ export class BookWorkspaceView extends ItemView {
         snapshot,
         state: this.salesState,
         bookId: record.id,
+        rerender: () => this.render(snapshot)
+      });
+    } else if (this.activeTab === 'launch') {
+      renderLaunchWorkspace({
+        parent: content,
+        book: record,
+        snapshot,
+        launches: this.launches,
+        state: this.launchState,
         rerender: () => this.render(snapshot)
       });
     } else if (this.activeTab === 'assets') {

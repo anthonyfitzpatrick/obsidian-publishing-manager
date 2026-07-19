@@ -98,6 +98,7 @@ export interface BookCatalogSnapshot {
   readonly platformTargets: readonly CatalogRecord[];
   readonly workflows: readonly CatalogRecord[];
   readonly tasks: readonly CatalogRecord[];
+  readonly launches: readonly CatalogRecord[];
   readonly diagnostics: readonly CatalogDiagnostic[];
   readonly recentActivity: readonly CatalogActivity[];
   readonly nextMilestone: NextMilestoneSummary;

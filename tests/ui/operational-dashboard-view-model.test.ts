@@ -68,6 +68,7 @@ function snapshot(): BookCatalogSnapshot {
         'depends-on': []
       })
     ],
+    launches: [],
     diagnostics: [],
     recentActivity: [],
     nextMilestone: { code: 'manage-editions', title: 'Manage editions', explanation: 'Test.' }

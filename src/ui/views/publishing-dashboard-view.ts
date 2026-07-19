@@ -194,7 +194,7 @@ export class PublishingDashboardView extends ItemView {
       else if (item.bookId !== undefined)
         this.openBookById(
           item.bookId,
-          item.kind === 'readiness' ? 'readiness' : item.kind === 'launch' ? 'editions' : 'overview'
+          item.kind === 'readiness' ? 'readiness' : item.kind === 'launch' ? 'launch' : 'overview'
         );
     });
     renderDiagnostics(
