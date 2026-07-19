@@ -433,6 +433,21 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+/* Keeps the legal/publishing explanation visually attached to the manual classification input. */
+.pm-classification-explainer {
+  padding: var(--size-4-3);
+  border: 1px solid var(--pm-panel-border);
+  border-inline-start: 4px solid var(--interactive-accent);
+  border-radius: var(--radius-s);
+  background: var(--background-secondary);
+}
+
+.pm-classification-explainer p,
+.pm-classification-explainer ol,
+.pm-classification-explainer ul {
+  margin-block: var(--size-4-2) 0;
+}
+
 .pm-field {
   display: grid;
   font-weight: var(--font-medium);

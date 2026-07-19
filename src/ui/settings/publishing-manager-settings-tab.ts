@@ -1,8 +1,8 @@
 import { type App, Notice, PluginSettingTab, Setting, type Plugin } from 'obsidian';
 
 import {
-  CLASSIFICATION_DATA_EULA_TEXT,
-  CLASSIFICATION_DATA_EULA_VERSION,
+  CLASSIFICATION_DATA_ACKNOWLEDGEMENT_TEXT,
+  CLASSIFICATION_DATA_ACKNOWLEDGEMENT_VERSION,
   type ClassificationLicenseService
 } from '../../application/metadata/classification-license-service';
 
@@ -25,8 +25,8 @@ export class PublishingManagerSettingsTab extends PluginSettingTab {
         desc: 'Publishing manager uses local vault data and makes no network requests.'
       },
       {
-        name: 'Classification Data EULA',
-        desc: `Version ${CLASSIFICATION_DATA_EULA_VERSION}; acceptance and third-party dataset authorization are recorded separately.`
+        name: 'Classification data licence acknowledgement',
+        desc: `Version ${CLASSIFICATION_DATA_ACKNOWLEDGEMENT_VERSION}; the MIT software licence and third-party dataset authorization remain separate.`
       }
     ];
   }
@@ -46,9 +46,8 @@ export class PublishingManagerSettingsTab extends PluginSettingTab {
   }
 
   /**
-   * Renders the complete agreement before any acceptance control. A second, deliberately separate
-   * form records external vendor rights so accepting our terms can never masquerade as a BISG or
-   * other third-party licence.
+   * Renders the complete notice before acknowledgement. A second, deliberately separate form
+   * records external vendor evidence so this notice can never masquerade as a BISG or other licence.
    */
   private renderClassificationLicensing(): void {
     const { containerEl } = this;
@@ -56,23 +55,23 @@ export class PublishingManagerSettingsTab extends PluginSettingTab {
     new Setting(containerEl).setName('Classification data licensing').setHeading();
     const agreement = containerEl.createEl('details');
     agreement.createEl('summary', {
-      text: `Classification Data EULA · version ${CLASSIFICATION_DATA_EULA_VERSION}`
+      text: `Classification data licence acknowledgement · version ${CLASSIFICATION_DATA_ACKNOWLEDGEMENT_VERSION}`
     });
-    agreement.createEl('pre', { text: CLASSIFICATION_DATA_EULA_TEXT });
+    agreement.createEl('pre', { text: CLASSIFICATION_DATA_ACKNOWLEDGEMENT_TEXT });
 
-    if (status.acceptance !== undefined) {
+    if (status.acknowledgement !== undefined) {
       new Setting(containerEl)
-        .setName('EULA accepted')
+        .setName('Licence notice acknowledged')
         .setDesc(
-          `${status.acceptance.acceptedBy} · ${status.acceptance.acceptedAt} · version ${status.acceptance.version}`
+          `${status.acknowledgement.acknowledgedBy} · ${status.acknowledgement.acknowledgedAt} · version ${status.acknowledgement.version}`
         );
     } else {
       let actor = '';
       let confirmed = false;
       const acceptance = new Setting(containerEl)
-        .setName('Accept Classification Data EULA')
+        .setName('Acknowledge classification data licence notice')
         .setDesc(
-          'This local acknowledgement does not purchase or grant a third-party vocabulary licence.'
+          'This records that you read the notice. It adds no restriction to the MIT software licence and grants no third-party vocabulary rights.'
         )
         .addText((control) => {
           control.setPlaceholder('Full name').onChange((value) => {
@@ -80,9 +79,11 @@ export class PublishingManagerSettingsTab extends PluginSettingTab {
           });
         })
         .addToggle((control) => {
-          control.setTooltip('I have read and agree to the displayed EULA').onChange((value) => {
-            confirmed = value;
-          });
+          control
+            .setTooltip('I have read the displayed licence acknowledgement')
+            .onChange((value) => {
+              confirmed = value;
+            });
         });
       acceptance.addButton((button) => {
         button
@@ -90,9 +91,9 @@ export class PublishingManagerSettingsTab extends PluginSettingTab {
           .setCta()
           .onClick(() => {
             void this.classificationLicenses
-              .accept(actor, confirmed)
+              .acknowledge(actor, confirmed)
               .then(() => {
-                new Notice('Classification Data EULA acceptance recorded locally.');
+                new Notice('Classification data licence acknowledgement recorded locally.');
                 this.display();
               })
               .catch((cause: unknown) => new Notice(errorMessage(cause)));
@@ -110,7 +111,7 @@ export class PublishingManagerSettingsTab extends PluginSettingTab {
       let licensor = '';
       let agreementReference = '';
       let sourceArtifact = '';
-      let recordedBy = status.acceptance?.acceptedBy ?? '';
+      let recordedBy = status.acknowledgement?.acknowledgedBy ?? '';
       const authorization = new Setting(containerEl)
         .setName('Record external dataset authorization')
         .setDesc(
@@ -156,7 +157,7 @@ export class PublishingManagerSettingsTab extends PluginSettingTab {
       .setName('Protected vocabulary state')
       .setDesc(
         status.protectedDatasetEnabled
-          ? 'Authorized: EULA acceptance and external dataset evidence are both present.'
+          ? 'Authorized: licence acknowledgement and external dataset evidence are both present.'
           : 'Locked: manual code assignment is available, but no protected complete vocabulary may be enabled.'
       )
       .addButton((button) => {

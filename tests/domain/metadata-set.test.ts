@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   METADATA_COMPLETENESS_PROFILES,
+  CLASSIFICATION_OFFICIAL_SOURCES,
   assessMetadataCompleteness,
   clearMetadataOverride,
   descriptionMarkdownToPlainText,
@@ -116,5 +117,20 @@ describe('metadata set domain', () => {
         ]
       })
     ).toContainEqual(expect.objectContaining({ field: 'regional-subject-codes' }));
+  });
+
+  it('keeps one explicit-click HTTPS source for every supported classification system', () => {
+    expect(CLASSIFICATION_OFFICIAL_SOURCES.map(({ id }) => id)).toEqual([
+      'bisac',
+      'thema',
+      'bic',
+      'clil',
+      'wgs'
+    ]);
+    expect(
+      CLASSIFICATION_OFFICIAL_SOURCES.every(
+        ({ href, label }) => href.startsWith('https://') && label.trim().length > 0
+      )
+    ).toBe(true);
   });
 });

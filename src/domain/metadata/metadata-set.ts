@@ -64,6 +64,38 @@ export const REGIONAL_SUBJECT_SCHEMES = [
   { territory: 'DE', scheme: 'wgs', version: '2.0', status: 'current' }
 ] as const;
 
+/**
+ * Official and industry-authoritative human lookup destinations are data, not runtime requests.
+ * The UI exposes them only as explicit-click links and never downloads or copies their vocabularies.
+ */
+export const CLASSIFICATION_OFFICIAL_SOURCES = [
+  {
+    id: 'bisac',
+    label: 'Find BISAC codes at the free official BISG browser',
+    href: 'https://www.bisg.org/complete-bisac-subject-headings-list'
+  },
+  {
+    id: 'thema',
+    label: 'Find Thema 1.6 codes at EDItEUR',
+    href: 'https://ns.editeur.org/thema/en'
+  },
+  {
+    id: 'bic',
+    label: 'Read UK BIC transition guidance',
+    href: 'https://bic.org.uk/resources/bic-standard-subject-categories/'
+  },
+  {
+    id: 'clil',
+    label: 'Find French CLIL guidance at SNE',
+    href: 'https://www.sne.fr/vendre-un-livre/fichier-exhaustif-du-livre-et-fel-numerique/'
+  },
+  {
+    id: 'wgs',
+    label: 'Find German WGS guidance at MVB',
+    href: 'https://mvb-online.de/assets/downloads/Metadaten_fuer_Dummies_2019_Copyright_Wiley-VCH.pdf'
+  }
+] as const;
+
 /** One effective field names its exact origin so the UI never hides inherited values. */
 export interface EffectiveMetadataField {
   readonly key: MetadataFieldKey;

@@ -1,25 +1,26 @@
 /**
- * Owns the local acceptance record for Publishing Manager's Classification Data EULA. This is a
- * product acknowledgement, not a licence issued by BISG, EDItEUR, CLIL, BIC, or MVB. A separate
- * authorization record is therefore required before a protected complete vocabulary may be
- * bundled or imported. Keeping those facts separate prevents a checkbox from manufacturing rights.
+ * Owns the local record for Publishing Manager's Classification Data Licence Acknowledgement.
+ * This acknowledgement adds no condition to the MIT software licence and grants no rights from
+ * BISG, EDItEUR, CLIL, BIC, or MVB. A separate authorization record is required before a user may
+ * import their own protected vocabulary. The public plugin never bundles or redistributes it.
  */
 
 import type { Clock } from '../../domain/foundation/clock';
 
-export const CLASSIFICATION_DATA_EULA_ID = 'publishing-manager-classification-data-eula';
-export const CLASSIFICATION_DATA_EULA_VERSION = '1.0';
+export const CLASSIFICATION_DATA_ACKNOWLEDGEMENT_ID =
+  'publishing-manager-classification-data-licence-acknowledgement';
+export const CLASSIFICATION_DATA_ACKNOWLEDGEMENT_VERSION = '2.0';
 
 /** Exact text displayed before acceptance and identified by the persisted version. */
-export const CLASSIFICATION_DATA_EULA_TEXT = `Classification Data End User Licence Agreement v1.0
+export const CLASSIFICATION_DATA_ACKNOWLEDGEMENT_TEXT = `Classification Data Licence Acknowledgement v2.0
 
-1. Publishing Manager software remains available under its repository software licence. Subject headings, code lists, mappings, translations, and explanatory notes supplied by third parties remain the property of their respective owners and are not relicensed by Publishing Manager.
-2. You may manually record subject codes that you are entitled to use. Syntax validation does not certify that a code or label is current, correct, or accepted by a retailer.
-3. You must not import, enable, copy, redistribute, publish, or export a protected complete vocabulary unless you or your organisation holds the licence required by its owner for that use.
-4. When recording a dataset authorization, you confirm that its agreement reference and source artifact are genuine, applicable to this installation, and within their permitted term and territory.
-5. Publishing Manager stores acceptance and authorization evidence locally in Obsidian plugin data. It makes no classification lookup request and does not transmit the evidence.
-6. Accepting this agreement does not purchase, replace, extend, or prove any licence from BISG, EDItEUR, BIC, CLIL, MVB, or another vocabulary owner.
-7. You remain responsible for reviewing third-party terms and for the accuracy and legality of assigned metadata.`;
+1. Publishing Manager's original software and documentation are licensed under the repository MIT Licence. This acknowledgement does not add a restriction to, replace, or modify that licence.
+2. Publishing Manager does not bundle, redistribute, or relicense third-party subject headings, complete code lists, mappings, translations, or explanatory notes as MIT content.
+3. You may use the supplied links to consult official sources and manually record codes. Syntax validation does not certify that a code or label is current, correct, licensed, or accepted by a retailer.
+4. If a future import feature accepts a protected vocabulary, you must supply your own legitimately licensed artifact. Publishing Manager's public distribution will not contain that artifact.
+5. A recorded authorization is evidence supplied by you. It does not purchase, replace, extend, verify, or grant a licence from BISG, EDItEUR, BIC, CLIL, MVB, or another owner.
+6. Acknowledgement and authorization evidence remains local in Obsidian plugin data. Publishing Manager makes no automatic classification lookup request and transmits no evidence.
+7. Third-party material remains governed solely by its owner's terms. You remain responsible for those terms and for the accuracy and legality of assigned metadata.`;
 
 /** Minimal persistence port keeps Obsidian's Plugin API outside the application service. */
 export interface ClassificationLicenseDataPort {
@@ -27,11 +28,11 @@ export interface ClassificationLicenseDataPort {
   save(value: unknown): Promise<void>;
 }
 
-export interface ClassificationEulaAcceptance {
-  readonly eulaId: typeof CLASSIFICATION_DATA_EULA_ID;
-  readonly version: typeof CLASSIFICATION_DATA_EULA_VERSION;
-  readonly acceptedBy: string;
-  readonly acceptedAt: string;
+export interface ClassificationLicenceAcknowledgement {
+  readonly acknowledgementId: typeof CLASSIFICATION_DATA_ACKNOWLEDGEMENT_ID;
+  readonly version: typeof CLASSIFICATION_DATA_ACKNOWLEDGEMENT_VERSION;
+  readonly acknowledgedBy: string;
+  readonly acknowledgedAt: string;
 }
 
 export interface ClassificationDatasetAuthorization {
@@ -43,14 +44,14 @@ export interface ClassificationDatasetAuthorization {
 }
 
 export interface ClassificationLicenseStatus {
-  readonly acceptance?: ClassificationEulaAcceptance;
+  readonly acknowledgement?: ClassificationLicenceAcknowledgement;
   readonly authorization?: ClassificationDatasetAuthorization;
   readonly protectedDatasetEnabled: boolean;
 }
 
 type PluginData = Record<string, unknown> & {
   classificationLicense?: {
-    acceptance?: ClassificationEulaAcceptance;
+    acknowledgement?: ClassificationLicenceAcknowledgement;
     authorization?: ClassificationDatasetAuthorization;
   };
 };
@@ -70,27 +71,33 @@ export class ClassificationLicenseService {
   }
 
   public status(): ClassificationLicenseStatus {
-    const acceptance = validAcceptance(this.data.classificationLicense?.acceptance);
+    const acknowledgement = validAcknowledgement(this.data.classificationLicense?.acknowledgement);
     const authorization = validAuthorization(this.data.classificationLicense?.authorization);
     return {
-      ...(acceptance === undefined ? {} : { acceptance }),
+      ...(acknowledgement === undefined ? {} : { acknowledgement }),
       ...(authorization === undefined ? {} : { authorization }),
-      protectedDatasetEnabled: acceptance !== undefined && authorization !== undefined
+      protectedDatasetEnabled: acknowledgement !== undefined && authorization !== undefined
     };
   }
 
-  /** Explicit acknowledgement requires the exact current text and a named human actor. */
-  public async accept(acceptedBy: string, confirmed: boolean): Promise<void> {
-    const actor = requiredText(acceptedBy, 'Enter the name of the person accepting the EULA.');
+  /** Explicit acknowledgement records the exact current notice and a named human actor. */
+  public async acknowledge(acknowledgedBy: string, confirmed: boolean): Promise<void> {
+    const actor = requiredText(
+      acknowledgedBy,
+      'Enter the name of the person recording the acknowledgement.'
+    );
     if (!confirmed)
-      throw new Error('Confirm that you have read and agree to the Classification Data EULA.');
+      throw new Error(
+        'Confirm that you have read the Classification Data Licence Acknowledgement.'
+      );
+    const authorization = validAuthorization(this.data.classificationLicense?.authorization);
     await this.persist({
-      ...(this.data.classificationLicense ?? {}),
-      acceptance: {
-        eulaId: CLASSIFICATION_DATA_EULA_ID,
-        version: CLASSIFICATION_DATA_EULA_VERSION,
-        acceptedBy: actor,
-        acceptedAt: this.clock.now().toISOString()
+      ...(authorization === undefined ? {} : { authorization }),
+      acknowledgement: {
+        acknowledgementId: CLASSIFICATION_DATA_ACKNOWLEDGEMENT_ID,
+        version: CLASSIFICATION_DATA_ACKNOWLEDGEMENT_VERSION,
+        acknowledgedBy: actor,
+        acknowledgedAt: this.clock.now().toISOString()
       }
     });
   }
@@ -102,8 +109,10 @@ export class ClassificationLicenseService {
     sourceArtifact: string;
     recordedBy: string;
   }): Promise<void> {
-    if (this.status().acceptance === undefined)
-      throw new Error('Accept the Classification Data EULA before recording dataset rights.');
+    if (this.status().acknowledgement === undefined)
+      throw new Error(
+        'Record the Classification Data Licence Acknowledgement before recording dataset rights.'
+      );
     await this.persist({
       ...(this.data.classificationLicense ?? {}),
       authorization: {
@@ -139,16 +148,16 @@ export class ClassificationLicenseService {
   }
 }
 
-function validAcceptance(value: unknown): ClassificationEulaAcceptance | undefined {
+function validAcknowledgement(value: unknown): ClassificationLicenceAcknowledgement | undefined {
   if (
     !isRecord(value) ||
-    value.eulaId !== CLASSIFICATION_DATA_EULA_ID ||
-    value.version !== CLASSIFICATION_DATA_EULA_VERSION ||
-    typeof value.acceptedBy !== 'string' ||
-    typeof value.acceptedAt !== 'string'
+    value.acknowledgementId !== CLASSIFICATION_DATA_ACKNOWLEDGEMENT_ID ||
+    value.version !== CLASSIFICATION_DATA_ACKNOWLEDGEMENT_VERSION ||
+    typeof value.acknowledgedBy !== 'string' ||
+    typeof value.acknowledgedAt !== 'string'
   )
     return undefined;
-  return value as unknown as ClassificationEulaAcceptance;
+  return value as unknown as ClassificationLicenceAcknowledgement;
 }
 function validAuthorization(value: unknown): ClassificationDatasetAuthorization | undefined {
   if (

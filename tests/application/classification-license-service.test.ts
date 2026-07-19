@@ -1,5 +1,5 @@
 /**
- * Proves that product EULA acceptance and third-party authorization remain separate durable facts.
+ * Proves that the MIT-safe licence acknowledgement and third-party authorization remain separate.
  * The protected-dataset gate opens only when both records exist and closes again on revocation.
  */
 import { describe, expect, it } from 'vitest';
@@ -30,8 +30,8 @@ describe('classification license service', () => {
     const port = new MemoryData();
     const service = new ClassificationLicenseService(port, new FixedClock());
     await service.initialize();
-    await expect(service.accept('A. Publisher', false)).rejects.toThrow('read and agree');
-    await service.accept('A. Publisher', true);
+    await expect(service.acknowledge('A. Publisher', false)).rejects.toThrow('read');
+    await service.acknowledge('A. Publisher', true);
     expect(service.status()).toMatchObject({ protectedDatasetEnabled: false });
     await service.recordAuthorization({
       licensor: 'Vocabulary Owner',

@@ -13,6 +13,7 @@ import type { BookCatalogSnapshot, CatalogRecord } from '../../domain/catalog/ca
 import {
   METADATA_COMPLETENESS_PROFILES,
   METADATA_FIELD_KEYS,
+  CLASSIFICATION_OFFICIAL_SOURCES,
   REGIONAL_SUBJECT_SCHEMES,
   validateMetadataValues,
   type EffectiveMetadata,
@@ -191,6 +192,7 @@ function renderMetadataEditor(
     } else if (key.includes('description')) {
       inputs.set(key, textarea(form, fieldLabel(key), textValue(values[key])));
     } else if (key === 'regional-subject-codes') {
+      renderRegionalCodeExplainer(form);
       inputs.set(
         key,
         textarea(
@@ -246,6 +248,32 @@ function renderMetadataEditor(
   });
 }
 
+/**
+ * Places purpose and workflow beside the input so a user never has to infer why trade subject
+ * codes exist or how an externally selected code returns to their canonical local metadata.
+ */
+function renderRegionalCodeExplainer(parent: HTMLElement): void {
+  const explainer = parent.createEl('aside', { cls: 'pm-field--wide pm-classification-explainer' });
+  explainer.createEl('strong', { text: 'Why subject codes matter' });
+  explainer.createEl('p', {
+    text: 'Bookshops, distributors, libraries, and online stores use subject codes to place a publication in the right catalogue categories and help readers discover it. Different markets request different schemes, so each saved code keeps its territory, scheme, version, priority, label, and manual source.'
+  });
+  const steps = explainer.createEl('ol');
+  steps.createEl('li', {
+    text: 'Open an official source below and find the most specific appropriate code.'
+  });
+  steps.createEl('li', {
+    text: 'Return here and log one code per line using the displayed format.'
+  });
+  steps.createEl('li', { text: 'Mark the main code primary and any additional codes secondary.' });
+  explainer.createEl('p', {
+    text: 'Saving records the code against this book or edition. Publishing Manager validates the structure and market pairing, but it does not copy or certify the third-party heading.'
+  });
+  const sources = explainer.createEl('ul');
+  for (const source of CLASSIFICATION_OFFICIAL_SOURCES)
+    officialSource(sources, source.label, source.href);
+}
+
 /** Plain-text preview is derived on demand and cannot overwrite the Markdown source. */
 function renderDescriptionExport(
   parent: HTMLElement,
@@ -283,10 +311,22 @@ function renderClassificationBoundary(parent: HTMLElement): void {
   const details = parent.createEl('details', { cls: 'pm-panel' });
   details.createEl('summary', { text: 'Classification reference versions and limits' });
   details.createEl('p', {
-    text: `Thema ${METADATA_CLASSIFICATION_VERSIONS.thema} is the current regional route for the UK and Australia and is also supported for France and Germany. France additionally accepts CLIL; Germany accepts WGS 2.0; legacy UK BIC 2.1 remains available only for existing records. BISAC is labelled ${METADATA_CLASSIFICATION_VERSIONS.bisac}. Manual codes receive syntax and territory/scheme validation, but headings are not claimed valid without an authorized local vocabulary. Configure the Classification Data EULA in Publishing Manager settings; acceptance records an acknowledgement and does not itself purchase or grant a third-party licence. No network lookup occurs.`
+    text: `Thema ${METADATA_CLASSIFICATION_VERSIONS.thema} is the current regional route for the UK and Australia and is also supported for France and Germany. France additionally accepts CLIL; Germany accepts WGS 2.0; legacy UK BIC 2.1 remains available only for existing records. BISAC is labelled ${METADATA_CLASSIFICATION_VERSIONS.bisac}. Manual codes receive syntax and territory/scheme validation, but headings are not claimed valid without an authorized source. The Classification Data Licence Acknowledgement in Settings adds no restriction to the MIT software and grants no third-party rights. Publishing Manager does not bundle these lists or make an automatic lookup request.`
   });
+  const sources = details.createEl('ul');
+  for (const source of CLASSIFICATION_OFFICIAL_SOURCES)
+    officialSource(sources, source.label, source.href);
   details.createEl('pre', {
     text: 'Examples:\nGB | thema | FJH | primary | Crime fiction\nAU | thema | FJH | primary\nFR | clil | 3430 | secondary | User-supplied label\nDE | wgs | 1121 | primary | User-supplied label'
+  });
+}
+
+/** External references are user-initiated, visibly named, and isolated from the plugin runtime. */
+function officialSource(parent: HTMLUListElement, label: string, href: string): void {
+  parent.createEl('li').createEl('a', {
+    text: label,
+    href,
+    attr: { target: '_blank', rel: 'noopener noreferrer' }
   });
 }
 

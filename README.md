@@ -6,7 +6,11 @@ The product specification and project backlog in the Publishing Manager Obsidian
 
 ## Current state
 
-Milestones M0 through M3 are complete. The live plugin provides canonical records, conflict-aware persistence, book lifecycle/catalog reconciliation, a native graphical Dashboard, and a Book Workspace with Overview, Workflow, Editions, Metadata, Assets, and Diagnostics. M4 metadata adds structured book defaults, explicit edition overrides, effective-value provenance, versioned coverage profiles, deterministic Markdown/plain-text descriptions, a Classification Data EULA, and structured manual subject assignments for the UK, Australia, France, and Germany. Product acceptance remains separate from external licensor evidence. The complete BISAC list is not bundled until genuine incorporation rights and an approved artifact are recorded; the plugin performs no classification network lookup.
+Milestones M0 through M3 are complete. The live plugin provides canonical records, conflict-aware persistence, book lifecycle/catalog reconciliation, a native graphical Dashboard, and a Book Workspace with Overview, Workflow, Editions, Metadata, Assets, and Diagnostics. M4 metadata adds structured book defaults, explicit edition overrides, effective-value provenance, versioned coverage profiles, deterministic Markdown/plain-text descriptions, a Classification Data Licence Acknowledgement, official-source links, and structured manual subject assignments for the UK, Australia, France, and Germany. The acknowledgement adds no restriction to the MIT software and grants no third-party rights. No complete classification vocabulary is bundled or automatically queried.
+
+## Licence boundary
+
+Publishing Manager's original software and documentation are MIT-licensed. Third-party classification vocabularies are not included and are not relicensed as MIT content. Manual identifiers and links to official sources remain available. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the exact boundary.
 
 The authoritative milestone and section reviews live in the Publishing Manager Obsidian documentation space.
 
