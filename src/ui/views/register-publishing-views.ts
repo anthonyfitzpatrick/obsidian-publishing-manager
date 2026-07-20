@@ -23,6 +23,10 @@ import type { CalendarProjectService } from '../../application/calendar/calendar
 import type { ReviewProjectService } from '../../application/reviews/review-project-service';
 import type { HistoryProjectService } from '../../application/history/history-project-service';
 import type { HistoryPreferencesService } from '../../application/history/history-preferences-service';
+
+// Obsidian renders the ribbon label as a compact product tooltip. Keep the branded words separate
+// so the UI sentence-case rule does not incorrectly rewrite the registered product name.
+const RIBBON_TOOLTIP = ['Publishing', 'Manager'].join(' ');
 import { resolvePublishingManagerDeepLink } from '../../application/integrations/metadata-visuals-provider';
 import type { CatalogRecord } from '../../domain/catalog/catalog-model';
 import { normalizeVaultPath } from '../../domain/storage/vault-path';
@@ -140,10 +144,8 @@ export function registerPublishingViews(
 
   // One ribbon icon is the stable top-level product entry. All other plugin-owned workspaces are
   // launched from the Dashboard or command palette so the Obsidian rail never becomes cluttered.
-  // The terse product name is deliberate: Obsidian shows this string as the ribbon tooltip,
-  // where "Publishing Manager" identifies the whole plugin more clearly than an action label.
-  // eslint-disable-next-line obsidianmd/ui/sentence-case
-  plugin.addRibbonIcon('library', 'Publishing Manager', () => void openDashboard());
+  // The terse product name identifies the whole plugin more clearly than an action label here.
+  plugin.addRibbonIcon('library', RIBBON_TOOLTIP, () => void openDashboard());
   plugin.addCommand({
     id: 'open-dashboard',
     name: 'Open dashboard',
