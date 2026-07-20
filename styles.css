@@ -286,21 +286,30 @@
 
 .pm-tool-grid {
   display: grid;
-  gap: 10px;
-  grid-template-columns: repeat(auto-fit, minmax(min(15rem, 100%), 1fr));
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.pm-tool-card {
+.publishing-manager .pm-tool-card {
   align-items: flex-start;
   background: var(--background-primary-alt);
   border: 1px solid var(--pm-panel-border);
   border-radius: var(--pm-radius);
+  box-sizing: border-box;
   color: var(--text-normal);
   cursor: pointer;
-  display: flex;
+  /* Themes commonly restyle every button. This explicit grid keeps an icon column and a bounded
+     copy column even when a theme has broad button layout rules, preventing text overlap. */
+  display: grid !important;
   gap: 11px;
+  grid-template-columns: 22px minmax(0, 1fr);
+  justify-content: flex-start;
+  min-height: 118px;
+  min-width: 0;
+  overflow: hidden;
   padding: 13px;
   text-align: start;
+  white-space: normal;
   width: 100%;
 }
 
@@ -318,12 +327,24 @@
 .pm-tool-card__copy {
   display: grid;
   gap: 5px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+  white-space: normal;
+}
+
+.pm-tool-card__copy > strong {
+  display: block;
+  line-height: 1.25;
 }
 
 .pm-tool-card__copy > span {
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
   line-height: 1.35;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .pm-dashboard-grid {
@@ -1154,6 +1175,12 @@
     grid-template-columns: 1fr;
   }
 
+  /* The launcher retains its compact graphical navigation without letting narrow panes create
+     overlapping labels. Two cards fit a tablet/narrow desktop pane; the next query uses one. */
+  .pm-tool-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .pm-edition-master {
     position: static;
   }
@@ -1190,6 +1217,12 @@
 
   .pm-metadata-row {
     grid-template-columns: 1fr;
+  }
+}
+
+@container (max-width: 500px) {
+  .pm-tool-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
