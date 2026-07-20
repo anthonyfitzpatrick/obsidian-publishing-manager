@@ -40,10 +40,26 @@ interface DraftValues {
 export class BookDraftStore {
   private readonly drafts = new Map<VaultPath, StoredDraft>();
 
-  /** Seeds a draft once; later catalog refreshes cannot overwrite unsaved user input. */
+  /**
+   * Seeds a draft and keeps clean fields synchronized with authoritative catalog changes.
+   *
+   * A dirty draft belongs to the user and must survive tab changes and background reconciliation.
+   * A clean draft has no independent user state, so retaining it after an external Markdown edit
+   * would display stale values and could overwrite that edit on the next save. Refreshing only the
+   * clean case preserves both promises: unsaved typing is protected, while externally edited
+   * Markdown remains the source of truth.
+   */
   public ensure(record: CatalogRecord): BookOverviewDraft {
     const existing = this.drafts.get(record.path);
-    if (existing !== undefined) return toPublicDraft(existing);
+    if (existing !== undefined) {
+      if (!isDirty(existing)) {
+        const values = valuesFromRecord(record);
+        existing.bookId = record.id;
+        existing.baseline = { ...values };
+        existing.values = { ...values };
+      }
+      return toPublicDraft(existing);
+    }
     const values = valuesFromRecord(record);
     const stored: StoredDraft = {
       path: record.path,
@@ -130,10 +146,15 @@ function toPublicDraft(stored: StoredDraft): BookOverviewDraft {
     path: stored.path,
     bookId: stored.bookId,
     ...stored.values,
-    dirty: JSON.stringify(stored.values) !== JSON.stringify(stored.baseline),
+    dirty: isDirty(stored),
     diagnostics: validateBookProject(fields).map(({ field, message }) => ({
       field: String(field),
       message
     }))
   };
+}
+
+/** Compares the small fixed overview value set without introducing a second mutable dirty flag. */
+function isDirty(stored: StoredDraft): boolean {
+  return JSON.stringify(stored.values) !== JSON.stringify(stored.baseline);
 }

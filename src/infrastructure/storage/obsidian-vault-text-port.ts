@@ -29,9 +29,18 @@ export class ObsidianVaultTextPort implements VaultTextPort {
     return this.vault.getAbstractFileByPath(path) !== null;
   }
 
-  /** Reads a managed note through Obsidian's cached text API. */
+  /**
+   * Reads the authoritative file contents directly from the vault.
+   *
+   * Obsidian's `cachedRead` is useful when callers prefer speed over freshness, but this port sits
+   * on the reconciliation and optimistic-concurrency boundary. An editor outside Obsidian can
+   * replace a managed Markdown note before Obsidian's text cache has been refreshed. Reading that
+   * stale cache would leave the catalog showing the previous frontmatter and could also compare a
+   * later plugin save against the wrong source revision. The uncached host read keeps external
+   * Markdown edits authoritative while still using only Obsidian's supported Vault API.
+   */
   public async read(path: VaultPath): Promise<string> {
-    return this.vault.cachedRead(this.requireFile(path));
+    return this.vault.read(this.requireFile(path));
   }
 
   /** Creates a new note; callers must have checked collisions and prepared its parent folder. */

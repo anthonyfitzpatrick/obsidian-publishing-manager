@@ -62,4 +62,31 @@ describe('book draft store', () => {
     };
     expect(store.markSaved(updated)).toMatchObject({ summary: 'Persisted update.', dirty: false });
   });
+
+  it('refreshes clean drafts after external reconciliation without overwriting dirty drafts', () => {
+    const store = new BookDraftStore();
+    const book = record('Externally Edited Book', 'external');
+    store.ensure(book);
+
+    const external: CatalogRecord = {
+      ...book,
+      sourceRevision: 'source-external-2',
+      fields: { ...book.fields, summary: 'Changed outside the plugin.' }
+    };
+    expect(store.ensure(external)).toMatchObject({
+      summary: 'Changed outside the plugin.',
+      dirty: false
+    });
+
+    store.update(book.path, { summary: 'Unsaved local typing.' });
+    const laterExternal: CatalogRecord = {
+      ...external,
+      sourceRevision: 'source-external-3',
+      fields: { ...book.fields, summary: 'A later external edit.' }
+    };
+    expect(store.ensure(laterExternal)).toMatchObject({
+      summary: 'Unsaved local typing.',
+      dirty: true
+    });
+  });
 });
