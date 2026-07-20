@@ -382,13 +382,18 @@ function renderPublishingWorkspaces(
   for (const entry of entries) {
     const control = grid.createEl('button', {
       cls: 'pm-tool-card',
-      attr: { type: 'button', 'aria-label': `Open ${entry.label}` }
+      attr: {
+        type: 'button',
+        // The compact card visibly names the destination; the full purpose remains available to
+        // assistive technology and as a native hover title without forcing dense prose into UI.
+        'aria-label': `Open ${entry.label}: ${entry.description}`,
+        title: entry.description
+      }
     });
     const icon = control.createSpan({ cls: 'pm-tool-card__icon' });
     setIcon(icon, entry.icon);
     const copy = control.createSpan({ cls: 'pm-tool-card__copy' });
     copy.createEl('strong', { text: entry.label });
-    copy.createSpan({ text: entry.description });
     control.addEventListener('click', entry.action);
   }
 }

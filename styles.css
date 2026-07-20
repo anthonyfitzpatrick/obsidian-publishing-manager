@@ -252,9 +252,15 @@
   border-radius: var(--pm-radius);
 }
 
-.pm-summary-card {
+.publishing-manager button.pm-summary-card {
+  /* Some themes set a global fixed button height. Dashboard cards are multi-line buttons, so
+     the plugin must explicitly own their height or their value/detail escapes the card. */
+  box-sizing: border-box;
   display: grid;
   gap: 5px;
+  height: auto !important;
+  max-height: none !important;
+  min-height: 132px !important;
   padding: 16px;
 }
 
@@ -304,7 +310,9 @@
   gap: 11px;
   grid-template-columns: 22px minmax(0, 1fr);
   justify-content: flex-start;
-  min-height: 118px;
+  height: auto !important;
+  max-height: none !important;
+  min-height: 64px !important;
   min-width: 0;
   overflow: hidden;
   padding: 13px;
@@ -325,8 +333,8 @@
 }
 
 .pm-tool-card__copy {
-  display: grid;
-  gap: 5px;
+  align-self: center;
+  display: block;
   min-width: 0;
   overflow-wrap: anywhere;
   text-wrap: pretty;
@@ -336,15 +344,6 @@
 .pm-tool-card__copy > strong {
   display: block;
   line-height: 1.25;
-}
-
-.pm-tool-card__copy > span {
-  color: var(--text-muted);
-  font-size: var(--font-ui-smaller);
-  line-height: 1.35;
-  max-width: 100%;
-  overflow-wrap: anywhere;
-  white-space: normal;
 }
 
 .pm-dashboard-grid {
