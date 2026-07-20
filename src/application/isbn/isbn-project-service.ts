@@ -297,9 +297,12 @@ export class IsbnProjectService {
     formatId: string | undefined
   ): void {
     const associatedEdition = record.fields['associated-edition-id'];
-    const associatedFormat = record.fields['associated-format-id'];
     if (associatedEdition === undefined) return;
-    if (associatedEdition === editionId && associatedFormat === formatId) return;
+    // A format is a refinement within an edition, not a different publication item. Allow a
+    // reviewed reserve/assign action to refine or clear that format while keeping the ISBN bound
+    // to its original edition. Moving to any other edition still requires the dedicated correction
+    // workflow and is never silently achieved by release then assign.
+    if (associatedEdition === editionId) return;
     throw new Error(
       `ISBN ${String(record.fields.value)} is permanently associated with another edition or format and cannot be reassigned.`
     );

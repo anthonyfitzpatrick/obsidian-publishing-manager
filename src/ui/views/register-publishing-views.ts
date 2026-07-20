@@ -126,7 +126,7 @@ export function registerPublishingViews(
   );
   plugin.registerView(
     GLOBAL_DATA_LIBRARY_VIEW_TYPE,
-    (leaf) => new GlobalDataLibraryView(leaf, catalog)
+    (leaf) => new GlobalDataLibraryView(leaf, catalog, isbns)
   );
   plugin.registerView(
     BOOK_WORKSPACE_VIEW_TYPE,
@@ -161,6 +161,13 @@ export function registerPublishingViews(
     id: 'open-dashboard',
     name: 'Open dashboard',
     callback: () => void openDashboard()
+  });
+  // The dashboard is the preferred product entry, while this route keeps shared data reachable
+  // for keyboard-first users and when no book workspace is open yet.
+  plugin.addCommand({
+    id: 'open-global-data-library',
+    name: 'Open global data library',
+    callback: () => void openGlobalDataLibrary()
   });
   plugin.addCommand({
     id: 'open-active-book-workspace',
