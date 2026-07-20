@@ -4,7 +4,7 @@ Publishing Manager is offline, local-first, mobile-compatible software that mana
 
 ## Before coding
 
-1. Open or select a Gitea issue using the appropriate template.
+1. Open or select a GitHub issue using the appropriate template.
 2. Reference a permanent backlog ID such as `FND-009` or explain why the work is newly discovered so the backlog can be updated.
 3. Record the user outcome, boundaries, non-goals, acceptance criteria, mobile/accessibility impact, data or migration impact, privacy/security impact, and test approach.
 4. Add an ADR before changing a durable architectural boundary or data ownership decision.
@@ -56,7 +56,7 @@ For manual Obsidian testing, use `npm run test:vault` and follow [TEST_VAULT.md]
 
 Use the repository pull-request template. Link the issue and backlog ID; describe the outcome and boundaries; list automated and manual evidence; disclose schema, migration, compatibility, accessibility, performance, privacy, and security effects; and include screenshots only when they contain no private vault data.
 
-A pull request is merge-ready when CI is green, requested changes are resolved, documentation and changelog entries are current, the diff contains no unrelated changes, and acceptance criteria have named evidence. Work in progress must use Gitea's `WIP:` title prefix.
+A pull request is merge-ready when CI is green, requested changes are resolved, documentation and changelog entries are current, the diff contains no unrelated changes, and acceptance criteria have named evidence. Work in progress must use a draft pull request.
 
 ## Review standard
 

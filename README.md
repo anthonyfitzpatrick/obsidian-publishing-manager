@@ -6,7 +6,7 @@ The product specification and project backlog in the Publishing Manager Obsidian
 
 ## Current state
 
-Milestones M0 through M9 are complete. M10 automated, installed functional/lifecycle, target-scale, and direct-sales journeys pass. Stable publication remains gated on recorded physical-offline and assistive-technology/device evidence, final sign-off, and the public GitHub release channel required by Obsidian Community Plugins.
+Milestones M0 through M10 are complete. The automated, installed functional/lifecycle, physical-offline, Obsidian accessibility-compatibility, target-scale, and direct-sales journeys pass, and the signed `0.1.0` package is the initial public release candidate for Obsidian Community Plugins.
 
 ## Licence boundary
 
@@ -44,7 +44,7 @@ Publishing Manager supports public stable Obsidian releases from 1.8.0 onward on
 
 ## Contributing
 
-Start with a Gitea issue and reference the permanent backlog ID. See [CONTRIBUTING.md](CONTRIBUTING.md) for branches, commits, pull requests, testing, and review requirements. Release preparation follows [RELEASING.md](RELEASING.md), and notable changes belong in [CHANGELOG.md](CHANGELOG.md).
+Start with a GitHub issue and reference the permanent backlog ID. See [CONTRIBUTING.md](CONTRIBUTING.md) for branches, commits, pull requests, testing, and review requirements. Release preparation follows [RELEASING.md](RELEASING.md), and notable changes belong in [CHANGELOG.md](CHANGELOG.md).
 
 ## Scripts
 
