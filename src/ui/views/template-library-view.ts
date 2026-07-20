@@ -263,12 +263,16 @@ export class TemplateLibraryView extends ItemView {
   }
 }
 
-/** Registers one reusable library leaf plus explicit ribbon and command entry points. */
+/**
+ * Registers one reusable library leaf and returns its reveal-or-create route. The caller gives
+ * that route to the Publishing Dashboard, which is the plugin's only ribbon entry; the command
+ * palette route remains available for users who prefer Obsidian's native keyboard navigation.
+ */
 export function registerTemplateLibraryView(
   plugin: Plugin,
   catalog: BookCatalog,
   templates: TemplateProjectService
-): void {
+): () => Promise<void> {
   plugin.registerView(
     TEMPLATE_LIBRARY_VIEW_TYPE,
     (leaf) => new TemplateLibraryView(leaf, catalog, templates)
@@ -280,13 +284,13 @@ export function registerTemplateLibraryView(
     await leaf.setViewState({ type: TEMPLATE_LIBRARY_VIEW_TYPE, active: true });
     await plugin.app.workspace.revealLeaf(leaf);
   };
-  plugin.addRibbonIcon('layout-template', 'Open publishing templates', () => void open());
   plugin.addCommand({
     id: 'open-template-library',
     name: 'Open template library',
     callback: () => void open()
   });
   plugin.register(() => plugin.app.workspace.detachLeavesOfType(TEMPLATE_LIBRARY_VIEW_TYPE));
+  return open;
 }
 
 function button(parent: HTMLElement, text: string, primary = false): HTMLButtonElement {

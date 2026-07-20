@@ -455,7 +455,7 @@ export function registerManuscriptCompilerIntegrationView(
   catalog: BookCatalog,
   compiler: ManuscriptCompilerIntegrationService,
   editions: EditionProjectService
-): void {
+): () => Promise<void> {
   const open = async (): Promise<void> => {
     const leaf =
       plugin.app.workspace.getLeavesOfType(COMPILER_INTEGRATION_VIEW_TYPE)[0] ??
@@ -467,13 +467,13 @@ export function registerManuscriptCompilerIntegrationView(
     COMPILER_INTEGRATION_VIEW_TYPE,
     (leaf) => new ManuscriptCompilerIntegrationView(leaf, catalog, compiler, editions)
   );
-  plugin.addRibbonIcon('package-open', 'Open Manuscript Compiler integration', () => void open());
   plugin.addCommand({
     id: 'open-compiler-integration',
     name: 'Open Manuscript Compiler integration',
     callback: () => void open()
   });
   plugin.register(() => plugin.app.workspace.detachLeavesOfType(COMPILER_INTEGRATION_VIEW_TYPE));
+  return open;
 }
 
 function select(

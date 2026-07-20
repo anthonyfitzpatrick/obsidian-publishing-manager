@@ -34,6 +34,28 @@ for (const [path, requiredContent] of requirements) {
   }
 }
 
+// The product intentionally owns one Obsidian ribbon entry. Commands and Dashboard launcher
+// callbacks remain equivalent routes, but a future view must not silently add rail clutter again.
+const ribbonSources = [
+  'src/ui/views/register-publishing-views.ts',
+  'src/ui/views/template-library-view.ts',
+  'src/ui/views/publishing-export-view.ts',
+  'src/ui/views/diagnostics-view.ts',
+  'src/ui/views/manuscript-compiler-integration-view.ts'
+];
+const ribbonRegistrations = [];
+for (const path of ribbonSources) {
+  const content = await readFile(path, 'utf8');
+  for (const match of content.matchAll(/addRibbonIcon\s*\(/gu))
+    ribbonRegistrations.push(`${path}:${match.index}`);
+}
+if (ribbonRegistrations.length !== 1)
+  failures.push(
+    `Publishing Manager must register exactly one ribbon icon; found ${ribbonRegistrations.length}`
+  );
+if (!ribbonRegistrations[0]?.startsWith('src/ui/views/register-publishing-views.ts:'))
+  failures.push('The single ribbon icon must open the Publishing Dashboard');
+
 if (failures.length > 0) {
   console.error('Repository convention check failed:');
   failures.forEach((failure) => console.error(`- ${failure}`));

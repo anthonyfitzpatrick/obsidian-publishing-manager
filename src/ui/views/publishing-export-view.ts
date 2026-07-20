@@ -264,7 +264,7 @@ export function registerPublishingExportView(
   plugin: Plugin,
   catalog: BookCatalog,
   exports: PublishingExportService
-): void {
+): () => Promise<void> {
   plugin.registerView(
     PUBLISHING_EXPORT_VIEW_TYPE,
     (leaf) => new PublishingExportView(leaf, catalog, exports)
@@ -276,13 +276,13 @@ export function registerPublishingExportView(
     await leaf.setViewState({ type: PUBLISHING_EXPORT_VIEW_TYPE, active: true });
     await plugin.app.workspace.revealLeaf(leaf);
   };
-  plugin.addRibbonIcon('file-output', 'Open publishing exports', () => void open());
   plugin.addCommand({
     id: 'open-export-center',
     name: 'Open export center',
     callback: () => void open()
   });
   plugin.register(() => plugin.app.workspace.detachLeavesOfType(PUBLISHING_EXPORT_VIEW_TYPE));
+  return open;
 }
 
 function labelledSelect(

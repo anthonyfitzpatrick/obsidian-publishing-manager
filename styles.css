@@ -273,6 +273,59 @@
   font-size: var(--font-ui-smaller);
 }
 
+/* The Dashboard is the single ribbon destination, so its launcher must expose every top-level
+   plugin workspace without resembling a second sidebar or depending on colour for meaning. */
+.pm-tool-launcher {
+  margin-block-end: 18px;
+}
+
+.pm-tool-launcher > p {
+  color: var(--text-muted);
+  margin-block: 0 14px;
+}
+
+.pm-tool-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(min(15rem, 100%), 1fr));
+}
+
+.pm-tool-card {
+  align-items: flex-start;
+  background: var(--background-primary-alt);
+  border: 1px solid var(--pm-panel-border);
+  border-radius: var(--pm-radius);
+  color: var(--text-normal);
+  cursor: pointer;
+  display: flex;
+  gap: 11px;
+  padding: 13px;
+  text-align: start;
+  width: 100%;
+}
+
+.pm-tool-card:hover {
+  background: var(--background-modifier-hover);
+}
+
+.pm-tool-card__icon,
+.pm-tool-card__icon svg {
+  flex: 0 0 auto;
+  height: 22px;
+  width: 22px;
+}
+
+.pm-tool-card__copy {
+  display: grid;
+  gap: 5px;
+}
+
+.pm-tool-card__copy > span {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.35;
+}
+
 .pm-dashboard-grid {
   align-items: start;
   display: grid;

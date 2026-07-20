@@ -30,6 +30,7 @@ import { CreateBookModal } from '../dialogs/create-book-modal';
 import type { BookDraftStore } from '../state/book-draft-store';
 import { BookWorkspaceView, BOOK_WORKSPACE_VIEW_TYPE } from './book-workspace-view';
 import {
+  type PublishingDashboardTools,
   PublishingDashboardView,
   PUBLISHING_DASHBOARD_VIEW_TYPE
 } from './publishing-dashboard-view';
@@ -55,7 +56,8 @@ export function registerPublishingViews(
   history: HistoryProjectService,
   historyPreferences: HistoryPreferencesService,
   drafts: BookDraftStore,
-  refreshCatalog: () => Promise<void>
+  refreshCatalog: () => Promise<void>,
+  dashboardTools: PublishingDashboardTools
 ): void {
   const openDashboard = async (): Promise<void> => {
     const leaf = existingOrNewLeaf(plugin, PUBLISHING_DASHBOARD_VIEW_TYPE);
@@ -107,7 +109,8 @@ export function registerPublishingViews(
         calendar,
         () => new CreateBookModal(plugin.app, books).open(),
         openBook,
-        refreshCatalog
+        refreshCatalog,
+        dashboardTools
       )
   );
   plugin.registerView(
@@ -135,6 +138,8 @@ export function registerPublishingViews(
       )
   );
 
+  // One ribbon icon is the stable top-level product entry. All other plugin-owned workspaces are
+  // launched from the Dashboard or command palette so the Obsidian rail never becomes cluttered.
   plugin.addRibbonIcon('library', 'Open publishing dashboard', () => void openDashboard());
   plugin.addCommand({
     id: 'open-dashboard',

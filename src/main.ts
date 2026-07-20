@@ -263,6 +263,17 @@ export default class PublishingManagerPlugin extends Plugin {
     registerFoundationCommand(this, getFoundationStatus);
     registerBookCommands(this, books);
     registerWorkflowCommands(this, catalog, workflows);
+    // Standalone views expose reveal-or-create routes instead of registering their own ribbon
+    // icons. The Dashboard receives those narrow routes and becomes the single visual entry point.
+    const openTemplates = registerTemplateLibraryView(this, catalog, templates);
+    const openExports = registerPublishingExportView(this, catalog, exports);
+    const openDiagnostics = registerDiagnosticsView(this, diagnostics);
+    const openCompilerIntegration = registerManuscriptCompilerIntegrationView(
+      this,
+      catalog,
+      compilerIntegration,
+      editions
+    );
     registerPublishingViews(
       this,
       catalog,
@@ -283,11 +294,9 @@ export default class PublishingManagerPlugin extends Plugin {
       history,
       historyPreferences,
       drafts,
-      () => catalogController.initialize()
+      () => catalogController.initialize(),
+      { openTemplates, openExports, openDiagnostics, openCompilerIntegration }
     );
-    registerTemplateLibraryView(this, catalog, templates);
-    registerPublishingExportView(this, catalog, exports);
-    registerDiagnosticsView(this, diagnostics);
     this.addCommand({
       id: 'run-reference-host-performance',
       name: 'Run reference-host performance review',
@@ -311,7 +320,6 @@ export default class PublishingManagerPlugin extends Plugin {
           );
       }
     });
-    registerManuscriptCompilerIntegrationView(this, catalog, compilerIntegration, editions);
     this.addSettingTab(
       new PublishingManagerSettingsTab(
         this.app,

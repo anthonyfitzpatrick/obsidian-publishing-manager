@@ -288,8 +288,14 @@ export class DiagnosticsView extends ItemView {
   }
 }
 
-/** Registers one reveal-or-create route shared by ribbon and command palette. */
-export function registerDiagnosticsView(plugin: Plugin, diagnostics: DiagnosticsService): void {
+/**
+ * Registers Diagnostics and returns the route used by the Dashboard launcher. The command palette
+ * remains an equivalent native path, while no secondary Publishing Manager ribbon icon is added.
+ */
+export function registerDiagnosticsView(
+  plugin: Plugin,
+  diagnostics: DiagnosticsService
+): () => Promise<void> {
   const open = async (): Promise<void> => {
     const leaf =
       plugin.app.workspace.getLeavesOfType(DIAGNOSTICS_VIEW_TYPE)[0] ??
@@ -298,13 +304,13 @@ export function registerDiagnosticsView(plugin: Plugin, diagnostics: Diagnostics
     await plugin.app.workspace.revealLeaf(leaf);
   };
   plugin.registerView(DIAGNOSTICS_VIEW_TYPE, (leaf) => new DiagnosticsView(leaf, diagnostics));
-  plugin.addRibbonIcon('stethoscope', 'Open publishing diagnostics', () => void open());
   plugin.addCommand({
     id: 'open-diagnostics',
     name: 'Open diagnostics',
     callback: () => void open()
   });
   plugin.register(() => plugin.app.workspace.detachLeavesOfType(DIAGNOSTICS_VIEW_TYPE));
+  return open;
 }
 
 function button(

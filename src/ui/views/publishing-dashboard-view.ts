@@ -36,6 +36,17 @@ import { createCalendarWorkspaceState, renderCalendarWorkspace } from './calenda
 /** Stable Obsidian view identifier persisted in workspace layout state. */
 export const PUBLISHING_DASHBOARD_VIEW_TYPE = 'publishing-manager-dashboard';
 
+/**
+ * Narrow routes to plugin-owned top-level tools. Keeping navigation as callbacks prevents the
+ * Dashboard from importing other views or reaching into Obsidian's private command registry.
+ */
+export interface PublishingDashboardTools {
+  readonly openTemplates: () => Promise<void>;
+  readonly openExports: () => Promise<void>;
+  readonly openDiagnostics: () => Promise<void>;
+  readonly openCompilerIntegration: () => Promise<void>;
+}
+
 /** Native portfolio dashboard used as the top-level Publishing Manager entry point. */
 export class PublishingDashboardView extends ItemView {
   private unsubscribe: (() => void) | undefined;
@@ -60,7 +71,8 @@ export class PublishingDashboardView extends ItemView {
     private readonly calendar: CalendarProjectService,
     private readonly createBook: () => void,
     private readonly openBook: (record: CatalogRecord, tab?: string) => Promise<void>,
-    private readonly refreshCatalog: () => Promise<void>
+    private readonly refreshCatalog: () => Promise<void>,
+    private readonly tools: PublishingDashboardTools
   ) {
     super(leaf);
     this.icon = 'library';
@@ -139,6 +151,8 @@ export class PublishingDashboardView extends ItemView {
     const createIcon = create.createSpan({ cls: 'pm-button__icon' });
     setIcon(createIcon, 'plus');
     create.addEventListener('click', this.createBook);
+
+    renderPublishingWorkspaces(root, model.kind === 'empty', this.createBook, this.tools);
 
     renderStateBanner(
       root,
@@ -289,6 +303,101 @@ export class PublishingDashboardView extends ItemView {
       new Notice(`Managed note is no longer available: ${diagnostic.path}`);
     }
   }
+}
+
+/**
+ * Renders the one graphical navigation hub behind the Publishing Dashboard ribbon icon. Books
+ * stay inside the Dashboard/Book Workspace flow; standalone tools reuse their registered leaves.
+ * Rejected route promises become local notices so a failed tool cannot produce an unhandled task.
+ */
+function renderPublishingWorkspaces(
+  root: HTMLElement,
+  empty: boolean,
+  createBook: () => void,
+  tools: PublishingDashboardTools
+): void {
+  const section = root.createEl('section', {
+    cls: 'pm-panel pm-tool-launcher',
+    attr: { 'aria-labelledby': 'pm-tool-launcher-heading' }
+  });
+  section.createEl('h2', {
+    text: 'Publishing workspaces',
+    attr: { id: 'pm-tool-launcher-heading' }
+  });
+  section.createEl('p', {
+    text: 'Open every publishing manager area from this dashboard. Command-palette routes remain available.'
+  });
+  const grid = section.createDiv({ cls: 'pm-tool-grid' });
+  const entries: readonly {
+    readonly label: string;
+    readonly description: string;
+    readonly icon: string;
+    readonly action: () => void;
+  }[] = [
+    {
+      label: 'Books and publishing workspaces',
+      description: empty
+        ? 'Create the first book, then manage editions, workflow, metadata, ISBNs, pricing, distribution, readiness, sales, launch, reviews, history, assets, and diagnostics.'
+        : 'Choose a book in the portfolio, then use its complete publishing workspace.',
+      icon: 'book-open',
+      action: () => {
+        if (empty) {
+          createBook();
+          return;
+        }
+        const portfolio = root.querySelector<HTMLElement>('#pm-dashboard-portfolio');
+        portfolio?.scrollIntoView({ block: 'start' });
+        portfolio?.focus();
+      }
+    },
+    {
+      label: 'Template library',
+      description: 'Copy, edit, preview, import, and export reusable local publishing templates.',
+      icon: 'layout-template',
+      action: () => runDashboardTool(tools.openTemplates, 'Template library could not open.')
+    },
+    {
+      label: 'Export center',
+      description: 'Preview and create local Markdown, CSV, JSON, and calendar exports.',
+      icon: 'file-output',
+      action: () => runDashboardTool(tools.openExports, 'Export center could not open.')
+    },
+    {
+      label: 'Diagnostics',
+      description: 'Inspect local health, rebuild derived state, and create redacted evidence.',
+      icon: 'stethoscope',
+      action: () => runDashboardTool(tools.openDiagnostics, 'Diagnostics could not open.')
+    },
+    {
+      label: 'Manuscript Compiler integration',
+      description: 'Inspect the optional local compiler capability and its manual fallback.',
+      icon: 'package-open',
+      action: () =>
+        runDashboardTool(
+          tools.openCompilerIntegration,
+          'Manuscript Compiler integration could not open.'
+        )
+    }
+  ];
+  for (const entry of entries) {
+    const control = grid.createEl('button', {
+      cls: 'pm-tool-card',
+      attr: { type: 'button', 'aria-label': `Open ${entry.label}` }
+    });
+    const icon = control.createSpan({ cls: 'pm-tool-card__icon' });
+    setIcon(icon, entry.icon);
+    const copy = control.createSpan({ cls: 'pm-tool-card__copy' });
+    copy.createEl('strong', { text: entry.label });
+    copy.createSpan({ text: entry.description });
+    control.addEventListener('click', entry.action);
+  }
+}
+
+/** Converts a rejected navigation callback into one concise Obsidian notice. */
+function runDashboardTool(action: () => Promise<void>, fallback: string): void {
+  void action().catch((cause: unknown) => {
+    new Notice(cause instanceof Error ? cause.message : fallback);
+  });
 }
 
 /** Announces lifecycle state with icon plus text so color never carries meaning alone. */
