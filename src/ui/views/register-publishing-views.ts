@@ -33,6 +33,7 @@ import { normalizeVaultPath } from '../../domain/storage/vault-path';
 import { CreateBookModal } from '../dialogs/create-book-modal';
 import type { BookDraftStore } from '../state/book-draft-store';
 import { BookWorkspaceView, BOOK_WORKSPACE_VIEW_TYPE } from './book-workspace-view';
+import { GlobalDataLibraryView, GLOBAL_DATA_LIBRARY_VIEW_TYPE } from './global-data-library-view';
 import {
   type PublishingDashboardTools,
   PublishingDashboardView,
@@ -68,6 +69,12 @@ export function registerPublishingViews(
     await leaf.setViewState({ type: PUBLISHING_DASHBOARD_VIEW_TYPE, active: true });
     await plugin.app.workspace.revealLeaf(leaf);
   };
+  const openGlobalDataLibrary = async (): Promise<void> => {
+    const leaf = existingOrNewLeaf(plugin, GLOBAL_DATA_LIBRARY_VIEW_TYPE);
+    await leaf.setViewState({ type: GLOBAL_DATA_LIBRARY_VIEW_TYPE, active: true });
+    await plugin.app.workspace.revealLeaf(leaf);
+  };
+  const completeDashboardTools = { ...dashboardTools, openGlobalDataLibrary };
 
   const openBook = async (
     record: CatalogRecord,
@@ -114,8 +121,12 @@ export function registerPublishingViews(
         () => new CreateBookModal(plugin.app, books).open(),
         openBook,
         refreshCatalog,
-        dashboardTools
+        completeDashboardTools
       )
+  );
+  plugin.registerView(
+    GLOBAL_DATA_LIBRARY_VIEW_TYPE,
+    (leaf) => new GlobalDataLibraryView(leaf, catalog)
   );
   plugin.registerView(
     BOOK_WORKSPACE_VIEW_TYPE,

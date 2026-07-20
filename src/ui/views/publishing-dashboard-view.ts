@@ -41,6 +41,7 @@ export const PUBLISHING_DASHBOARD_VIEW_TYPE = 'publishing-manager-dashboard';
  * Dashboard from importing other views or reaching into Obsidian's private command registry.
  */
 export interface PublishingDashboardTools {
+  readonly openGlobalDataLibrary: () => Promise<void>;
   readonly openTemplates: () => Promise<void>;
   readonly openExports: () => Promise<void>;
   readonly openDiagnostics: () => Promise<void>;
@@ -143,6 +144,17 @@ export class PublishingDashboardView extends ItemView {
         })
         .finally(() => refresh.removeAttribute('disabled'));
     });
+    const globalData = actions.createEl('button', {
+      cls: 'pm-button pm-button--secondary',
+      text: 'Global data library',
+      attr: { type: 'button' }
+    });
+    const globalDataIcon = globalData.createSpan({ cls: 'pm-button__icon' });
+    setIcon(globalDataIcon, 'database');
+    globalData.prepend(globalDataIcon);
+    globalData.addEventListener('click', () =>
+      runDashboardTool(this.tools.openGlobalDataLibrary, 'Global data library could not open.')
+    );
     const create = actions.createEl('button', {
       cls: 'pm-button pm-button--primary',
       text: 'New book project',

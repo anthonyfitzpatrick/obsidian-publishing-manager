@@ -295,7 +295,15 @@ export default class PublishingManagerPlugin extends Plugin {
       historyPreferences,
       drafts,
       () => catalogController.initialize(),
-      { openTemplates, openExports, openDiagnostics, openCompilerIntegration }
+      {
+        openTemplates,
+        openExports,
+        openDiagnostics,
+        openCompilerIntegration,
+        // Registration replaces this composition placeholder with the native Global Data Library
+        // route once its view factory has been registered alongside the Dashboard.
+        openGlobalDataLibrary: async () => undefined
+      }
     );
     this.addCommand({
       id: 'run-reference-host-performance',

@@ -172,12 +172,19 @@ export class IsbnProjectService {
       const edition = this.requireEdition(input.editionId);
       const format =
         input.formatId === undefined ? undefined : this.requireFormat(input.formatId, edition.id);
+      this.assertPermanentAssociation(record, edition.id, format?.id);
       this.assertAssignmentAvailable(edition.id, format?.id, record.id);
       return {
         ...omitAssignment({ ...record.fields }),
         status: input.action === 'reserve' ? 'reserved' : 'assigned',
         'edition-id': edition.id,
         ...(format === undefined ? {} : { 'format-id': format.id }),
+        // ISBN is a global primary key. These fields intentionally survive release, retirement,
+        // and correction so a previously associated identifier cannot be taken by another item.
+        'associated-edition-id': edition.id,
+        ...(format === undefined ? {} : { 'associated-format-id': format.id }),
+        'associated-at':
+          typeof record.fields['associated-at'] === 'string' ? record.fields['associated-at'] : now,
         ...(input.action === 'assign' ? { 'assigned-at': now } : {})
       };
     }
@@ -282,6 +289,20 @@ export class IsbnProjectService {
       throw new Error(
         `ISBN ${String(conflict.fields.value)} already occupies that edition/format assignment.`
       );
+  }
+  /** Rejects a second target even after a release: global ISBN identity is never recyclable. */
+  private assertPermanentAssociation(
+    record: CatalogRecord,
+    editionId: string,
+    formatId: string | undefined
+  ): void {
+    const associatedEdition = record.fields['associated-edition-id'];
+    const associatedFormat = record.fields['associated-format-id'];
+    if (associatedEdition === undefined) return;
+    if (associatedEdition === editionId && associatedFormat === formatId) return;
+    throw new Error(
+      `ISBN ${String(record.fields.value)} is permanently associated with another edition or format and cannot be reassigned.`
+    );
   }
   private requireIsbn(id: string): CatalogRecord {
     const record = this.catalog.recordById(id);
