@@ -19,6 +19,9 @@ for (const [label, marker] of [
   ['44px checkbox/radio labels', "label:has(input[type='checkbox'])"],
   ['visible focus for links and summaries', 'a, summary, [tabindex]'],
   ['narrow-pane reflow', '@container (max-width: 800px)'],
+  ['light-theme small-label contrast', '.theme-light .publishing-manager .pm-eyebrow'],
+  ['page-level horizontal overflow containment', '.view-content.publishing-manager'],
+  ['horizontal overflow disabled on the host view', 'overflow-x: hidden'],
   ['reduced motion', '@media (prefers-reduced-motion: reduce)'],
   ['animation reduction', 'animation-duration: 0.01ms !important'],
   ['text-labelled state contract', 'State banners pair icons and text']

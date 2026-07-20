@@ -8,10 +8,19 @@
   --pm-soft-background: var(--background-secondary);
   --pm-accent-soft: color-mix(in srgb, var(--interactive-accent) 14%, transparent);
   color: var(--text-normal);
+  box-sizing: border-box;
   container-type: inline-size;
+  min-width: 0;
+  /* Full-bleed headers and focus outlines must not create a page-level horizontal scrollbar. */
+  overflow-x: clip;
   padding: clamp(16px, 3vw, 32px);
   padding-block-end: calc(clamp(16px, 3vw, 32px) + env(safe-area-inset-bottom));
   scroll-padding-block-end: calc(40vh + env(safe-area-inset-bottom));
+}
+
+/* The view-content host rule is more specific than Obsidian's generic scroll-container default. */
+.view-content.publishing-manager {
+  overflow-x: hidden;
 }
 
 /* Focused fields and reviewed actions scroll above a mobile virtual keyboard and safe area. */
@@ -74,12 +83,18 @@
 }
 
 .pm-eyebrow {
-  color: var(--text-accent);
+  /* Small uppercase labels need normal-text contrast in every Obsidian light theme. */
+  color: var(--text-normal);
   font-size: var(--font-ui-smaller);
   font-weight: var(--font-semibold);
   letter-spacing: 0.08em;
   margin-block-end: 6px;
   text-transform: uppercase;
+}
+
+/* Obsidian's default light muted/accent palette sits just below 4.5:1 at this small label size. */
+.theme-light .publishing-manager .pm-eyebrow {
+  color: color-mix(in srgb, var(--text-normal) 82%, black);
 }
 
 /* Buttons use native typography, 44px touch targets, and explicit focus rings. */
