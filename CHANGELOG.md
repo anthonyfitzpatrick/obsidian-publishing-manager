@@ -6,6 +6,8 @@ All notable changes to Publishing Manager are recorded here using Keep a Changel
 
 ### Added
 
+- M10 QA-003: exact frozen 0.1.0 candidate retailer-preparation/publication journey in installed Obsidian 1.12.7 with Wi‑Fi physically disabled, no IPv4/IPv6 reachability, failing host HTTPS and renderer fetch, five completed preparation checks, approved/published canonical Markdown and History evidence, and automatic Wi‑Fi restoration.
+
 - M10 QA-010/QA-011: target-scale deterministic, reference-host, installed-host, and narrow-layout smoke evidence; blocked-network direct transaction/period-summary entry; exact duplicate and acknowledged-overlap behavior; correction, reconciliation, ISBN/platform/location/country attribution, and Dashboard drill-down. The installed journey fixed immediate Save-state recomputation after overlap acknowledgement and added regression coverage.
 
 - M10 TST-001 through TST-006: seeded property coverage for identifiers, normalization, graphs, serialization, and readiness bounds; explicit DST/Unicode/relationship boundary tests; deterministic fictional target/stress fixtures; and a permanent network-free, no-ambient-clock/randomness test-policy gate. The expanded 61-file/210-test matrix also corrected impossible sales-date rollover.
