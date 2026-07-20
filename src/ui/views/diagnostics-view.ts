@@ -137,41 +137,63 @@ export class DiagnosticsView extends ItemView {
           ? 'No diagnostic evidence matches this filter.'
           : `Showing ${window.offset + 1}–${window.end} of ${window.total}.`
     });
-    const list = panel.createEl('ol', { cls: 'pm-diagnostic-list pm-diagnostic-list--full' });
-    for (const item of pageCollection(visible, window)) {
-      const row = list.createEl('li');
-      row.createEl('strong', {
-        text: `${symbol(item.severity)} ${sentence(item.category)} · ${item.title}`
+    const page = pageCollection(visible, window);
+    const actionable = page.filter(({ severity }) => severity !== 'clear');
+    const clear = page.filter(({ severity }) => severity === 'clear');
+    if (actionable.length > 0) {
+      panel.createEl('h3', { text: 'Needs attention' });
+      const list = panel.createEl('ol', {
+        cls: 'pm-diagnostic-list pm-diagnostic-list--actionable'
       });
-      row.createEl('p', {
-        text: `${sentence(item.severity)} · Source: ${item.source} · Impact: ${item.impact}`
-      });
-      row.createEl('p', { text: item.explanation });
-      const details = row.createEl('details');
-      details.createEl('summary', { text: 'Guidance and source evidence' });
-      details.createEl('p', { text: item.guidance });
-      if (item.path !== undefined)
-        details.createEl('p', { text: `Path: ${item.path} · Field: ${item.field ?? 'record'}` });
-      if (item.action === 'open-source')
-        button(details, 'Preview guided action', 'external-link', () => {
-          void this.diagnostics
-            .previewRemediation(item.id)
-            .then((preview) => {
-              const steps = preview.steps.join('\n');
-              if (preview.path === undefined) {
-                new Notice(steps);
-                return;
-              }
-              const file = this.app.vault.getAbstractFileByPath(preview.path);
-              if (file instanceof TFile) void this.app.workspace.getLeaf(false).openFile(file);
-              else new Notice(`Source is no longer available: ${preview.path}`);
-            })
-            .catch(
-              (error: unknown) => new Notice(message(error, 'Guidance is no longer available.'))
-            );
-        });
+      for (const item of actionable) this.renderActionableItem(list, item);
     }
+    if (clear.length > 0) {
+      const passed = panel.createEl('details', { cls: 'pm-diagnostic-clear' });
+      passed.createEl('summary', {
+        text: `${clear.length} check${clear.length === 1 ? '' : 's'} clear`
+      });
+      const list = passed.createEl('ul');
+      for (const item of clear)
+        list.createEl('li', { text: `${sentence(item.category)} · ${item.title}` });
+    }
+    if (actionable.length === 0 && clear.length === 0)
+      panel.createEl('p', { cls: 'pm-muted', text: 'No evidence is present on this page.' });
     this.renderEvidenceNavigation(panel, window);
+  }
+
+  /** Keeps primary evidence concise; verbose provenance stays available in an explicit disclosure. */
+  private renderActionableItem(parent: HTMLElement, item: DiagnosticReport['items'][number]): void {
+    const row = parent.createEl('li', {
+      cls: `pm-diagnostic-item pm-diagnostic-item--${item.severity}`
+    });
+    const heading = row.createDiv({ cls: 'pm-diagnostic-item__heading' });
+    heading.createEl('strong', { text: item.title });
+    heading.createSpan({ cls: 'pm-status-chip', text: sentence(item.severity) });
+    row.createEl('p', { text: item.impact });
+    const details = row.createEl('details');
+    details.createEl('summary', { text: 'Details and guidance' });
+    details.createEl('p', { text: item.explanation });
+    details.createEl('p', { text: item.guidance });
+    if (item.path !== undefined)
+      details.createEl('p', { text: `Path: ${item.path} · Field: ${item.field ?? 'record'}` });
+    if (item.action === 'open-source')
+      button(details, 'Preview guided action', 'external-link', () => {
+        void this.diagnostics
+          .previewRemediation(item.id)
+          .then((preview) => {
+            const steps = preview.steps.join('\n');
+            if (preview.path === undefined) {
+              new Notice(steps);
+              return;
+            }
+            const file = this.app.vault.getAbstractFileByPath(preview.path);
+            if (file instanceof TFile) void this.app.workspace.getLeaf(false).openFile(file);
+            else new Notice(`Source is no longer available: ${preview.path}`);
+          })
+          .catch(
+            (error: unknown) => new Notice(message(error, 'Guidance is no longer available.'))
+          );
+      });
   }
 
   /** Keeps diagnostic DOM proportional to one visible evidence window. */
@@ -332,15 +354,6 @@ function button(
 }
 function sentence(value: string): string {
   return `${value[0]?.toUpperCase()}${value.slice(1).replaceAll('-', ' ')}`;
-}
-function symbol(severity: string): string {
-  return severity === 'error'
-    ? '✕'
-    : severity === 'warning'
-      ? '⚠'
-      : severity === 'clear'
-        ? '✓'
-        : 'ⓘ';
 }
 function message(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;

@@ -12,6 +12,8 @@ All notable changes to Publishing Manager are recorded here using Keep a Changel
 
 - M10 UAT-006: repaired global-theme fixed button heights that pushed Dashboard summary values and details outside their cards. Multi-line dashboard buttons now explicitly own their box dimensions.
 
+- M10 UAT-007: exclude human-facing Exports and internal System journals from canonical catalog parsing, preventing false schema errors. Diagnostics now foregrounds actionable findings and collapses clear checks.
+
 - M10 QA-008/REL-003: installed plugin-owned accessibility compatibility evidence and combined product, engineering, QA, security/privacy, accessibility-compatibility, and documentation sign-off. Publishing Manager relies on native Obsidian/OS accessibility and does not introduce a parallel screen reader, navigation, zoom, forced-colour, virtual-keyboard, or assistive-technology subsystem.
 
 - M10 QA-003: exact frozen 0.1.0 candidate retailer-preparation/publication journey in installed Obsidian 1.12.7 with Wi‑Fi physically disabled, no IPv4/IPv6 reachability, failing host HTTPS and renderer fetch, five completed preparation checks, approved/published canonical Markdown and History evidence, and automatic Wi‑Fi restoration.

@@ -453,14 +453,47 @@
   padding-inline-start: 20px;
 }
 
-.pm-diagnostic-list li {
-  background: color-mix(in srgb, var(--color-red) 7%, transparent);
+.pm-diagnostic-list--actionable .pm-diagnostic-item {
+  background: var(--background-primary);
+  border: 1px solid var(--pm-panel-border);
+  border-inline-start: 4px solid var(--text-muted);
   border-radius: 8px;
   padding: 10px;
 }
 
+.pm-diagnostic-item--error {
+  border-inline-start-color: var(--color-red) !important;
+}
+
+.pm-diagnostic-item--warning {
+  border-inline-start-color: var(--color-orange) !important;
+}
+
+.pm-diagnostic-item--info {
+  border-inline-start-color: var(--interactive-accent) !important;
+}
+
+.pm-diagnostic-item__heading {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+}
+
 .pm-diagnostic-list p {
   margin: 5px 0;
+}
+
+.pm-diagnostic-clear {
+  color: var(--text-muted);
+  margin-block-start: 12px;
+}
+
+.pm-diagnostic-clear ul {
+  display: grid;
+  gap: 6px;
+  margin-block: 10px 0;
 }
 
 .pm-empty-state {

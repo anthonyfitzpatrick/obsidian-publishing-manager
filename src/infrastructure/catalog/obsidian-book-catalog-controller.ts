@@ -10,6 +10,7 @@ import { TFile, type Plugin, type TAbstractFile, type Vault } from 'obsidian';
 import type { BookCatalog } from '../../application/catalog/book-catalog';
 import type { AssetReferenceService } from '../../application/assets/asset-reference-service';
 import type { Logger } from '../../domain/foundation/logger';
+import { isCatalogCandidatePath } from '../../domain/storage/catalog-path';
 import { normalizeVaultPath, type VaultPath } from '../../domain/storage/vault-path';
 
 /** Registers incremental create/modify/rename/delete reconciliation and initial reload scanning. */
@@ -55,7 +56,7 @@ export class ObsidianBookCatalogController {
     plugin.registerEvent(
       this.vault.on('rename', (file, previousPath) => {
         if (file instanceof TFile) void this.reconcileAssetRename(previousPath, file.path);
-        const wasManaged = this.isManagedPath(previousPath);
+        const wasManaged = this.isCatalogPath(previousPath);
         const isManaged = this.isManagedMarkdown(file);
         if (wasManaged && isManaged) {
           void this.reconcileRename(previousPath, file.path);
@@ -69,7 +70,7 @@ export class ObsidianBookCatalogController {
     plugin.registerEvent(
       this.vault.on('delete', (file) => {
         this.assets?.notifyFileChanged();
-        if (this.isManagedPath(file.path) && file.path.toLowerCase().endsWith('.md')) {
+        if (this.isCatalogPath(file.path) && file.path.toLowerCase().endsWith('.md')) {
           this.catalog.remove(normalizeVaultPath(file.path));
         }
       })
@@ -95,7 +96,7 @@ export class ObsidianBookCatalogController {
       const paths = this.vault
         .getMarkdownFiles()
         .map((file) => file.path)
-        .filter((path) => this.isManagedPath(path))
+        .filter((path) => this.isCatalogPath(path))
         .map((path) => normalizeVaultPath(path));
       await this.catalog.initialize(paths, {
         initialBatchSize: 100,
@@ -154,12 +155,16 @@ export class ObsidianBookCatalogController {
     return (
       file instanceof TFile &&
       file.extension.toLowerCase() === 'md' &&
-      this.isManagedPath(file.path)
+      this.isCatalogPath(file.path)
     );
   }
 
-  /** Uses a segment boundary so similarly prefixed user folders cannot be captured accidentally. */
-  private isManagedPath(path: string): boolean {
-    return path === this.root || path.startsWith(`${this.root}/`);
+  /**
+   * Limits parsing to candidate canonical records. Exports and journal receipts deliberately live
+   * inside the managed root for easy user access, but they are ordinary human-facing Markdown,
+   * not record envelopes. Scanning them produced false schema errors in Diagnostics.
+   */
+  private isCatalogPath(path: string): boolean {
+    return isCatalogCandidatePath(this.root, path);
   }
 }
