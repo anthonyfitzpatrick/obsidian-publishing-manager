@@ -6,6 +6,8 @@ All notable changes to Publishing Manager are recorded here using Keep a Changel
 
 ### Added
 
+- M10 QA-008/REL-003: installed plugin-owned accessibility compatibility evidence and combined product, engineering, QA, security/privacy, accessibility-compatibility, and documentation sign-off. Publishing Manager relies on native Obsidian/OS accessibility and does not introduce a parallel screen reader, navigation, zoom, forced-colour, virtual-keyboard, or assistive-technology subsystem.
+
 - M10 QA-003: exact frozen 0.1.0 candidate retailer-preparation/publication journey in installed Obsidian 1.12.7 with Wi‑Fi physically disabled, no IPv4/IPv6 reachability, failing host HTTPS and renderer fetch, five completed preparation checks, approved/published canonical Markdown and History evidence, and automatic Wi‑Fi restoration.
 
 - M10 QA-010/QA-011: target-scale deterministic, reference-host, installed-host, and narrow-layout smoke evidence; blocked-network direct transaction/period-summary entry; exact duplicate and acknowledged-overlap behavior; correction, reconciliation, ISBN/platform/location/country attribution, and Dashboard drill-down. The installed journey fixed immediate Save-state recomputation after overlap acknowledgement and added regression coverage.
