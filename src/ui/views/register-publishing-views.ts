@@ -33,7 +33,12 @@ import { normalizeVaultPath } from '../../domain/storage/vault-path';
 import { CreateBookModal } from '../dialogs/create-book-modal';
 import type { BookDraftStore } from '../state/book-draft-store';
 import { BookWorkspaceView, BOOK_WORKSPACE_VIEW_TYPE } from './book-workspace-view';
-import { GlobalDataLibraryView, GLOBAL_DATA_LIBRARY_VIEW_TYPE } from './global-data-library-view';
+import {
+  GlobalDataLibraryView,
+  IsbnInventoryView,
+  GLOBAL_DATA_LIBRARY_VIEW_TYPE,
+  ISBN_INVENTORY_VIEW_TYPE
+} from './global-data-library-view';
 import {
   type PublishingDashboardTools,
   PublishingDashboardView,
@@ -72,6 +77,11 @@ export function registerPublishingViews(
   const openGlobalDataLibrary = async (): Promise<void> => {
     const leaf = existingOrNewLeaf(plugin, GLOBAL_DATA_LIBRARY_VIEW_TYPE);
     await leaf.setViewState({ type: GLOBAL_DATA_LIBRARY_VIEW_TYPE, active: true });
+    await plugin.app.workspace.revealLeaf(leaf);
+  };
+  const openIsbnInventory = async (): Promise<void> => {
+    const leaf = existingOrNewLeaf(plugin, ISBN_INVENTORY_VIEW_TYPE);
+    await leaf.setViewState({ type: ISBN_INVENTORY_VIEW_TYPE, active: true });
     await plugin.app.workspace.revealLeaf(leaf);
   };
   const completeDashboardTools = { ...dashboardTools, openGlobalDataLibrary };
@@ -126,7 +136,11 @@ export function registerPublishingViews(
   );
   plugin.registerView(
     GLOBAL_DATA_LIBRARY_VIEW_TYPE,
-    (leaf) => new GlobalDataLibraryView(leaf, catalog, isbns)
+    (leaf) => new GlobalDataLibraryView(leaf, openIsbnInventory)
+  );
+  plugin.registerView(
+    ISBN_INVENTORY_VIEW_TYPE,
+    (leaf) => new IsbnInventoryView(leaf, catalog, isbns)
   );
   plugin.registerView(
     BOOK_WORKSPACE_VIEW_TYPE,
@@ -194,6 +208,8 @@ export function registerPublishingViews(
 
   plugin.register(() => {
     plugin.app.workspace.detachLeavesOfType(PUBLISHING_DASHBOARD_VIEW_TYPE);
+    plugin.app.workspace.detachLeavesOfType(GLOBAL_DATA_LIBRARY_VIEW_TYPE);
+    plugin.app.workspace.detachLeavesOfType(ISBN_INVENTORY_VIEW_TYPE);
     plugin.app.workspace.detachLeavesOfType(BOOK_WORKSPACE_VIEW_TYPE);
   });
 }
