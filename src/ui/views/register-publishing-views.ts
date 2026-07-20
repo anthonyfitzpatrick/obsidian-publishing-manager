@@ -140,7 +140,10 @@ export function registerPublishingViews(
 
   // One ribbon icon is the stable top-level product entry. All other plugin-owned workspaces are
   // launched from the Dashboard or command palette so the Obsidian rail never becomes cluttered.
-  plugin.addRibbonIcon('library', 'Open publishing dashboard', () => void openDashboard());
+  // The terse product name is deliberate: Obsidian shows this string as the ribbon tooltip,
+  // where "Publishing Manager" identifies the whole plugin more clearly than an action label.
+  // eslint-disable-next-line obsidianmd/ui/sentence-case
+  plugin.addRibbonIcon('library', 'Publishing Manager', () => void openDashboard());
   plugin.addCommand({
     id: 'open-dashboard',
     name: 'Open dashboard',
