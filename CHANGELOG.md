@@ -6,6 +6,8 @@ All notable changes to Publishing Manager are recorded here using Keep a Changel
 
 ### Added
 
+- M10 TST-001 through TST-006: seeded property coverage for identifiers, normalization, graphs, serialization, and readiness bounds; explicit DST/Unicode/relationship boundary tests; deterministic fictional target/stress fixtures; and a permanent network-free, no-ambient-clock/randomness test-policy gate. The expanded 61-file/210-test matrix also corrected impossible sales-date rollover.
+
 - M9 PERF-002, PERF-004, PERF-006, and PERF-007: cooperative initial/background catalog hydration with exact partial progress, teardown cancellation, 50 ms path-event coalescing, 50-row Dashboard paging, target/2× streaming fixtures, and a source-coupled p50/p95/heap performance gate.
 
 - M9 MOB-001 through MOB-004: complete mobile surface inventory, labelled card projections for every wide table, safe-area and virtual-keyboard action clearance, background/close cancellation for long in-memory work, and a permanent mobile build gate.
