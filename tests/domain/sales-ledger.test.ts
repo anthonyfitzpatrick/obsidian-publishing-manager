@@ -1,12 +1,32 @@
 /** Proves normalized exact-once keys, overlap boundaries, and exact decimal aggregation. */
 import { describe, expect, it } from 'vitest';
 import {
+  canAcceptSalesPreview,
   normalizeSalesInput,
   periodsOverlap,
   salesKeys,
   sumDecimals
 } from '../../src/domain/sales/sales-ledger';
 describe('sales ledger domain', () => {
+  it('keeps exact duplicates blocked and enables explicitly reviewed overlaps', () => {
+    const preview = {
+      normalized: {} as never,
+      entryKey: 'entry',
+      coverageKey: 'coverage',
+      exactDuplicateIds: [],
+      overlappingIds: ['pm-sales-line-overlap-0001'],
+      warnings: []
+    };
+    expect(canAcceptSalesPreview(preview, false)).toBe(false);
+    expect(canAcceptSalesPreview(preview, true)).toBe(true);
+    expect(
+      canAcceptSalesPreview(
+        { ...preview, exactDuplicateIds: ['pm-sales-line-duplicate-0001'] },
+        true
+      )
+    ).toBe(false);
+  });
+
   it('normalizes country, currency, money, and produces stable keys', () => {
     const value = normalizeSalesInput({
       sourceId: 'source',

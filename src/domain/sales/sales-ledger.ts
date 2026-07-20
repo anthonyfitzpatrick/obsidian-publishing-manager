@@ -36,6 +36,18 @@ export interface SalesPreview {
   readonly warnings: readonly string[];
 }
 
+/**
+ * Keeps the acceptance rule shared by preview rendering and its live acknowledgement handler.
+ * Exact duplicates can never be saved; overlapping coverage becomes eligible only after the user
+ * explicitly confirms that both entries are intended to count.
+ */
+export function canAcceptSalesPreview(preview: SalesPreview, overlapAccepted: boolean): boolean {
+  return (
+    preview.exactDuplicateIds.length === 0 &&
+    (preview.overlappingIds.length === 0 || overlapAccepted)
+  );
+}
+
 export function normalizeSalesInput(
   input: Omit<NormalizedSalesInput, 'country' | 'currency' | 'money'> & {
     country: string;

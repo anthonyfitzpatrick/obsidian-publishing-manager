@@ -6,7 +6,7 @@ The product specification and project backlog in the Publishing Manager Obsidian
 
 ## Current state
 
-Milestones M0 through M8 are complete. M9 Hardening is current at 21/24. Cooperative startup, event coalescing, paging, progress/cancellation, and target/2× benchmark gates are active; production-scale storage and actual-host budgets remain.
+Milestones M0 through M9 are complete. M10 automated, installed functional/lifecycle, target-scale, and direct-sales journeys pass. Stable publication remains gated on recorded physical-offline and assistive-technology/device evidence, final sign-off, and the public GitHub release channel required by Obsidian Community Plugins.
 
 ## Licence boundary
 

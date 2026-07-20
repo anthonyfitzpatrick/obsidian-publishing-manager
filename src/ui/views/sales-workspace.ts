@@ -6,7 +6,7 @@ import type {
   SalesQuery
 } from '../../application/sales/sales-project-service';
 import type { BookCatalogSnapshot } from '../../domain/catalog/catalog-model';
-import type { SalesPreview } from '../../domain/sales/sales-ledger';
+import { canAcceptSalesPreview, type SalesPreview } from '../../domain/sales/sales-ledger';
 
 export interface SalesWorkspaceState {
   sourceId: string;
@@ -354,42 +354,44 @@ function renderEntryForm(
     }
   });
   if (context.state.preview !== undefined) {
+    const reviewedPreview = context.state.preview;
     const review = parent.createEl('section', { cls: 'pm-inline-alert' });
     review.createEl('strong', {
-      text: context.state.preview.exactDuplicateIds.length
+      text: reviewedPreview.exactDuplicateIds.length
         ? 'Exact duplicate — cannot save'
-        : context.state.preview.overlappingIds.length
+        : reviewedPreview.overlappingIds.length
           ? 'Overlapping coverage'
           : 'Ready to record'
     });
     review.createEl('pre', {
       text: JSON.stringify(
         {
-          attribution: context.state.preview.normalized,
-          entryKey: context.state.preview.entryKey,
-          warnings: context.state.preview.warnings
+          attribution: reviewedPreview.normalized,
+          entryKey: reviewedPreview.entryKey,
+          warnings: reviewedPreview.warnings
         },
         null,
         2
       )
     });
-    if (context.state.preview.overlappingIds.length) {
+    let save: HTMLButtonElement;
+    if (reviewedPreview.overlappingIds.length) {
       const label = review.createEl('label');
       const accept = label.createEl('input', { attr: { type: 'checkbox' } });
       accept.checked = context.state.acceptOverlap;
       label.appendText(' I reviewed the overlap and intend both entries to count.');
       accept.addEventListener('change', () => {
         context.state.acceptOverlap = accept.checked;
+        // Acknowledgement does not rerender, so update the existing action immediately.
+        save.disabled = !canAcceptSalesPreview(reviewedPreview, accept.checked);
       });
     }
-    const save = review.createEl('button', {
+    save = review.createEl('button', {
       cls: 'pm-button pm-button--primary',
       text: 'Record accepted sale',
       attr: { type: 'button' }
     });
-    save.disabled =
-      context.state.preview.exactDuplicateIds.length > 0 ||
-      (context.state.preview.overlappingIds.length > 0 && !context.state.acceptOverlap);
+    save.disabled = !canAcceptSalesPreview(reviewedPreview, context.state.acceptOverlap);
     save.addEventListener(
       'click',
       () =>
