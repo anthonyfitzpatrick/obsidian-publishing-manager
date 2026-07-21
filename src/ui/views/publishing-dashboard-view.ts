@@ -581,7 +581,7 @@ function renderPortfolioTable(
   renderProjectCards(section, rows, openBook, coverUrl);
 }
 
-/** Retains the detail table below while making each Project visually identifiable at a glance. */
+/** Renders a fixed desktop Project-card grid so a small portfolio never becomes one stretched row. */
 function renderProjectCards(
   parent: HTMLElement,
   rows: readonly OperationalDashboardModel['portfolio'][number][],
@@ -599,7 +599,6 @@ function renderProjectCards(
     else card.createEl('img', { attr: { src: cover, alt: `${String(row.book.fields.title)} cover art` } });
     const content = card.createDiv({ cls: 'pm-project-dashboard-card__content' });
     content.createEl('h3', { text: String(row.book.fields.title) });
-    content.createEl('small', { text: `${row.editions} publishing item${row.editions === 1 ? '' : 's'} · ${row.stage}` });
     card.addEventListener('click', () => openBook(row.book));
   }
 }

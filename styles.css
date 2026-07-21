@@ -514,7 +514,9 @@
 .pm-project-dashboard-cards {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  /* A fixed desktop three-column grid gives each Project a consistent cover-card footprint,
+     even when only one or two Projects exist in the portfolio. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   margin-block: 16px;
 }
 
@@ -526,6 +528,8 @@
   color: var(--text-normal);
   cursor: pointer;
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: auto;
   min-height: 0;
   overflow: hidden;
   padding: 0;
@@ -536,6 +540,7 @@
 .pm-project-dashboard-card__placeholder {
   aspect-ratio: 5 / 8;
   background: var(--background-secondary);
+  display: block;
   object-fit: cover;
   width: 100%;
 }
@@ -551,8 +556,7 @@
   padding: 12px;
 }
 
-.pm-project-dashboard-card__content h3,
-.pm-project-dashboard-card__content small {
+.pm-project-dashboard-card__content h3 {
   margin: 0;
 }
 
@@ -1276,6 +1280,10 @@
 
 /* Single-column panes keep the same actions/content and replace crowded tabs with a picker. */
 @container (max-width: 800px) {
+  .pm-project-dashboard-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .pm-global-data-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1429,6 +1437,12 @@
 
   .pm-metadata-row {
     grid-template-columns: 1fr;
+  }
+}
+
+@container (max-width: 520px) {
+  .pm-project-dashboard-cards {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
