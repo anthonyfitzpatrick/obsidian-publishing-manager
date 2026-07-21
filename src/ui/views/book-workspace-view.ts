@@ -609,7 +609,10 @@ export class BookWorkspaceView extends ItemView {
     breadcrumb.createSpan({ text: '›' });
     breadcrumb.createSpan({ text: String(record.fields.title) });
 
-    const identity = header.createDiv({ cls: 'pm-workspace-header__identity' });
+    // The title/context column and cover/actions column are separate. This lets the summary
+    // cards use the space beneath the title while a tall KDP cover remains on the right.
+    const headerBody = header.createDiv({ cls: 'pm-workspace-header__body' });
+    const identity = headerBody.createDiv({ cls: 'pm-workspace-header__identity' });
     const titles = identity.createDiv();
     titles.createEl('p', { cls: 'pm-eyebrow', text: this.seriesLabel(record) });
     titles.createEl('h1', { text: String(record.fields.title) });
@@ -620,7 +623,7 @@ export class BookWorkspaceView extends ItemView {
 
     // Keep lifecycle actions and the optional cover together so the cover occupies the calm
     // upper-right Project identity area instead of pushing the editable Overview down the page.
-    const headerSide = identity.createDiv({ cls: 'pm-workspace-header__side' });
+    const headerSide = headerBody.createDiv({ cls: 'pm-workspace-header__side' });
     const commands = headerSide.createDiv({ cls: 'pm-action-row pm-workspace-header__commands' });
     const openNote = commands.createEl('button', {
       cls: 'pm-button pm-button--secondary',
@@ -636,7 +639,7 @@ export class BookWorkspaceView extends ItemView {
     lifecycle.addEventListener('click', () => void this.changeArchiveState(record));
     this.renderHeaderProjectCover(headerSide, record);
 
-    const context = header.createDiv({ cls: 'pm-context-grid' });
+    const context = identity.createDiv({ cls: 'pm-context-grid' });
     const bookEditions = this.catalog.editionsForBook(record.id);
     const selectedEdition = bookEditions.find(({ id }) => id === this.selectedEditionId);
     renderContextItem(

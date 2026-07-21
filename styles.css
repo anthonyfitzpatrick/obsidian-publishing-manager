@@ -689,6 +689,20 @@
   min-height: 44px;
 }
 
+.pm-workspace-header__body {
+  align-items: start;
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+/* The title and its summary cards are one column. Keeping it independent from the cover column
+   prevents the cover height from creating an empty band before the cards. */
+.pm-workspace-header__identity {
+  display: block;
+  min-width: 0;
+}
+
 .pm-context-grid {
   display: grid;
   gap: 10px;
@@ -1293,6 +1307,10 @@
   .pm-workspace-header__side {
     align-items: stretch;
     justify-items: stretch;
+  }
+
+  .pm-workspace-header__body {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .pm-workspace-header__cover {
