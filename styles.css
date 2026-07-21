@@ -464,6 +464,92 @@
   overflow-wrap: anywhere;
 }
 
+/* Project covers are user-owned vault images; the card never copies or uploads them. */
+.pm-project-cover-card {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  margin-block-end: 16px;
+  padding: 16px;
+}
+
+.pm-project-cover-card h2,
+.pm-project-cover-card p {
+  margin: 0;
+}
+
+.pm-project-cover-card img {
+  border-radius: calc(var(--pm-radius) - 3px);
+  max-height: 240px;
+  max-width: min(180px, 35%);
+  object-fit: cover;
+}
+
+.pm-cover-drop-zone {
+  align-items: center;
+  border: 2px dashed var(--pm-panel-border);
+  border-radius: var(--pm-radius);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  min-height: 96px;
+  padding: 16px;
+  text-align: center;
+}
+
+.pm-cover-drop-zone:hover,
+.pm-cover-drop-zone.is-dragging {
+  background: var(--pm-accent-soft);
+  border-color: var(--interactive-accent);
+  color: var(--text-normal);
+}
+
+.pm-project-dashboard-cards {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  margin-block: 16px;
+}
+
+.publishing-manager .pm-project-dashboard-card {
+  align-items: stretch;
+  background: var(--background-primary);
+  border: 1px solid var(--pm-panel-border);
+  border-radius: var(--pm-radius);
+  color: var(--text-normal);
+  cursor: pointer;
+  display: grid;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+  text-align: start;
+}
+
+.pm-project-dashboard-card img,
+.pm-project-dashboard-card__placeholder {
+  aspect-ratio: 5 / 8;
+  background: var(--background-secondary);
+  object-fit: cover;
+  width: 100%;
+}
+
+.pm-project-dashboard-card__placeholder {
+  align-items: center;
+  color: var(--text-muted);
+  display: flex;
+  justify-content: center;
+}
+
+.pm-project-dashboard-card__content {
+  padding: 12px;
+}
+
+.pm-project-dashboard-card__content h3,
+.pm-project-dashboard-card__content small {
+  margin: 0;
+}
+
 .pm-status-chip,
 .pm-dirty-indicator {
   background: var(--pm-soft-background);

@@ -615,7 +615,7 @@ export class BookWorkspaceView extends ItemView {
     titles.createEl('h1', { text: String(record.fields.title) });
     titles.createSpan({
       cls: `pm-status-chip pm-status-chip--${record.archived ? 'archived' : String(record.fields.status)}`,
-      text: record.archived ? '◇ Archived book' : `● ${String(record.fields.status)} book`
+      text: record.archived ? '◇ Archived project' : `● ${String(record.fields.status)} project`
     });
 
     const commands = identity.createDiv({ cls: 'pm-action-row' });
@@ -642,7 +642,7 @@ export class BookWorkspaceView extends ItemView {
         ? selectedEdition.fields['publication-date']
         : '— Not set',
       selectedEdition === undefined
-        ? 'Create an edition to set its publication date.'
+        ? 'Add a publishing item to set its publication date.'
         : 'From the selected edition.'
     );
     const readiness = buildReadinessSummary(this.readinessEvaluation);
@@ -678,7 +678,7 @@ export class BookWorkspaceView extends ItemView {
     edition.createEl('small', {
       text:
         selectedEdition === undefined
-          ? 'Edition management is available in the Editions tab.'
+          ? 'Publishing-item management is available in the Editions tab.'
           : `${String(selectedEdition.fields.medium)} · ${String(selectedEdition.fields.status)}`
     });
   }
@@ -746,9 +746,10 @@ export class BookWorkspaceView extends ItemView {
     const draft = this.drafts.ensure(record);
     const grid = parent.createDiv({ cls: 'pm-overview-grid' });
     const primary = grid.createDiv({ cls: 'pm-overview-primary' });
+    this.renderProjectCover(primary, record);
     const form = primary.createEl('section', { cls: 'pm-panel' });
     const heading = form.createDiv({ cls: 'pm-section-heading' });
-    heading.createDiv().createEl('h2', { text: 'Book overview' });
+    heading.createDiv().createEl('h2', { text: 'Project overview' });
     const dirty = heading.createSpan({
       cls: 'pm-dirty-indicator',
       text: draft.dirty ? '● Unsaved draft' : '✓ Saved',
@@ -774,6 +775,26 @@ export class BookWorkspaceView extends ItemView {
       text: draft.summary,
       attr: { rows: '6', maxlength: '4000' }
     });
+    const cover = createInputField(fields, 'Project cover art vault path', 'text', draft.cover);
+    cover.placeholder = 'Covers/Warden of Silence.jpg';
+    cover.setAttribute('aria-describedby', 'pm-project-cover-help');
+    const coverHelp = fields.createEl('small', {
+      cls: 'pm-field--wide',
+      text: 'Optional local image path. The image remains in your vault and is shown on Project cards.',
+      attr: { id: 'pm-project-cover-help' }
+    });
+    // A real button keeps the picker reachable by keyboard and screen-reader users while the
+    // surrounding drag handlers still support the faster drop workflow for local cover files.
+    const coverDrop = fields.createEl('button', {
+      cls: 'pm-cover-drop-zone pm-field--wide',
+      text: 'Drop cover art here, or click to choose an image',
+      attr: { type: 'button' }
+    });
+    const picker = document.createElement('input');
+    picker.type = 'file';
+    picker.accept = 'image/avif,image/gif,image/jpeg,image/png,image/svg+xml,image/webp';
+    picker.hidden = true;
+    coverDrop.appendChild(picker);
     const validation = form.createDiv({
       cls: 'pm-validation-summary',
       attr: { 'aria-live': 'polite' }
@@ -801,6 +822,41 @@ export class BookWorkspaceView extends ItemView {
     language.addEventListener('input', () => update({ primaryLanguage: language.value }));
     status.addEventListener('change', () => update({ status: status.value as BookStatus }));
     summary.addEventListener('input', () => update({ summary: summary.value }));
+    cover.addEventListener('input', () => update({ cover: cover.value }));
+    const acceptCover = (source: File | TFile) => {
+      void this.optimizeProjectCover(record, source)
+        .then((path) => {
+          cover.value = path;
+          update({ cover: path });
+          new Notice('Optimized Project cover art is ready. Save changes to attach it to this Project.');
+        })
+        .catch((cause: unknown) =>
+          new Notice(cause instanceof Error ? cause.message : 'Could not prepare the Project cover art.')
+        );
+    };
+    picker.addEventListener('change', () => {
+      const selected = picker.files?.[0];
+      if (selected !== undefined) acceptCover(selected);
+    });
+    coverDrop.addEventListener('click', () => picker.click());
+    coverDrop.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      coverDrop.addClass('is-dragging');
+    });
+    coverDrop.addEventListener('dragleave', () => coverDrop.removeClass('is-dragging'));
+    coverDrop.addEventListener('drop', (event) => {
+      event.preventDefault();
+      coverDrop.removeClass('is-dragging');
+      const file = event.dataTransfer?.files[0];
+      if (file !== undefined) {
+        acceptCover(file);
+        return;
+      }
+      const path = event.dataTransfer?.getData('text/plain').trim();
+      const vaultFile = path === undefined ? null : this.app.vault.getAbstractFileByPath(path);
+      if (vaultFile instanceof TFile) acceptCover(vaultFile);
+      else new Notice('Drop a local image file or choose one from your device.');
+    });
     renderDraftValidation(validation, draft);
     save.toggleAttribute('disabled', !draft.dirty || draft.diagnostics.length > 0);
     discard.toggleAttribute('disabled', !draft.dirty);
@@ -821,25 +877,75 @@ export class BookWorkspaceView extends ItemView {
     renderBookActivity(aside, record, snapshot);
   }
 
+  /** Displays only a user-owned local cover file; a missing path remains an actionable empty card. */
+  private renderProjectCover(parent: HTMLElement, record: CatalogRecord): void {
+    const card = parent.createEl('section', { cls: 'pm-project-cover-card' });
+    card.createEl('h2', { text: 'Project cover art' });
+    const path = record.fields.cover;
+    const file = typeof path === 'string' ? this.app.vault.getAbstractFileByPath(path) : null;
+    if (!(file instanceof TFile) || !/\.(avif|gif|jpe?g|png|svg|webp)$/iu.test(file.extension)) {
+      card.createEl('p', {
+        cls: 'pm-muted',
+        text: 'No project cover art selected. Add a local image path in Project overview.'
+      });
+      return;
+    }
+    card.createEl('img', {
+      attr: { src: this.app.vault.getResourcePath(file), alt: `${String(record.fields.title)} cover art` }
+    });
+  }
+
+  /** Creates a bounded dashboard derivative; original source images stay untouched in the vault. */
+  private async optimizeProjectCover(record: CatalogRecord, source: File | TFile): Promise<string> {
+    const type = source instanceof File ? source.type : mimeTypeForCover(source.extension);
+    if (!type.startsWith('image/')) throw new Error('Choose an AVIF, GIF, JPEG, PNG, SVG, or WebP image.');
+    const bytes = source instanceof File ? await source.arrayBuffer() : await this.app.vault.readBinary(source);
+    const bitmap = await createImageBitmap(new Blob([bytes], { type }));
+    // KDP ebook covers use a 1:1.6 frame. A 480×768 ceiling preserves twice the typical card
+    // density while avoiding full-resolution cover files in every Dashboard render.
+    const scale = Math.min(1, 480 / bitmap.width, 768 / bitmap.height);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext('2d');
+    if (context === null) throw new Error('This device could not prepare the cover image.');
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const optimized = await new Promise<Blob>((resolve, reject) =>
+      canvas.toBlob(
+        (blob) => (blob === null ? reject(new Error('Could not encode the cover image.')) : resolve(blob)),
+        'image/webp',
+        0.78
+      )
+    );
+    const folder = `${record.path.slice(0, record.path.lastIndexOf('/'))}/Covers`;
+    if (this.app.vault.getAbstractFileByPath(folder) === null) await this.app.vault.createFolder(folder);
+    const target = `${folder}/${record.id}.webp`;
+    const existing = this.app.vault.getAbstractFileByPath(target);
+    if (existing instanceof TFile) await this.app.vault.modifyBinary(existing, await optimized.arrayBuffer());
+    else await this.app.vault.createBinary(target, await optimized.arrayBuffer());
+    return target;
+  }
+
   /** Renders EDN-009 accessible master/detail edition management with mobile-safe cards. */
   private renderEditions(parent: HTMLElement, book: CatalogRecord): void {
     const bookEditions = this.catalog.editionsForBook(book.id);
     const heading = parent.createDiv({ cls: 'pm-section-heading' });
     const title = heading.createDiv();
-    title.createEl('p', { cls: 'pm-eyebrow', text: 'Editions and formats' });
-    title.createEl('h2', { text: 'Edition workspace' });
+    title.createEl('p', { cls: 'pm-eyebrow', text: 'Publishing items and formats' });
+    title.createEl('h2', { text: 'Publishing items' });
     title.createEl('p', {
-      text: 'Manage stable edition identities, format-specific production details, revisions, comparisons, and archival.'
+      text: 'Add unlimited paperback, hardcover, ebook, audiobook, screenplay, or custom publishing items. Each item and revision has its own publishing evidence and ISBN assignment.'
     });
     const add = heading.createEl('button', {
       cls: 'pm-button pm-button--primary',
-      text: 'Add edition',
+      text: 'Add publishing item',
       attr: { type: 'button' }
     });
     add.addEventListener('click', () => {
       new EditionEditorModal(this.app, this.editions, book.id, undefined, (editionId) => {
         this.selectedEditionId = editionId;
-        new Notice('Edition created.');
+        new Notice('Publishing item created.');
       }).open();
     });
 
@@ -847,9 +953,9 @@ export class BookWorkspaceView extends ItemView {
       const empty = parent.createDiv({ cls: 'pm-empty-state' });
       const icon = empty.createDiv({ cls: 'pm-empty-state__icon' });
       setIcon(icon, 'layers');
-      empty.createEl('h3', { text: 'No editions yet' });
+      empty.createEl('h3', { text: 'No publishing items yet' });
       empty.createEl('p', {
-        text: 'Add a paperback, hardcover, ebook, audiobook, large-print, special, collector, box-set, or custom edition.'
+        text: 'Add a paperback, hardcover, ebook, audiobook, screenplay, large-print, special, collector, box-set, or custom publishing item.'
       });
       return;
     }
@@ -860,9 +966,9 @@ export class BookWorkspaceView extends ItemView {
     const layout = parent.createDiv({ cls: 'pm-editions-layout' });
     const master = layout.createEl('nav', {
       cls: 'pm-edition-master pm-panel',
-      attr: { 'aria-label': 'Book editions' }
+      attr: { 'aria-label': 'Project publishing items' }
     });
-    master.createEl('h3', { text: `Editions · ${bookEditions.length}` });
+    master.createEl('h3', { text: `Publishing items · ${bookEditions.length}` });
     const list = master.createEl('ul', { cls: 'pm-edition-list' });
     for (const edition of bookEditions) {
       const item = list.createEl('li');
@@ -1201,7 +1307,7 @@ export class BookWorkspaceView extends ItemView {
   /** Resolves the human series label without making the title a relationship key. */
   private seriesLabel(record: CatalogRecord): string {
     const seriesId = record.fields['series-id'];
-    if (typeof seriesId !== 'string') return 'Standalone book';
+    if (typeof seriesId !== 'string') return 'Standalone project';
     const series = this.catalog.recordById(seriesId);
     if (typeof series?.fields.name !== 'string') return 'Series link requires repair';
     const position = record.fields['series-position'];
@@ -1391,6 +1497,18 @@ function assetRoleLabel(value: string): string {
 }
 
 /** Human label retains stable revision and archive context without using a filename as identity. */
+/** Supplies a trusted image MIME hint when an existing vault file is dropped onto the cover zone. */
+function mimeTypeForCover(extension: string): string {
+  const normalized = extension.toLowerCase();
+  if (normalized === 'avif') return 'image/avif';
+  if (normalized === 'gif') return 'image/gif';
+  if (normalized === 'jpg' || normalized === 'jpeg') return 'image/jpeg';
+  if (normalized === 'png') return 'image/png';
+  if (normalized === 'svg') return 'image/svg+xml';
+  if (normalized === 'webp') return 'image/webp';
+  return 'application/octet-stream';
+}
+
 function editionRecordLabel(record: CatalogRecord): string {
   const type = record.fields.type as EditionType;
   const customType = record.fields['custom-type'];

@@ -32,6 +32,8 @@ export interface BookProjectFields {
   readonly primaryLanguage: string;
   readonly status: BookStatus;
   readonly summary?: string;
+  /** Optional user-owned vault image path used as the Project's visual cover. */
+  readonly cover?: string;
   readonly seriesId?: string;
   readonly seriesPosition?: number;
 }
@@ -69,6 +71,7 @@ export function validateBookProject(
   const summary = fields.summary;
   const seriesId = fields['series-id'];
   const seriesPosition = fields['series-position'];
+  const cover = fields.cover;
 
   if (typeof title !== 'string' || title.trim().length === 0) {
     diagnostics.push({
@@ -105,6 +108,14 @@ export function validateBookProject(
       code: 'book.summary-too-long',
       field: 'summary',
       message: 'Book summary must be text no longer than 4,000 characters.'
+    });
+  }
+
+  if (cover !== undefined && (typeof cover !== 'string' || cover.trim().length === 0)) {
+    diagnostics.push({
+      code: 'book.summary-too-long',
+      field: 'cover',
+      message: 'Cover image path must be a non-empty vault path.'
     });
   }
 
@@ -149,6 +160,7 @@ export function hydrateBookProject(record: BookRecordSnapshot): BookProject {
   const summary = record.fields.summary;
   const seriesId = record.fields['series-id'];
   const seriesPosition = record.fields['series-position'];
+  const cover = record.fields.cover;
   return {
     id: record.envelope.pmId,
     title,
@@ -158,6 +170,7 @@ export function hydrateBookProject(record: BookRecordSnapshot): BookProject {
     updatedAt: record.envelope.updatedAt,
     ...(record.envelope.archivedAt === undefined ? {} : { archivedAt: record.envelope.archivedAt }),
     ...(typeof summary === 'string' ? { summary } : {}),
+    ...(typeof cover === 'string' ? { cover } : {}),
     ...(typeof seriesId === 'string' ? { seriesId } : {}),
     ...(typeof seriesPosition === 'number' ? { seriesPosition } : {})
   };

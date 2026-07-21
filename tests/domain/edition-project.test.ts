@@ -33,6 +33,7 @@ describe('edition project domain', () => {
       'hardcover',
       'ebook',
       'audiobook',
+      'screenplay',
       'large-print',
       'special-edition',
       'collector-edition',
@@ -41,6 +42,7 @@ describe('edition project domain', () => {
     ]);
     expect(defaultMediumFor('paperback')).toBe('print');
     expect(defaultMediumFor('ebook')).toBe('digital');
+    expect(defaultMediumFor('screenplay')).toBe('digital');
     expect(defaultMediumFor('audiobook')).toBe('audio');
     expect(defaultMediumFor('box-set')).toBe('mixed');
     expect(defaultMediumFor('custom')).toBeUndefined();

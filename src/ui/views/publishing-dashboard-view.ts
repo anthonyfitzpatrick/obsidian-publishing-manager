@@ -126,7 +126,7 @@ export class PublishingDashboardView extends ItemView {
     headingGroup.createEl('h1', { text: 'Publishing manager' });
     headingGroup.createEl('p', {
       cls: 'pm-page-subtitle',
-      text: 'Local, inspectable book projects in this vault.'
+      text: 'Local, inspectable publishing projects in this vault.'
     });
     const actions = header.createDiv({ cls: 'pm-action-row' });
     const refresh = actions.createEl('button', {
@@ -157,28 +157,20 @@ export class PublishingDashboardView extends ItemView {
     );
     const create = actions.createEl('button', {
       cls: 'pm-button pm-button--primary',
-      text: 'New book project',
+      text: 'New project',
       attr: { type: 'button' }
     });
     const createIcon = create.createSpan({ cls: 'pm-button__icon' });
     setIcon(createIcon, 'plus');
     create.addEventListener('click', this.createBook);
 
-    renderPublishingWorkspaces(root, model.kind === 'empty', this.createBook, this.tools);
-
-    renderStateBanner(
-      root,
-      operations.partial ? 'partial' : model.kind,
-      operations.partial ? 'Operational dashboard is partial' : model.heading,
-      operations.partial ? operations.partialExplanation : model.explanation
-    );
     renderOperationalCards(root, operations);
 
     if (model.kind === 'empty') {
       const empty = root.createDiv({ cls: 'pm-empty-state' });
       const icon = empty.createDiv({ cls: 'pm-empty-state__icon' });
       setIcon(icon, 'book-open');
-      empty.createEl('h2', { text: 'No book projects yet' });
+      empty.createEl('h2', { text: 'No publishing projects yet' });
       empty.createEl('p', {
         text: 'Create the first stable book record to begin publishing work.'
       });
@@ -191,74 +183,26 @@ export class PublishingDashboardView extends ItemView {
       return;
     }
 
-    renderDashboardControls(root, this.filters, this.columns, this.savedViews, {
-      update: (filters, columns) => {
-        this.filters = filters;
-        this.columns = columns;
-        this.portfolioPage = 0;
-        if (this.snapshot !== undefined) this.render(this.snapshot);
-      },
-      save: (name) => void this.saveCurrentView(name),
-      apply: (view) => {
-        this.filters = { ...view.filters };
-        this.columns = [...view.columns];
-        this.portfolioPage = 0;
-        if (this.snapshot !== undefined) this.render(this.snapshot);
-      }
-    });
-    const layout = root.createDiv({ cls: 'pm-dashboard-grid' });
-    const primary = layout.createEl('main', { cls: 'pm-dashboard-main' });
     renderPortfolioTable(
-      primary,
+      root,
       operations,
-      this.columns,
       this.portfolioPage,
       (page) => {
         this.portfolioPage = page;
         if (this.snapshot !== undefined) this.render(this.snapshot);
       },
-      (record) => void this.openBook(record)
+      (record) => void this.openBook(record),
+      (record) => this.projectCoverUrl(record)
     );
-    renderTimeline(primary, operations, (bookId) => this.openBookById(bookId));
-    renderWorkload(primary, operations);
-    renderSalesWorkspace({
-      parent: primary,
-      sales: this.sales,
-      snapshot,
-      state: this.salesState,
-      rerender: () => {
-        if (this.snapshot !== undefined) this.render(this.snapshot);
-      }
-    });
-    renderCalendarWorkspace({
-      parent: primary,
-      calendar: this.calendar,
-      snapshot,
-      state: this.calendarState,
-      visibleBookIds: new Set(operations.portfolio.map(({ book }) => book.id)),
-      openRecord: (record) => void this.openRecord(record),
-      rerender: () => {
-        if (this.snapshot !== undefined) this.render(this.snapshot);
-      }
-    });
-    const aside = layout.createEl('aside', {
-      cls: 'pm-dashboard-aside',
-      attr: { 'aria-label': 'Catalog attention and recent activity' }
-    });
-    renderAttention(aside, operations, (item) => {
-      if (item.record !== undefined) void this.openRecord(item.record);
-      else if (item.bookId !== undefined)
-        this.openBookById(
-          item.bookId,
-          item.kind === 'readiness' ? 'readiness' : item.kind === 'launch' ? 'launch' : 'overview'
-        );
-    });
-    renderDiagnostics(
-      aside,
-      model.diagnostics,
-      (diagnostic) => void this.openDiagnostic(diagnostic)
-    );
-    renderActivity(aside, snapshot);
+  }
+
+  /** Resolves only a local user-selected image, never a remote cover URL or copied asset. */
+  private projectCoverUrl(record: CatalogRecord): string | undefined {
+    const path = record.fields.cover;
+    const file = typeof path === 'string' ? this.app.vault.getAbstractFileByPath(path) : null;
+    if (!(file instanceof TFile) || !/\.(avif|gif|jpe?g|png|svg|webp)$/iu.test(file.extension))
+      return undefined;
+    return this.app.vault.getResourcePath(file);
   }
 
   private async refreshReadiness(snapshot: BookCatalogSnapshot): Promise<void> {
@@ -464,7 +408,7 @@ function renderOperationalCards(root: HTMLElement, model: OperationalDashboardMo
   });
   for (const card of [
     {
-      label: 'Active books',
+      label: 'Active projects',
       value: model.activeBooks,
       detail: 'Inspect in portfolio',
       target: 'pm-dashboard-portfolio'
@@ -593,10 +537,10 @@ function renderDashboardControls(
 function renderPortfolioTable(
   parent: HTMLElement,
   model: OperationalDashboardModel,
-  columns: readonly string[],
   requestedPage: number,
   changePage: (page: number) => void,
-  openBook: (record: CatalogRecord) => void
+  openBook: (record: CatalogRecord) => void,
+  coverUrl: (record: CatalogRecord) => string | undefined
 ): void {
   const pageSize = 50;
   const pageCount = Math.max(1, Math.ceil(model.portfolio.length / pageSize));
@@ -607,8 +551,8 @@ function renderPortfolioTable(
     attr: { id: 'pm-dashboard-portfolio', tabindex: '-1' }
   });
   const heading = section.createDiv({ cls: 'pm-section-heading' });
-  heading.createDiv().createEl('h2', { text: 'Book portfolio' });
-  heading.createSpan({ cls: 'pm-count-badge', text: `${model.portfolio.length} books` });
+  heading.createDiv().createEl('h2', { text: 'Project portfolio' });
+  heading.createSpan({ cls: 'pm-count-badge', text: `${model.portfolio.length} projects` });
   if (model.portfolio.length > pageSize) {
     const paging = section.createDiv({
       cls: 'pm-action-row',
@@ -633,31 +577,29 @@ function renderPortfolioTable(
     next.disabled = page + 1 >= pageCount;
     next.addEventListener('click', () => changePage(page + 1));
   }
-  const table = section.createEl('table', { cls: 'pm-dashboard-table pm-mobile-table' });
-  const head = table.createEl('thead').createEl('tr');
-  for (const column of columns) head.createEl('th', { text: column, attr: { scope: 'col' } });
-  const body = table.createEl('tbody');
+  renderProjectCards(section, rows, openBook, coverUrl);
+}
+
+/** Retains the detail table below while making each Project visually identifiable at a glance. */
+function renderProjectCards(
+  parent: HTMLElement,
+  rows: readonly OperationalDashboardModel['portfolio'][number][],
+  openBook: (record: CatalogRecord) => void,
+  coverUrl: (record: CatalogRecord) => string | undefined
+): void {
+  const cards = parent.createDiv({ cls: 'pm-project-dashboard-cards', attr: { 'aria-label': 'Projects' } });
   for (const row of rows) {
-    const tr = body.createEl('tr');
-    for (const column of columns) {
-      const cell = tr.createEl('td', { attr: { 'data-label': dashboardColumnLabel(column) } });
-      if (column === 'book') {
-        const open = cell.createEl('button', {
-          cls: 'pm-text-button',
-          text: String(row.book.fields.title),
-          attr: { type: 'button' }
-        });
-        open.addEventListener('click', () => openBook(row.book));
-      } else if (column === 'editions') cell.setText(String(row.editions));
-      else if (column === 'stage') cell.setText(row.stage);
-      else if (column === 'score')
-        cell.setText(
-          row.score === null ? '—' : `${row.score}% · confidence ${row.confidence ?? '—'}%`
-        );
-      else if (column === 'deadline') cell.setText(row.nextDeadline ?? '—');
-      else if (column === 'stale-assets') cell.setText(String(row.staleAssets));
-      else if (column === 'platform-state') cell.setText(row.platformState);
-    }
+    const card = cards.createEl('button', {
+      cls: 'pm-project-dashboard-card',
+      attr: { type: 'button' }
+    });
+    const cover = coverUrl(row.book);
+    if (cover === undefined) card.createDiv({ cls: 'pm-project-dashboard-card__placeholder', text: 'No cover' });
+    else card.createEl('img', { attr: { src: cover, alt: `${String(row.book.fields.title)} cover art` } });
+    const content = card.createDiv({ cls: 'pm-project-dashboard-card__content' });
+    content.createEl('h3', { text: String(row.book.fields.title) });
+    content.createEl('small', { text: `${row.editions} publishing item${row.editions === 1 ? '' : 's'} · ${row.stage}` });
+    card.addEventListener('click', () => openBook(row.book));
   }
 }
 

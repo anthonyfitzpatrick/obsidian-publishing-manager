@@ -14,6 +14,7 @@ export const EDITION_TYPES = [
   'hardcover',
   'ebook',
   'audiobook',
+  'screenplay',
   'large-print',
   'special-edition',
   'collector-edition',
@@ -145,6 +146,7 @@ export function defaultMediumFor(type: EditionType): EditionMedium | undefined {
     case 'collector-edition':
       return 'print';
     case 'ebook':
+    case 'screenplay':
       return 'digital';
     case 'audiobook':
       return 'audio';

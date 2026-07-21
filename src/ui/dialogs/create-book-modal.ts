@@ -10,7 +10,7 @@ import { Modal, Notice, Setting, type App } from 'obsidian';
 import type { BookProjectService } from '../../application/books/book-project-service';
 import { BOOK_STATUSES, type BookStatus } from '../../domain/books/book-project';
 
-/** Focused create dialog launched from the command palette. */
+/** Focused master-Project creation dialog launched from the command palette. */
 export class CreateBookModal extends Modal {
   /** Receives the application lifecycle service; the modal never accesses Vault directly. */
   public constructor(
@@ -22,7 +22,7 @@ export class CreateBookModal extends Modal {
 
   /** Builds labelled controls and keeps all draft state scoped to this modal instance. */
   public override onOpen(): void {
-    this.setTitle('Create book project');
+    this.setTitle('Create publishing project');
     let title = '';
     let primaryLanguage = 'en';
     let status: BookStatus = 'planned';
@@ -33,14 +33,14 @@ export class CreateBookModal extends Modal {
     });
 
     new Setting(this.contentEl)
-      .setName('Title')
+      .setName('Project title')
       .setDesc('Required stable project title.')
       .addText((text) => {
-        text.setPlaceholder('Book title').onChange((value) => {
+        text.setPlaceholder('Project title').onChange((value) => {
           title = value;
           error.empty();
         });
-        text.inputEl.setAttr('aria-label', 'Book title');
+        text.inputEl.setAttr('aria-label', 'Project title');
         window.setTimeout(() => text.inputEl.focus(), 0);
       });
 
@@ -78,7 +78,7 @@ export class CreateBookModal extends Modal {
 
     new Setting(this.contentEl).addButton((button) => {
       button
-        .setButtonText('Create book')
+        .setButtonText('Create project')
         .setCta()
         .onClick(() => {
           button.setDisabled(true);
@@ -111,10 +111,10 @@ export class CreateBookModal extends Modal {
         status: draft.status,
         ...(draft.summary.length === 0 ? {} : { summary: draft.summary })
       });
-      new Notice(`Created book project “${result.book.title}”.`);
+      new Notice(`Created publishing project “${result.book.title}”.`);
       this.close();
     } catch (cause) {
-      error.setText(cause instanceof Error ? cause.message : 'Book project could not be created.');
+      error.setText(cause instanceof Error ? cause.message : 'Publishing project could not be created.');
       error.focus();
     }
   }

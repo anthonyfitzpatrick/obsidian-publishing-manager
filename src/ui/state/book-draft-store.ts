@@ -18,6 +18,7 @@ export interface BookOverviewDraft {
   readonly primaryLanguage: string;
   readonly status: BookStatus;
   readonly summary: string;
+  readonly cover: string;
   readonly dirty: boolean;
   readonly diagnostics: readonly { readonly field: string; readonly message: string }[];
 }
@@ -34,6 +35,7 @@ interface DraftValues {
   primaryLanguage: string;
   status: BookStatus;
   summary: string;
+  cover: string;
 }
 
 /** Runtime draft registry shared by all Book Workspace view instances. */
@@ -94,7 +96,8 @@ export class BookDraftStore {
       title: draft.title,
       primaryLanguage: draft.primaryLanguage,
       status: draft.status,
-      summary: draft.summary.length === 0 ? undefined : draft.summary
+      summary: draft.summary.length === 0 ? undefined : draft.summary,
+      cover: draft.cover.length === 0 ? undefined : draft.cover
     };
   }
 
@@ -130,7 +133,8 @@ function valuesFromRecord(record: CatalogRecord): DraftValues {
     title: record.fields.title as string,
     primaryLanguage: record.fields['primary-language'] as string,
     status: record.fields.status as BookStatus,
-    summary: typeof record.fields.summary === 'string' ? record.fields.summary : ''
+    summary: typeof record.fields.summary === 'string' ? record.fields.summary : '',
+    cover: typeof record.fields.cover === 'string' ? record.fields.cover : ''
   };
 }
 
@@ -140,7 +144,8 @@ function toPublicDraft(stored: StoredDraft): BookOverviewDraft {
     title: stored.values.title,
     'primary-language': stored.values.primaryLanguage,
     status: stored.values.status,
-    ...(stored.values.summary.length === 0 ? {} : { summary: stored.values.summary })
+    ...(stored.values.summary.length === 0 ? {} : { summary: stored.values.summary }),
+    ...(stored.values.cover.length === 0 ? {} : { cover: stored.values.cover })
   };
   return {
     path: stored.path,

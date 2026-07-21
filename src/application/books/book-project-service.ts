@@ -25,6 +25,7 @@ export interface CreateBookProjectInput {
   readonly primaryLanguage: string;
   readonly status: BookStatus;
   readonly summary?: string;
+  readonly cover?: string;
 }
 
 /** Explicit partial edit; omitted values remain unchanged and summary `undefined` deletes it. */
@@ -33,6 +34,7 @@ export interface EditBookProjectInput {
   readonly primaryLanguage?: string;
   readonly status?: BookStatus;
   readonly summary?: string | undefined;
+  readonly cover?: string | undefined;
 }
 
 /** Persisted book result includes the current path required for navigation. */
@@ -106,6 +108,7 @@ export class BookProjectService {
     if (patch.primaryLanguage !== undefined) nextFields['primary-language'] = patch.primaryLanguage;
     if (patch.status !== undefined) nextFields.status = patch.status;
     if ('summary' in patch) nextFields.summary = patch.summary;
+    if ('cover' in patch) nextFields.cover = patch.cover;
     assertValidBook(nextFields);
     const saved = await this.repository.save(
       loaded,
@@ -116,7 +119,8 @@ export class BookProjectService {
             ? {}
             : { 'primary-language': patch.primaryLanguage }),
           ...(patch.status === undefined ? {} : { status: patch.status }),
-          ...('summary' in patch ? { summary: patch.summary } : {})
+          ...('summary' in patch ? { summary: patch.summary } : {}),
+          ...('cover' in patch ? { cover: patch.cover } : {})
         }
       },
       this.clock.now().toISOString()
@@ -215,7 +219,8 @@ function toStorageFields(input: CreateBookProjectInput): Readonly<Record<string,
     title: input.title,
     'primary-language': input.primaryLanguage,
     status: input.status,
-    ...(input.summary === undefined ? {} : { summary: input.summary })
+    ...(input.summary === undefined ? {} : { summary: input.summary }),
+    ...(input.cover === undefined ? {} : { cover: input.cover })
   };
 }
 

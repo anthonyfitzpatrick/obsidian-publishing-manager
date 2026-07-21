@@ -33,7 +33,7 @@ interface ConditionalControls {
   readonly audioMetadata?: HTMLTextAreaElement;
 }
 
-/** Native modal used by the Editions master/detail actions. */
+/** Native modal used by the Project publishing-item master/detail actions. */
 export class EditionEditorModal extends Modal {
   public constructor(
     app: App,
@@ -47,13 +47,13 @@ export class EditionEditorModal extends Modal {
 
   /** Builds one labelled form and focuses the first editable field. */
   public override onOpen(): void {
-    this.setTitle(this.existing === undefined ? 'Add edition' : 'Edit edition');
+    this.setTitle(this.existing === undefined ? 'Add publishing item' : 'Edit publishing item');
     const content = this.contentEl;
     content.addClass('publishing-manager', 'pm-edition-modal');
     const form = content.createEl('form', { cls: 'pm-form-grid' });
     const type = createSelect(
       form,
-      'Edition type',
+      'Publishing item type',
       EDITION_TYPES,
       currentString(this.existing, 'type', 'paperback')
     );
@@ -93,7 +93,7 @@ export class EditionEditorModal extends Modal {
     );
     const notes = createArea(
       form,
-      'Edition notes',
+      'Publishing item notes',
       currentString(this.existing, 'notes'),
       'Up to 8,000 characters.'
     );
@@ -115,7 +115,7 @@ export class EditionEditorModal extends Modal {
     });
     const save = actions.createEl('button', {
       cls: 'pm-button pm-button--primary',
-      text: this.existing === undefined ? 'Create edition' : 'Save edition',
+      text: this.existing === undefined ? 'Create publishing item' : 'Save publishing item',
       attr: { type: 'submit' }
     });
 

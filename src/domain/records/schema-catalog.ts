@@ -63,7 +63,8 @@ export const RECORD_SCHEMAS = {
     'primary-language': constrainedString(true, { format: 'token', maximumBytes: 40 }),
     'series-id': relation('series', false),
     'series-position': { kind: 'integer', required: false },
-    summary: optionalString()
+    summary: optionalString(),
+    cover: constrainedString(false, { format: 'vault-path', maximumBytes: 1_024 })
   }),
   edition: schema('edition', {
     'book-id': relation('book', true),
@@ -73,6 +74,7 @@ export const RECORD_SCHEMAS = {
         'hardcover',
         'ebook',
         'audiobook',
+        'screenplay',
         'large-print',
         'special-edition',
         'collector-edition',
