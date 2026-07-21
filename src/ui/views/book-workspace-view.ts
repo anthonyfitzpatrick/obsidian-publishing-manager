@@ -883,7 +883,9 @@ export class BookWorkspaceView extends ItemView {
     card.createEl('h2', { text: 'Project cover art' });
     const path = record.fields.cover;
     const file = typeof path === 'string' ? this.app.vault.getAbstractFileByPath(path) : null;
-    if (!(file instanceof TFile) || !/\.(avif|gif|jpe?g|png|svg|webp)$/iu.test(file.extension)) {
+    // Obsidian's TFile.extension is the suffix without its leading period (for example, "webp").
+    // Check that normalized value so a valid local cover is not mistaken for a missing attachment.
+    if (!(file instanceof TFile) || !/^(avif|gif|jpe?g|png|svg|webp)$/iu.test(file.extension)) {
       card.createEl('p', {
         cls: 'pm-muted',
         text: 'No project cover art selected. Add a local image path in Project overview.'

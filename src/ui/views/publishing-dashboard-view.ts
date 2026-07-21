@@ -200,7 +200,8 @@ export class PublishingDashboardView extends ItemView {
   private projectCoverUrl(record: CatalogRecord): string | undefined {
     const path = record.fields.cover;
     const file = typeof path === 'string' ? this.app.vault.getAbstractFileByPath(path) : null;
-    if (!(file instanceof TFile) || !/\.(avif|gif|jpe?g|png|svg|webp)$/iu.test(file.extension))
+    // TFile exposes "webp", not ".webp", so this must validate the extension without a period.
+    if (!(file instanceof TFile) || !/^(avif|gif|jpe?g|png|svg|webp)$/iu.test(file.extension))
       return undefined;
     return this.app.vault.getResourcePath(file);
   }
