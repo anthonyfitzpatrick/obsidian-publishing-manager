@@ -7,6 +7,8 @@
   --pm-panel-border: var(--background-modifier-border);
   --pm-soft-background: var(--background-secondary);
   --pm-accent-soft: color-mix(in srgb, var(--interactive-accent) 14%, transparent);
+  /* One KDP ebook frame is shared by the Project header cover and every Dashboard card. */
+  --pm-project-cover-ratio: 5 / 8;
   color: var(--text-normal);
   box-sizing: border-box;
   container-type: inline-size;
@@ -484,7 +486,7 @@
 }
 
 .pm-workspace-header__cover img {
-  aspect-ratio: 5 / 8;
+  aspect-ratio: var(--pm-project-cover-ratio);
   border-radius: calc(var(--pm-radius) - 3px);
   box-shadow: var(--shadow-s);
   object-fit: cover;
@@ -538,7 +540,7 @@
 
 .pm-project-dashboard-card img,
 .pm-project-dashboard-card__placeholder {
-  aspect-ratio: 5 / 8;
+  aspect-ratio: var(--pm-project-cover-ratio);
   background: var(--background-secondary);
   display: block;
   object-fit: cover;
