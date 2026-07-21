@@ -618,7 +618,10 @@ export class BookWorkspaceView extends ItemView {
       text: record.archived ? '◇ Archived project' : `● ${String(record.fields.status)} project`
     });
 
-    const commands = identity.createDiv({ cls: 'pm-action-row' });
+    // Keep lifecycle actions and the optional cover together so the cover occupies the calm
+    // upper-right Project identity area instead of pushing the editable Overview down the page.
+    const headerSide = identity.createDiv({ cls: 'pm-workspace-header__side' });
+    const commands = headerSide.createDiv({ cls: 'pm-action-row pm-workspace-header__commands' });
     const openNote = commands.createEl('button', {
       cls: 'pm-button pm-button--secondary',
       text: 'Open Markdown',
@@ -631,6 +634,7 @@ export class BookWorkspaceView extends ItemView {
       attr: { type: 'button' }
     });
     lifecycle.addEventListener('click', () => void this.changeArchiveState(record));
+    this.renderHeaderProjectCover(headerSide, record);
 
     const context = header.createDiv({ cls: 'pm-context-grid' });
     const bookEditions = this.catalog.editionsForBook(record.id);
@@ -746,7 +750,6 @@ export class BookWorkspaceView extends ItemView {
     const draft = this.drafts.ensure(record);
     const grid = parent.createDiv({ cls: 'pm-overview-grid' });
     const primary = grid.createDiv({ cls: 'pm-overview-primary' });
-    this.renderProjectCover(primary, record);
     const form = primary.createEl('section', { cls: 'pm-panel' });
     const heading = form.createDiv({ cls: 'pm-section-heading' });
     heading.createDiv().createEl('h2', { text: 'Project overview' });
@@ -877,22 +880,15 @@ export class BookWorkspaceView extends ItemView {
     renderBookActivity(aside, record, snapshot);
   }
 
-  /** Displays only a user-owned local cover file; a missing path remains an actionable empty card. */
-  private renderProjectCover(parent: HTMLElement, record: CatalogRecord): void {
-    const card = parent.createEl('section', { cls: 'pm-project-cover-card' });
-    card.createEl('h2', { text: 'Project cover art' });
+  /** Places a local cover below the lifecycle actions, leaving the Overview focused on editing. */
+  private renderHeaderProjectCover(parent: HTMLElement, record: CatalogRecord): void {
     const path = record.fields.cover;
     const file = typeof path === 'string' ? this.app.vault.getAbstractFileByPath(path) : null;
     // Obsidian's TFile.extension is the suffix without its leading period (for example, "webp").
     // Check that normalized value so a valid local cover is not mistaken for a missing attachment.
-    if (!(file instanceof TFile) || !/^(avif|gif|jpe?g|png|svg|webp)$/iu.test(file.extension)) {
-      card.createEl('p', {
-        cls: 'pm-muted',
-        text: 'No project cover art selected. Add a local image path in Project overview.'
-      });
-      return;
-    }
-    card.createEl('img', {
+    if (!(file instanceof TFile) || !/^(avif|gif|jpe?g|png|svg|webp)$/iu.test(file.extension)) return;
+    const cover = parent.createDiv({ cls: 'pm-workspace-header__cover' });
+    cover.createEl('img', {
       attr: { src: this.app.vault.getResourcePath(file), alt: `${String(record.fields.title)} cover art` }
     });
   }

@@ -465,24 +465,30 @@
 }
 
 /* Project covers are user-owned vault images; the card never copies or uploads them. */
-.pm-project-cover-card {
-  align-items: center;
-  display: flex;
-  gap: 16px;
-  margin-block-end: 16px;
-  padding: 16px;
+/* The Project cover belongs to the persistent identity area: beneath the lifecycle actions and
+   alongside the title, rather than taking vertical space away from the editable Overview. */
+.pm-workspace-header__side {
+  align-items: flex-end;
+  display: grid;
+  gap: 12px;
+  justify-items: end;
 }
 
-.pm-project-cover-card h2,
-.pm-project-cover-card p {
-  margin: 0;
+.pm-workspace-header__commands {
+  justify-content: flex-end;
 }
 
-.pm-project-cover-card img {
+.pm-workspace-header__cover {
+  line-height: 0;
+  width: clamp(112px, 12vw, 168px);
+}
+
+.pm-workspace-header__cover img {
+  aspect-ratio: 5 / 8;
   border-radius: calc(var(--pm-radius) - 3px);
-  max-height: 240px;
-  max-width: min(180px, 35%);
+  box-shadow: var(--shadow-s);
   object-fit: cover;
+  width: 100%;
 }
 
 .pm-cover-drop-zone {
@@ -1282,6 +1288,16 @@
 
   .pm-action-row .pm-button {
     flex: 1 1 150px;
+  }
+
+  .pm-workspace-header__side {
+    align-items: stretch;
+    justify-items: stretch;
+  }
+
+  .pm-workspace-header__cover {
+    align-self: end;
+    width: min(168px, 45vw);
   }
 
   .pm-pagination {
