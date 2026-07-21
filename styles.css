@@ -516,9 +516,10 @@
 .pm-project-dashboard-cards {
   display: grid;
   gap: 12px;
-  /* A fixed desktop three-column grid gives each Project a consistent cover-card footprint,
-     even when only one or two Projects exist in the portfolio. */
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* Covers are compact dashboard thumbnails, not full-width posters. The grid reserves three
+     capped card slots and leaves unused portfolio space empty when fewer Projects exist. */
+  grid-template-columns: repeat(3, minmax(0, 180px));
+  justify-content: start;
   margin-block: 16px;
 }
 
@@ -1283,7 +1284,7 @@
 /* Single-column panes keep the same actions/content and replace crowded tabs with a picker. */
 @container (max-width: 800px) {
   .pm-project-dashboard-cards {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .pm-global-data-grid {
@@ -1444,7 +1445,7 @@
 
 @container (max-width: 520px) {
   .pm-project-dashboard-cards {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
