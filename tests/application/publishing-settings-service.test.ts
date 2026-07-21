@@ -69,7 +69,7 @@ function storageFixture(): MemoryStorage {
 }
 
 describe('publishing settings service', () => {
-  it('migrates field-group controls without enabling or erasing optional capabilities', async () => {
+  it('retires the removed compiler capability while preserving metadata-visual field-group controls', async () => {
     const legacy = structuredClone(DEFAULT_PUBLISHING_SETTINGS) as unknown as Record<
       string,
       unknown
@@ -82,7 +82,7 @@ describe('publishing settings service', () => {
     const service = new PublishingSettingsService(data, storageFixture(), new FixedClock());
     await service.initialize();
     expect(service.current().integrations).toEqual({
-      enabledCapabilities: ['manuscript-compiler'],
+      enabledCapabilities: [],
       discloseExchangedFields: true,
       metadataVisualsFieldGroups: METADATA_VISUALS_OPTIONAL_FIELD_GROUPS
     });
@@ -90,7 +90,7 @@ describe('publishing settings service', () => {
 
     await service.saveSection('integrations', {
       ...service.current().integrations,
-      enabledCapabilities: ['manuscript-compiler', 'metadata-visuals'],
+      enabledCapabilities: ['metadata-visuals'],
       metadataVisualsFieldGroups: ['relationships', 'dates']
     });
     expect(service.current().integrations.metadataVisualsFieldGroups).toEqual([

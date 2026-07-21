@@ -11,12 +11,7 @@ import { BookCatalog } from '../../src/application/catalog/book-catalog';
 import { EditionProjectService } from '../../src/application/editions/edition-project-service';
 import type { Clock } from '../../src/domain/foundation/clock';
 import type { IdGenerator } from '../../src/domain/foundation/id-generator';
-import type {
-  VaultAssetEvidence,
-  VaultAssetPort
-} from '../../src/application/storage/record-storage-ports';
 import { ManagedFolderLayout } from '../../src/domain/storage/managed-folder-layout';
-import { normalizeVaultPath, type VaultPath } from '../../src/domain/storage/vault-path';
 import { VaultManagedRecordRepository } from '../../src/infrastructure/storage/vault-managed-record-repository';
 import { JsonTestFrontmatterCodec, MemoryVaultTextPort } from '../storage-test-doubles';
 
@@ -36,16 +31,6 @@ class SequenceIds implements IdGenerator {
   }
 }
 
-class MemoryFormatFiles implements Pick<VaultAssetPort, 'inspect'> {
-  public readonly files = new Set<VaultPath>();
-  public add(path: string): void {
-    this.files.add(normalizeVaultPath(path));
-  }
-  public async inspect(path: VaultPath): Promise<VaultAssetEvidence> {
-    return this.files.has(path) ? { exists: true, size: 20 } : { exists: false };
-  }
-}
-
 function createHarness() {
   const vault = new MemoryVaultTextPort();
   const codec = new JsonTestFrontmatterCodec();
@@ -55,9 +40,8 @@ function createHarness() {
   const layout = new ManagedFolderLayout({ root: 'Publishing Manager' });
   const catalog = new BookCatalog(repository, clock);
   const books = new BookProjectService(repository, catalog, layout, clock, ids);
-  const files = new MemoryFormatFiles();
-  const editions = new EditionProjectService(repository, catalog, layout, clock, ids, files);
-  return { vault, codec, repository, clock, catalog, books, editions, files };
+  const editions = new EditionProjectService(repository, catalog, layout, clock, ids);
+  return { vault, codec, repository, clock, catalog, books, editions };
 }
 
 async function createBookAndEdition() {
@@ -225,84 +209,4 @@ describe('edition project service', () => {
     expect(vault.files.size).toBe(before);
   });
 
-  it('previews and atomically applies one validated compiler output to a matching format', async () => {
-    const { editions, edition, files, catalog, vault, codec } = await createBookAndEdition();
-    const format = await editions.createFormat({
-      editionId: edition.edition.id,
-      category: 'print',
-      kind: 'docx',
-      metadata: { retained: 'yes' }
-    });
-    files.add('Compiled/cartographer.docx');
-    const preview = await editions.previewCompilerOutputLink({
-      formatId: format.format.id,
-      editionId: edition.edition.id,
-      compilerFormat: 'docx',
-      vaultPath: normalizeVaultPath('Compiled/cartographer.docx'),
-      providerId: 'manuscript-compiler',
-      compilerVersion: '1.0.0',
-      compiledAt: '2026-07-19T19:01:00.000Z',
-      semanticFingerprint: 'sha256:source',
-      sourceFingerprint: 'sha256:source',
-      outputFingerprint: 'sha256:output',
-      historyId: 'compiler-history-1',
-      correlationId: 'pm-compile-1',
-      freshness: 'current'
-    });
-    expect(preview.previousFilePath).toBeUndefined();
-    expect(preview.proposedMetadata.retained).toBe('yes');
-    expect(preview.proposedMetadata['compiler-output-fingerprint']).toBe('sha256:output');
-    const saved = await editions.applyCompilerOutputLink(preview);
-    expect(saved.format.filePath).toBe('Compiled/cartographer.docx');
-    expect(saved.format.metadata['compiler-freshness']).toBe('current');
-    expect(catalog.recordById(format.format.id)?.fields['file-path']).toBe(
-      'Compiled/cartographer.docx'
-    );
-    expect(codec.parse(vault.files.get(format.path) ?? '').body).toBe('# Format notes\n');
-  });
-
-  it('rejects missing, mismatched, or stale compiler link targets without a canonical write', async () => {
-    const { editions, edition, files, vault } = await createBookAndEdition();
-    const format = await editions.createFormat({
-      editionId: edition.edition.id,
-      category: 'print',
-      kind: 'docx'
-    });
-    const input = {
-      formatId: format.format.id,
-      editionId: edition.edition.id,
-      compilerFormat: 'docx' as const,
-      vaultPath: normalizeVaultPath('Compiled/cartographer.docx'),
-      providerId: 'manuscript-compiler',
-      compilerVersion: '1.0.0',
-      compiledAt: '2026-07-19T19:01:00.000Z',
-      semanticFingerprint: 'sha256:source',
-      sourceFingerprint: 'sha256:source',
-      outputFingerprint: 'sha256:output',
-      historyId: 'compiler-history-1',
-      correlationId: 'pm-compile-1',
-      freshness: 'current' as const
-    };
-    const writesBefore = vault.changedProcessCount;
-    await expect(editions.previewCompilerOutputLink(input)).rejects.toThrow(
-      'does not currently exist'
-    );
-    expect(vault.changedProcessCount).toBe(writesBefore);
-    files.add('Compiled/cartographer.docx');
-    const preview = await editions.previewCompilerOutputLink(input);
-    await editions.createFormat({
-      editionId: edition.edition.id,
-      category: 'print',
-      kind: 'docx',
-      label: 'Unrelated new record'
-    });
-    // An unrelated record does not stale the reviewed target.
-    await expect(editions.applyCompilerOutputLink(preview)).resolves.toBeDefined();
-    const nextPreview = await editions.previewCompilerOutputLink(input);
-    const source = vault.files.get(format.path)!;
-    vault.replaceExternally(format.path, `${source}\nUser edit.`);
-    await expect(editions.applyCompilerOutputLink(nextPreview)).rejects.toThrow(
-      'changed after preview'
-    );
-  });
 });

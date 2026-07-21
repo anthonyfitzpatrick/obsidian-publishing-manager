@@ -28,7 +28,6 @@ import {
   runReferenceHostPerformance,
   serializeReferenceHostPerformance
 } from './application/diagnostics/reference-host-performance';
-import { ManuscriptCompilerIntegrationService } from './application/integrations/manuscript-compiler-integration';
 import {
   MetadataVisualsProviderService,
   projectMetadataForVisuals,
@@ -51,10 +50,6 @@ import {
 import { VaultManagedRecordRepository } from './infrastructure/storage/vault-managed-record-repository';
 import { VaultOperationJournalStore } from './infrastructure/storage/vault-operation-journal-store';
 import { ObsidianManagedStoragePort } from './infrastructure/settings/obsidian-managed-storage-port';
-import {
-  BrowserCompilerCapabilityTransport,
-  BrowserCompilerTimer
-} from './infrastructure/integrations/browser-compiler-capability-transport';
 import { BrowserMetadataVisualsProviderTransport } from './infrastructure/integrations/browser-metadata-visuals-provider-transport';
 import { registerBookCommands } from './ui/commands/register-book-commands';
 import { registerFoundationCommand } from './ui/commands/register-foundation-command';
@@ -65,7 +60,6 @@ import { registerPublishingViews } from './ui/views/register-publishing-views';
 import { registerTemplateLibraryView } from './ui/views/template-library-view';
 import { registerPublishingExportView } from './ui/views/publishing-export-view';
 import { registerDiagnosticsView } from './ui/views/diagnostics-view';
-import { registerManuscriptCompilerIntegrationView } from './ui/views/manuscript-compiler-integration-view';
 
 export default class PublishingManagerPlugin extends Plugin {
   /**
@@ -124,14 +118,7 @@ export default class PublishingManagerPlugin extends Plugin {
     this.register(() => hydratedRepository.clear());
     const books = new BookProjectService(repository, catalog, layout, clock, ids);
     const vaultAssets = new ObsidianVaultAssetPort(this.app.vault);
-    const editions = new EditionProjectService(
-      repository,
-      catalog,
-      layout,
-      clock,
-      ids,
-      vaultAssets
-    );
+    const editions = new EditionProjectService(repository, catalog, layout, clock, ids);
     const assets = new AssetReferenceService(
       repository,
       catalog,
@@ -203,20 +190,6 @@ export default class PublishingManagerPlugin extends Plugin {
     const diagnostics = new DiagnosticsService(catalog, settings, vaultText, layout, clock, () =>
       catalogController.initialize()
     );
-    // The compiler coordinator uses a browser-local versioned event transport. No Compiler module
-    // or private plugin instance enters this composition root, and an absent provider is normal.
-    const compilerTransport = new BrowserCompilerCapabilityTransport();
-    const compilerIntegration = new ManuscriptCompilerIntegrationService(
-      catalog,
-      settings,
-      compilerTransport,
-      clock,
-      ids,
-      new BrowserCompilerTimer()
-    );
-    // Result listening is app-lifetime rather than view-lifetime so a closed integration tab does
-    // not cause a valid asynchronous completion event to disappear silently.
-    this.register(compilerIntegration.start());
     // Publishing Manager is the read-only provider. Metadata Visuals must discover this explicit
     // event contract; installation alone never exposes data or grants access to plugin internals.
     const metadataVisualsProvider = new MetadataVisualsProviderService(
@@ -268,12 +241,6 @@ export default class PublishingManagerPlugin extends Plugin {
     const openTemplates = registerTemplateLibraryView(this, catalog, templates);
     const openExports = registerPublishingExportView(this, catalog, exports);
     const openDiagnostics = registerDiagnosticsView(this, diagnostics);
-    const openCompilerIntegration = registerManuscriptCompilerIntegrationView(
-      this,
-      catalog,
-      compilerIntegration,
-      editions
-    );
     registerPublishingViews(
       this,
       catalog,
@@ -299,7 +266,6 @@ export default class PublishingManagerPlugin extends Plugin {
         openTemplates,
         openExports,
         openDiagnostics,
-        openCompilerIntegration,
         // Registration replaces this composition placeholder with the native Global Data Library
         // route once its view factory has been registered alongside the Dashboard.
         openGlobalDataLibrary: async () => undefined

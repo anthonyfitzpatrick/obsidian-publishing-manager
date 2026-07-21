@@ -29,7 +29,6 @@ export const SESSION_ONLY_DATA_CLASSES = [
   'unsaved form and book drafts',
   'derived catalog indexes and diagnostics',
   'readiness and dashboard projections',
-  'compiler request acknowledgement and result evidence',
   'integration discovery state and correlation identifiers'
 ] as const;
 
@@ -38,50 +37,11 @@ export const REFERENCED_NOT_OWNED_DATA_CLASSES = [
   'manuscripts',
   'covers',
   'EPUB and print files',
-  'press-kit and media assets',
-  'compiler output files'
+  'press-kit and media assets'
 ] as const;
 
 /** Exact optional local exchange allowlists; neither contract includes credentials or network URLs. */
 export const OPTIONAL_INTEGRATION_FIELD_EXCHANGES = {
-  manuscriptCompiler: {
-    outbound: [
-      'contractId',
-      'contractVersion',
-      'requestKind',
-      'correlationId',
-      'requestedAt',
-      'bookId',
-      'editionId',
-      'formats'
-    ],
-    inboundAcknowledgement: [
-      'contractId',
-      'contractVersion',
-      'correlationId',
-      'providerId',
-      'providerVersion',
-      'accepted',
-      'reason'
-    ],
-    inboundResult: [
-      'contractId',
-      'contractVersion',
-      'correlationId',
-      'providerId',
-      'providerVersion',
-      'bookId',
-      'editionId',
-      'format',
-      'compiledAt',
-      'outputPath',
-      'semanticFingerprint',
-      'sourceFingerprint',
-      'outputFingerprint',
-      'historyId',
-      'warnings'
-    ]
-  },
   metadataVisuals: {
     inboundRequest: [
       'contractId',

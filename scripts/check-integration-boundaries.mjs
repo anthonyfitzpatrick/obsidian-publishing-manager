@@ -8,12 +8,10 @@ import process from 'node:process';
  * storage adapters, another plugin package, or a network client through a future import.
  */
 const applicationFiles = [
-  'src/application/integrations/manuscript-compiler-integration.ts',
   'src/application/integrations/metadata-visuals-provider.ts'
 ];
 const integrationFiles = [
   ...applicationFiles,
-  'src/infrastructure/integrations/browser-compiler-capability-transport.ts',
   'src/infrastructure/integrations/browser-metadata-visuals-provider-transport.ts'
 ];
 const forbiddenApplicationImports = [
@@ -28,7 +26,7 @@ const forbiddenIntegrationAccess = [
   ['private plugin registry', /\.plugins\.(?:getPlugin|getPlugins|manifests)\b/u],
   [
     'direct plugin package import',
-    /(?:from\s+|import\s*\()['"](?!\.)[^'"]*(?:manuscript-compiler|metadata-visuals)[^'"]*['"]/u
+    /(?:from\s+|import\s*\()['"](?!\.)[^'"]*metadata-visuals[^'"]*['"]/u
   ]
 ];
 
@@ -48,7 +46,7 @@ const packageJson = JSON.parse(await readFile(path.resolve('package.json'), 'utf
 const productionDependencies = Object.keys(packageJson.dependencies ?? {});
 for (const dependency of productionDependencies) {
   if (
-    /(?:manuscript-compiler|metadata-visuals)/u.test(dependency) ||
+    /metadata-visuals/u.test(dependency) ||
     /^(?:axios|got|undici|node-fetch)$/u.test(dependency)
   )
     violations.push(`package.json: prohibited production dependency ${dependency}`);

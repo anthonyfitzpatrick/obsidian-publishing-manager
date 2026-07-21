@@ -296,9 +296,10 @@
 /* Dashboard cards provide a graphical scan of portfolio state without canvas or inaccessible charts. */
 .pm-summary-grid {
   display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-block-end: 18px;
+  gap: 10px;
+  /* Four compact operational facts fit a desktop dashboard without leaving a sparse second row. */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-block-end: 14px;
 }
 
 .pm-summary-card,
@@ -315,11 +316,11 @@
      the plugin must explicitly own their height or their value/detail escapes the card. */
   box-sizing: border-box;
   display: grid;
-  gap: 5px;
+  gap: 3px;
   height: auto !important;
   max-height: none !important;
-  min-height: 132px !important;
-  padding: 16px;
+  min-height: 96px !important;
+  padding: 12px;
 }
 
 .pm-summary-card__label {
@@ -329,7 +330,7 @@
 }
 
 .pm-summary-card__value {
-  font-size: clamp(1.65rem, 5vw, 2.35rem);
+  font-size: clamp(1.4rem, 3vw, 2rem);
   line-height: 1;
 }
 
@@ -1388,7 +1389,6 @@
     font-weight: var(--font-semibold);
   }
 
-  .pm-summary-grid,
   .pm-context-grid,
   .pm-form-grid,
   .pm-dashboard-grid,
@@ -1396,6 +1396,10 @@
   .pm-editions-layout,
   .pm-edition-facts {
     grid-template-columns: 1fr;
+  }
+
+  .pm-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   /* The launcher retains its compact graphical navigation without letting narrow panes create
@@ -1444,6 +1448,10 @@
 }
 
 @container (max-width: 520px) {
+  .pm-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
   .pm-project-dashboard-cards {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }

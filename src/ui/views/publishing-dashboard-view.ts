@@ -45,7 +45,6 @@ export interface PublishingDashboardTools {
   readonly openTemplates: () => Promise<void>;
   readonly openExports: () => Promise<void>;
   readonly openDiagnostics: () => Promise<void>;
-  readonly openCompilerIntegration: () => Promise<void>;
 }
 
 /** Native portfolio dashboard used as the top-level Publishing Manager entry point. */
@@ -325,16 +324,6 @@ function renderPublishingWorkspaces(
       icon: 'stethoscope',
       action: () => runDashboardTool(tools.openDiagnostics, 'Diagnostics could not open.')
     },
-    {
-      label: 'Manuscript Compiler integration',
-      description: 'Inspect the optional local compiler capability and its manual fallback.',
-      icon: 'package-open',
-      action: () =>
-        runDashboardTool(
-          tools.openCompilerIntegration,
-          'Manuscript Compiler integration could not open.'
-        )
-    }
   ];
   for (const entry of entries) {
     const control = grid.createEl('button', {

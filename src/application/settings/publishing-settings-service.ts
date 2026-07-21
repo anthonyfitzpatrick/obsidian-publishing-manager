@@ -416,7 +416,7 @@ function validateSection<K extends SettingsSectionName>(
         workflow: bounded(required(item.workflow, 'Default workflow is required.'), 120),
         platformSet: bounded(text(item.platformSet), 120),
         template: bounded(text(item.template), 120)
-      } as PublishingManagerSettings[K];
+      } as unknown as PublishingManagerSettings[K];
     case 'readiness': {
       const enabledRulePacks = uniqueStrings(item.enabledRulePacks, 16, true);
       if (!enabledRulePacks.includes('core'))
@@ -465,8 +465,8 @@ function validateSection<K extends SettingsSectionName>(
         diagnostics: boolean(item.diagnostics, 'Sales diagnostics')
       } as PublishingManagerSettings[K];
     case 'integrations': {
-      // Older settings predate per-group Metadata Visuals controls. Preserve their capability
-      // preferences and adopt the reviewed all-groups default instead of resetting the section.
+      // Retire the former Manuscript Compiler capability during normalization. This preserves
+      // other integration preferences while ensuring a legacy opt-in cannot revive removed code.
       const groups =
         item.metadataVisualsFieldGroups === undefined
           ? METADATA_VISUALS_OPTIONAL_FIELD_GROUPS
@@ -484,13 +484,15 @@ function validateSection<K extends SettingsSectionName>(
       )
         throw new Error('Metadata Visuals field groups must use recognized identifiers.');
       return {
-        enabledCapabilities: uniqueStrings(item.enabledCapabilities, 32),
+        enabledCapabilities: uniqueStrings(item.enabledCapabilities, 32).filter(
+          (capability) => capability !== 'manuscript-compiler'
+        ),
         discloseExchangedFields: boolean(
           item.discloseExchangedFields,
           'Integration field disclosure'
         ),
         metadataVisualsFieldGroups: groups as readonly MetadataVisualsOptionalFieldGroup[]
-      } as PublishingManagerSettings[K];
+      } as unknown as PublishingManagerSettings[K];
     }
     case 'performance':
       return {

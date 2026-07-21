@@ -39,13 +39,6 @@ for (const [file, markers] of [
       'this.cancelInterruptibleWork()',
       'this.activeCancellations.add(token)'
     ]
-  ],
-  [
-    'src/ui/views/manuscript-compiler-integration-view.ts',
-    [
-      "document.addEventListener('visibilitychange', this.cancelWhenHidden)",
-      'this.requestCancellation?.cancel()'
-    ]
   ]
 ]) {
   const source = await readFile(file, 'utf8');

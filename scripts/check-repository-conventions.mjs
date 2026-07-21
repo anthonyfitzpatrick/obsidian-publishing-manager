@@ -40,8 +40,7 @@ const ribbonSources = [
   'src/ui/views/register-publishing-views.ts',
   'src/ui/views/template-library-view.ts',
   'src/ui/views/publishing-export-view.ts',
-  'src/ui/views/diagnostics-view.ts',
-  'src/ui/views/manuscript-compiler-integration-view.ts'
+  'src/ui/views/diagnostics-view.ts'
 ];
 const ribbonRegistrations = [];
 for (const path of ribbonSources) {
