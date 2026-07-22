@@ -588,23 +588,53 @@
 /* Attached Projects deliberately reuse Dashboard cards; these additions keep their management
    controls readable without turning the card back into a broad settings row. */
 .pm-series-project-card {
-  cursor: default !important;
+  background: var(--background-primary);
+  border: 1px solid var(--pm-panel-border);
+  border-radius: var(--pm-radius);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.publishing-manager .pm-series-project-card__open {
+  border: 0;
+  border-radius: 0;
+  width: 100%;
 }
 
 .pm-series-project-card__controls {
   display: grid;
   gap: 10px;
   margin-block-start: 14px;
+  padding: 0 12px 12px;
   text-align: start;
 }
 
 .pm-series-project-card__controls .pm-button {
+  box-sizing: border-box;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
   width: 100%;
+}
+
+/* A native input defaults to content-box sizing, which can otherwise add its horizontal padding
+   outside a narrow card. The part field must remain fully inside the same visual frame as its Project. */
+.pm-series-project-card__controls .pm-field input {
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .pm-series-project-card-actions {
   justify-content: flex-end;
   margin-block-start: 16px;
+}
+
+@container (max-width: 520px) {
+  /* Membership cards remain readable in a narrow Obsidian pane instead of squeezing two sets of
+     form controls beside each other. Dashboard portfolio cards retain their compact two-column rule. */
+  .pm-series-project-cards {
+    grid-template-columns: minmax(0, 180px);
+  }
 }
 
 /* The Series editor previews the exact same KDP-shaped derivative used by Dashboard cards. */

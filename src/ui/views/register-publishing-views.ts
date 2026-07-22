@@ -158,7 +158,7 @@ export function registerPublishingViews(
   );
   plugin.registerView(
     SERIES_WORKSPACE_VIEW_TYPE,
-    (leaf) => new SeriesWorkspaceView(leaf, catalog, books, openDashboard)
+    (leaf) => new SeriesWorkspaceView(leaf, catalog, books, openDashboard, openBook)
   );
   plugin.registerView(
     ISBN_INVENTORY_VIEW_TYPE,

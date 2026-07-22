@@ -31,7 +31,8 @@ export class SeriesWorkspaceView extends ItemView {
     leaf: WorkspaceLeaf,
     private readonly catalog: BookCatalog,
     private readonly books: BookProjectService,
-    private readonly openDashboard: () => Promise<void>
+    private readonly openDashboard: () => Promise<void>,
+    private readonly openProject: (record: CatalogRecord) => Promise<void>
   ) {
     super(leaf);
     this.icon = 'list-ordered';
@@ -233,12 +234,21 @@ export class SeriesWorkspaceView extends ItemView {
     });
     for (const project of projects) {
       const title = typeof project.fields.title === 'string' ? project.fields.title : project.id;
-      const card = cards.createEl('article', { cls: 'pm-project-dashboard-card pm-series-project-card' });
-      card.createEl('p', { cls: 'pm-project-dashboard-card__type', text: 'Project' });
-      this.renderProjectCardCover(card, project, title);
-      const content = card.createDiv({ cls: 'pm-project-dashboard-card__content' });
+      const card = cards.createEl('article', {
+        cls: 'pm-series-project-card'
+      });
+      // A real button preserves the Dashboard-card navigation affordance without nesting the
+      // separate Part/removal controls inside an interactive element.
+      const open = card.createEl('button', {
+        cls: 'pm-project-dashboard-card pm-series-project-card__open',
+        attr: { type: 'button', 'aria-label': `Open Project ${title}` }
+      });
+      open.createEl('p', { cls: 'pm-project-dashboard-card__type', text: 'Project' });
+      this.renderProjectCardCover(open, project, title);
+      const content = open.createDiv({ cls: 'pm-project-dashboard-card__content' });
       content.createEl('h3', { text: title });
-      const controls = content.createDiv({ cls: 'pm-series-project-card__controls' });
+      open.addEventListener('click', () => void this.openProject(project));
+      const controls = card.createDiv({ cls: 'pm-series-project-card__controls' });
       const partField = controls.createEl('label', { cls: 'pm-field', text: 'Part number' });
       const partInput = partField.createEl('input', {
         type: 'number',
