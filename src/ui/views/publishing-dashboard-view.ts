@@ -163,6 +163,10 @@ export class PublishingDashboardView extends ItemView {
     setIcon(createIcon, 'plus');
     create.addEventListener('click', this.createBook);
 
+    // The Dashboard remains the single visible entry point, but direct workspace routes keep
+    // routine Publishing Manager functions available without requiring the command palette.
+    // Manuscript Compiler is deliberately absent because ADR-045 retired that dependency.
+    renderPublishingWorkspaces(root, model.kind === 'empty', this.createBook, this.tools);
     renderOperationalCards(root, operations);
 
     if (model.kind === 'empty') {
