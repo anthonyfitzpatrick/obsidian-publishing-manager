@@ -5,7 +5,7 @@
  * and note-opening actions rather than importing persistence implementations.
  */
 
-import { ItemView, Notice, TFile, setIcon, type WorkspaceLeaf } from 'obsidian';
+import { ItemView, Menu, Notice, TFile, setIcon, type WorkspaceLeaf } from 'obsidian';
 
 import type { BookCatalog } from '../../application/catalog/book-catalog';
 import type { ReadinessProjectService } from '../../application/readiness/readiness-project-service';
@@ -70,6 +70,7 @@ export class PublishingDashboardView extends ItemView {
     private readonly sales: SalesProjectService,
     private readonly calendar: CalendarProjectService,
     private readonly createBook: () => void,
+    private readonly createSeries: () => void,
     private readonly openBook: (record: CatalogRecord, tab?: string) => Promise<void>,
     private readonly refreshCatalog: () => Promise<void>,
     private readonly tools: PublishingDashboardTools
@@ -156,12 +157,23 @@ export class PublishingDashboardView extends ItemView {
     );
     const create = actions.createEl('button', {
       cls: 'pm-button pm-button--primary',
-      text: 'New project',
-      attr: { type: 'button' }
+      text: 'New',
+      attr: { type: 'button', 'aria-haspopup': 'menu', 'aria-label': 'Create new publishing record' }
     });
     const createIcon = create.createSpan({ cls: 'pm-button__icon' });
-    setIcon(createIcon, 'plus');
-    create.addEventListener('click', this.createBook);
+    setIcon(createIcon, 'chevron-down');
+    create.addEventListener('click', (event) => {
+      const menu = new Menu();
+      menu.addItem((item) =>
+        item
+          .setTitle('New Project')
+          .setIcon('book-open')
+          // Reuse the established Project modal so the dropdown cannot diverge from its workflow.
+          .onClick(this.createBook)
+      );
+      menu.addItem((item) => item.setTitle('New Series').setIcon('list-ordered').onClick(this.createSeries));
+      menu.showAtMouseEvent(event);
+    });
 
     // The Dashboard remains the single visible entry point, but direct workspace routes keep
     // routine Publishing Manager functions available without requiring the command palette.

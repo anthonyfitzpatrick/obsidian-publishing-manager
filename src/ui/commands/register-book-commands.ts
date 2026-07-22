@@ -10,6 +10,7 @@ import { Notice, type Plugin } from 'obsidian';
 import type { BookProjectService } from '../../application/books/book-project-service';
 import { normalizeVaultPath } from '../../domain/storage/vault-path';
 import { CreateBookModal } from '../dialogs/create-book-modal';
+import { CreateSeriesModal } from '../dialogs/create-series-modal';
 import { EditBookModal } from '../dialogs/edit-book-modal';
 
 /** Adds create/archive/restore commands and lets Plugin own their unload lifecycle. */
@@ -18,6 +19,11 @@ export function registerBookCommands(plugin: Plugin, books: BookProjectService):
     id: 'create-book-project',
     name: 'Create book project',
     callback: () => new CreateBookModal(plugin.app, books).open()
+  });
+  plugin.addCommand({
+    id: 'create-series',
+    name: 'Create series',
+    callback: () => new CreateSeriesModal(plugin.app, books).open()
   });
 
   plugin.addCommand({
