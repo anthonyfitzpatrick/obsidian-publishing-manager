@@ -223,17 +223,56 @@ export class SeriesWorkspaceView extends ItemView {
       cls: 'publishing-manager-form-error',
       attr: { role: 'alert', 'aria-live': 'assertive', tabindex: '-1' }
     });
+    const partNumbers = new Map(
+      projects.map((project) => [project.path, Number(project.fields['series-position'])])
+    );
     for (const project of projects) {
       const title = typeof project.fields.title === 'string' ? project.fields.title : project.id;
       new Setting(panel)
         .setName(title)
-        .setDesc(`Project ${String(project.fields['series-position'] ?? '—')}`)
+        .setDesc('Part number')
+        .addText((text) => {
+          text.setValue(String(partNumbers.get(project.path) ?? '')).onChange((value) => {
+            partNumbers.set(project.path, Number(value));
+          });
+          text.inputEl.type = 'number';
+          text.inputEl.min = '1';
+          text.inputEl.step = '1';
+          text.inputEl.setAttr('aria-label', `Part number for ${title}`);
+        })
         .addButton((button) =>
           button.setButtonText('Remove from Series').onClick(() => {
             button.setDisabled(true);
             void this.removeProject(project, error).finally(() => button.setDisabled(false));
           })
         );
+    }
+    new Setting(panel).addButton((button) =>
+      button
+        .setButtonText('Save Part numbers')
+        .setCta()
+        .onClick(() => {
+          button.setDisabled(true);
+          void this.savePartNumbers(series, partNumbers, error).finally(() => button.setDisabled(false));
+        })
+    );
+  }
+
+  /** Persists all Part numbers as one validated Series-order operation, including direct swaps. */
+  private async savePartNumbers(
+    series: CatalogRecord,
+    partNumbers: ReadonlyMap<VaultPath, number>,
+    error: HTMLElement
+  ): Promise<void> {
+    try {
+      await this.books.setSeriesPartNumbers(
+        series.id,
+        [...partNumbers].map(([path, partNumber]) => ({ path, partNumber }))
+      );
+      new Notice('Series Part numbers saved.');
+    } catch (cause) {
+      error.setText(cause instanceof Error ? cause.message : 'Part numbers could not be saved.');
+      error.focus();
     }
   }
 

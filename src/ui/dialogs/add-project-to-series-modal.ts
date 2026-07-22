@@ -39,13 +39,23 @@ export class AddProjectToSeriesModal extends Modal {
     });
     for (const project of available) {
       const title = typeof project.fields.title === 'string' ? project.fields.title : project.id;
+      let partNumber = nextPartNumber(this.catalog, this.series.id);
       new Setting(this.contentEl)
         .setName(title)
-        .setDesc('Standalone Project')
+        .setDesc('Standalone Project · choose its Part number in this Series')
+        .addText((text) => {
+          text.setValue(String(partNumber)).onChange((value) => {
+            partNumber = Number(value);
+          });
+          text.inputEl.type = 'number';
+          text.inputEl.min = '1';
+          text.inputEl.step = '1';
+          text.inputEl.setAttr('aria-label', `Part number for ${title}`);
+        })
         .addButton((button) =>
           button.setButtonText('Add').setCta().onClick(() => {
             button.setDisabled(true);
-            void this.add(project, error).finally(() => button.setDisabled(false));
+            void this.add(project, partNumber, error).finally(() => button.setDisabled(false));
           })
         );
     }
@@ -56,22 +66,9 @@ export class AddProjectToSeriesModal extends Modal {
   }
 
   /** Uses the service layer to give the selected Project the next unique sequence in this Series. */
-  private async add(project: CatalogRecord, error: HTMLElement): Promise<void> {
+  private async add(project: CatalogRecord, partNumber: number, error: HTMLElement): Promise<void> {
     try {
-      // Positions can have intentional gaps after a removal, so count+1 could collide with an
-      // existing Project. Appending after the highest stored position always remains unique.
-      const position =
-        Math.max(
-          0,
-          ...this.catalog
-            .orderedBooks(this.series.id)
-            .map((member) =>
-              typeof member.fields['series-position'] === 'number'
-                ? member.fields['series-position']
-                : 0
-            )
-        ) + 1;
-      await this.books.assignSeries(project.path, this.series.id, position);
+      await this.books.assignSeries(project.path, this.series.id, partNumber);
       new Notice(`Added “${String(project.fields.title)}” to this Series.`);
       this.close();
     } catch (cause) {
@@ -79,4 +76,16 @@ export class AddProjectToSeriesModal extends Modal {
       error.focus();
     }
   }
+}
+
+/** Defaults new membership to the next unused Part number while still allowing an explicit choice. */
+function nextPartNumber(catalog: BookCatalog, seriesId: string): number {
+  return (
+    Math.max(
+      0,
+      ...catalog.orderedBooks(seriesId).map((member) =>
+        typeof member.fields['series-position'] === 'number' ? member.fields['series-position'] : 0
+      )
+    ) + 1
+  );
 }

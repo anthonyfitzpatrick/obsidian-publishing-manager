@@ -120,7 +120,21 @@ describe('book project service', () => {
       'First Book',
       'Second Book'
     ]);
-    await expect(service.assignSeries(first.path, seriesId, 1)).rejects.toMatchObject({
+    await service.setSeriesPartNumbers(seriesId, [
+      { path: first.path, partNumber: 1 },
+      { path: second.path, partNumber: 2 }
+    ]);
+    expect(catalog.orderedBooks(seriesId).map(({ fields }) => fields.title)).toEqual([
+      'Second Book',
+      'First Book'
+    ]);
+    await expect(
+      service.setSeriesPartNumbers(seriesId, [
+        { path: first.path, partNumber: 1 },
+        { path: second.path, partNumber: 1 }
+      ])
+    ).rejects.toMatchObject({ code: 'series-invalid' });
+    await expect(service.assignSeries(first.path, seriesId, 2)).rejects.toMatchObject({
       code: 'series-position-occupied'
     });
 

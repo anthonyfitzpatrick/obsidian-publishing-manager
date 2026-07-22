@@ -194,6 +194,41 @@ export class BookProjectService {
     return { path, book: hydrateBookProject(saved) };
   }
 
+  /**
+   * Reorders all current Series members by their explicit user-visible Part numbers. Validation
+   * occurs before any relationship write, so duplicate, missing, or invalid numbers cannot leave
+   * a partially reordered Series behind.
+   */
+  public async setSeriesPartNumbers(
+    seriesId: string,
+    entries: readonly { readonly path: VaultPath; readonly partNumber: number }[]
+  ): Promise<void> {
+    const members = this.catalog.orderedBooks(seriesId);
+    const requestedPaths = new Set(entries.map(({ path }) => path));
+    const positions = new Set(entries.map(({ partNumber }) => partNumber));
+    if (
+      members.length !== entries.length ||
+      requestedPaths.size !== entries.length ||
+      positions.size !== entries.length ||
+      entries.some(({ path, partNumber }) =>
+        !members.some((member) => member.path === path) ||
+        !Number.isSafeInteger(partNumber) ||
+        partNumber < 1
+      )
+    ) {
+      throw new BookProjectServiceError(
+        'series-invalid',
+        'Every Project in this Series needs one unique whole-number Part number of 1 or greater.'
+      );
+    }
+    // A direct swap (Part 1 ↔ Part 2) would otherwise hit the uniqueness guard midway through.
+    // Temporarily making all members standalone is safe and preserves their canonical Projects.
+    for (const member of members) await this.removeSeries(member.path);
+    for (const entry of [...entries].sort((left, right) => left.partNumber - right.partNumber)) {
+      await this.assignSeries(entry.path, seriesId, entry.partNumber);
+    }
+  }
+
   /** Removes only Series membership; the Project remains a normal standalone Project. */
   public async removeSeries(path: VaultPath): Promise<BookProjectResult> {
     const loaded = await this.repository.load(path);
