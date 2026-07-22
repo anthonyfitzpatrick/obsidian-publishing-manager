@@ -32,9 +32,9 @@ import type { CatalogRecord } from '../../domain/catalog/catalog-model';
 import { normalizeVaultPath } from '../../domain/storage/vault-path';
 import { CreateBookModal } from '../dialogs/create-book-modal';
 import { CreateSeriesModal } from '../dialogs/create-series-modal';
-import { ManageSeriesModal } from '../dialogs/manage-series-modal';
 import type { BookDraftStore } from '../state/book-draft-store';
 import { BookWorkspaceView, BOOK_WORKSPACE_VIEW_TYPE } from './book-workspace-view';
+import { SeriesWorkspaceView, SERIES_WORKSPACE_VIEW_TYPE } from './series-workspace-view';
 import {
   GlobalDataLibraryView,
   IsbnInventoryView,
@@ -101,6 +101,20 @@ export function registerPublishingViews(
     });
     await plugin.app.workspace.revealLeaf(leaf);
   };
+  /** Opens the selected Series in its own persistent workspace tab, never a modal. */
+  const openSeries = async (record: CatalogRecord): Promise<void> => {
+    const leaf = existingOrNewLeaf(plugin, SERIES_WORKSPACE_VIEW_TYPE);
+    await leaf.setViewState({
+      type: SERIES_WORKSPACE_VIEW_TYPE,
+      active: true,
+      state: { seriesPath: record.path }
+    });
+    await plugin.app.workspace.revealLeaf(leaf);
+  };
+  const openSeriesById = (seriesId: string): void => {
+    const record = catalog.recordById(seriesId);
+    if (record?.type === 'series') void openSeries(record);
+  };
 
   // The public URI handler resolves navigation-only data against the current catalog. It never
   // dispatches a command, saves a record, or accepts arbitrary tab/mutation parameters.
@@ -131,8 +145,8 @@ export function registerPublishingViews(
         sales,
         calendar,
         () => new CreateBookModal(plugin.app, books, catalog).open(),
-        () => new CreateSeriesModal(plugin.app, books, catalog).open(),
-        (record) => new ManageSeriesModal(plugin.app, books, catalog, record.id).open(),
+        () => new CreateSeriesModal(plugin.app, books, catalog, openSeriesById).open(),
+        (record) => void openSeries(record),
         openBook,
         refreshCatalog,
         completeDashboardTools
@@ -141,6 +155,10 @@ export function registerPublishingViews(
   plugin.registerView(
     GLOBAL_DATA_LIBRARY_VIEW_TYPE,
     (leaf) => new GlobalDataLibraryView(leaf, openIsbnInventory)
+  );
+  plugin.registerView(
+    SERIES_WORKSPACE_VIEW_TYPE,
+    (leaf) => new SeriesWorkspaceView(leaf, catalog, books, openDashboard)
   );
   plugin.registerView(
     ISBN_INVENTORY_VIEW_TYPE,
@@ -215,6 +233,7 @@ export function registerPublishingViews(
     plugin.app.workspace.detachLeavesOfType(GLOBAL_DATA_LIBRARY_VIEW_TYPE);
     plugin.app.workspace.detachLeavesOfType(ISBN_INVENTORY_VIEW_TYPE);
     plugin.app.workspace.detachLeavesOfType(BOOK_WORKSPACE_VIEW_TYPE);
+    plugin.app.workspace.detachLeavesOfType(SERIES_WORKSPACE_VIEW_TYPE);
   });
 }
 

@@ -595,6 +595,14 @@
   object-fit: cover;
 }
 
+/* Series uses a durable workspace page, not a modal; panels follow the Project page rhythm. */
+.pm-series-workspace__content {
+  display: grid;
+  gap: 16px;
+  margin-block-start: 18px;
+  max-width: 980px;
+}
+
 .pm-status-chip,
 .pm-dirty-indicator {
   background: var(--pm-soft-background);

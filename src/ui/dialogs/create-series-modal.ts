@@ -4,14 +4,14 @@ import { Modal, Notice, Setting, type App } from 'obsidian';
 
 import type { BookProjectService } from '../../application/books/book-project-service';
 import type { BookCatalog } from '../../application/catalog/book-catalog';
-import { ManageSeriesModal } from './manage-series-modal';
 
 /** Focused Series creation dialog used by the Dashboard and command palette. */
 export class CreateSeriesModal extends Modal {
   public constructor(
     app: App,
     private readonly books: BookProjectService,
-    private readonly catalog: BookCatalog
+    private readonly catalog: BookCatalog,
+    private readonly openSeries?: (seriesId: string) => void
   ) {
     super(app);
   }
@@ -50,13 +50,13 @@ export class CreateSeriesModal extends Modal {
     this.contentEl.empty();
   }
 
-  /** Opens membership immediately after a successful create so the Series is never a dead end. */
+  /** Opens the optional page route immediately after create so a Series is never a dead end. */
   private async submit(name: string, error: HTMLElement): Promise<void> {
     try {
       const seriesId = await this.books.createSeries(name);
       this.close();
-      new Notice(`Created series “${name}”. Add its Projects next.`);
-      new ManageSeriesModal(this.app, this.books, this.catalog, seriesId).open();
+      new Notice(`Created series “${name}”.`);
+      this.openSeries?.(seriesId);
     } catch (cause) {
       error.setText(cause instanceof Error ? cause.message : 'Series could not be created.');
       error.focus();
