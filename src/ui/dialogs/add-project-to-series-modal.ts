@@ -33,10 +33,6 @@ export class AddProjectToSeriesModal extends Modal {
       });
       return;
     }
-    const error = this.contentEl.createDiv({
-      cls: 'publishing-manager-form-error',
-      attr: { role: 'alert', 'aria-live': 'assertive', tabindex: '-1' }
-    });
     for (const project of available) {
       const title = typeof project.fields.title === 'string' ? project.fields.title : project.id;
       let partNumber = nextPartNumber(this.catalog, this.series.id);
@@ -55,7 +51,12 @@ export class AddProjectToSeriesModal extends Modal {
         .addButton((button) =>
           button.setButtonText('Add').setCta().onClick(() => {
             button.setDisabled(true);
-            void this.add(project, partNumber, error).finally(() => button.setDisabled(false));
+            // Close before the vault/history pipeline starts. Obsidian can then paint and accept
+            // input while the durable local write completes, rather than appearing stuck behind
+            // an inert modal during slower vault or sync activity.
+            this.close();
+            new Notice(`Adding “${title}” to this Series…`);
+            void this.add(project, partNumber);
           })
         );
     }
@@ -66,14 +67,13 @@ export class AddProjectToSeriesModal extends Modal {
   }
 
   /** Uses the service layer to give the selected Project the next unique sequence in this Series. */
-  private async add(project: CatalogRecord, partNumber: number, error: HTMLElement): Promise<void> {
+  private async add(project: CatalogRecord, partNumber: number): Promise<void> {
     try {
       await this.books.assignSeries(project.path, this.series.id, partNumber);
       new Notice(`Added “${String(project.fields.title)}” to this Series.`);
       this.close();
     } catch (cause) {
-      error.setText(cause instanceof Error ? cause.message : 'Project could not be added to this Series.');
-      error.focus();
+      new Notice(cause instanceof Error ? cause.message : 'Project could not be added to this Series.');
     }
   }
 }
