@@ -555,9 +555,14 @@ function renderPortfolioTable(
   coverUrl: (record: CatalogRecord) => string | undefined
 ): void {
   const pageSize = 50;
+  // Projects become children of a Series once attached, so their top-level card lives only inside
+  // that Series workspace. Standalone Projects remain peers of Series cards on this Dashboard.
+  const topLevelProjects = model.portfolio.filter(
+    ({ book }) => typeof book.fields['series-id'] !== 'string'
+  );
   const entries: readonly PortfolioCard[] = [
     ...series.map((record) => ({ kind: 'series' as const, record })),
-    ...model.portfolio.map(({ book }) => ({ kind: 'project' as const, record: book }))
+    ...topLevelProjects.map(({ book }) => ({ kind: 'project' as const, record: book }))
   ];
   const pageCount = Math.max(1, Math.ceil(entries.length / pageSize));
   const page = Math.min(Math.max(0, requestedPage), pageCount - 1);
@@ -570,7 +575,7 @@ function renderPortfolioTable(
   heading.createDiv().createEl('h2', { text: 'Publishing portfolio' });
   heading.createSpan({
     cls: 'pm-count-badge',
-    text: `${model.portfolio.length} projects · ${series.length} series`
+    text: `${topLevelProjects.length} projects · ${series.length} series`
   });
   if (entries.length > pageSize) {
     const paging = section.createDiv({

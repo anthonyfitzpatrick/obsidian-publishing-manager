@@ -17,6 +17,7 @@ import type { BookProjectService } from '../../application/books/book-project-se
 import type { BookCatalog } from '../../application/catalog/book-catalog';
 import type { BookCatalogSnapshot, CatalogRecord } from '../../domain/catalog/catalog-model';
 import { normalizeVaultPath, type VaultPath } from '../../domain/storage/vault-path';
+import { AddProjectToSeriesModal } from '../dialogs/add-project-to-series-modal';
 
 /** Stable persisted type used by Obsidian for a selected Series workspace tab. */
 export const SERIES_WORKSPACE_VIEW_TYPE = 'publishing-manager-series-workspace';
@@ -195,60 +196,54 @@ export class SeriesWorkspaceView extends ItemView {
     });
   }
 
-  /** Lets the owner add, move, remove, and sequence Projects from the full Series page. */
+  /** Keeps the page focused on current members; available Projects are opened only when requested. */
   private renderMembershipPanel(parent: HTMLElement, series: CatalogRecord): void {
     const panel = parent.createEl('section', { cls: 'pm-panel' });
-    panel.createEl('h2', { text: 'Projects in this Series' });
-    panel.createEl('p', {
-      text: 'Turn Projects on to add them. Turning one on moves it here from another Series; turning one off makes it standalone. The displayed order becomes the Series order.'
+    const heading = panel.createDiv({ cls: 'pm-section-heading' });
+    heading.createDiv().createEl('h2', { text: 'Projects in this Series' });
+    const add = heading.createEl('button', {
+      cls: 'pm-button pm-button--primary',
+      text: 'Add Project',
+      attr: { type: 'button' }
     });
-    const selectedPaths = new Set(this.catalog.orderedBooks(series.id).map((project) => project.path));
-    const projects = this.catalog.orderedBooks().filter((project) => !project.archived);
-    for (const project of projects) {
-      const title = typeof project.fields.title === 'string' ? project.fields.title : project.id;
-      new Setting(panel).setName(title).addToggle((toggle) =>
-        toggle.setValue(selectedPaths.has(project.path)).onChange((included) => {
-          if (included) selectedPaths.add(project.path);
-          else selectedPaths.delete(project.path);
-        })
-      );
+    add.addEventListener('click', () =>
+      new AddProjectToSeriesModal(this.app, this.books, this.catalog, series).open()
+    );
+    const projects = this.catalog.orderedBooks(series.id).filter((project) => !project.archived);
+    if (projects.length === 0) {
+      panel.createEl('p', {
+        text: 'No Projects are attached yet. Use Add Project to choose a standalone Project.'
+      });
+      return;
     }
+    panel.createEl('p', {
+      text: 'Attached Projects appear only inside this Series. Remove one to make it a top-level standalone Project again.'
+    });
     const error = panel.createDiv({
       cls: 'publishing-manager-form-error',
       attr: { role: 'alert', 'aria-live': 'assertive', tabindex: '-1' }
     });
-    new Setting(panel).addButton((button) =>
-      button
-        .setButtonText('Save Project membership')
-        .setCta()
-        .onClick(() => {
-          button.setDisabled(true);
-          void this.saveMembership(series, selectedPaths, error).finally(() => button.setDisabled(false));
-        })
-    );
+    for (const project of projects) {
+      const title = typeof project.fields.title === 'string' ? project.fields.title : project.id;
+      new Setting(panel)
+        .setName(title)
+        .setDesc(`Project ${String(project.fields['series-position'] ?? '—')}`)
+        .addButton((button) =>
+          button.setButtonText('Remove from Series').onClick(() => {
+            button.setDisabled(true);
+            void this.removeProject(project, error).finally(() => button.setDisabled(false));
+          })
+        );
+    }
   }
 
-  /** Applies removals first, then deterministic assignments, so no duplicate position can persist. */
-  private async saveMembership(
-    series: CatalogRecord,
-    selectedPaths: ReadonlySet<string>,
-    error: HTMLElement
-  ): Promise<void> {
+  /** Removes only the selected relationship; the Project remains intact and returns to the Dashboard. */
+  private async removeProject(project: CatalogRecord, error: HTMLElement): Promise<void> {
     try {
-      for (const project of this.catalog.orderedBooks(series.id)) {
-        if (!selectedPaths.has(project.path)) await this.books.removeSeries(project.path);
-      }
-      const selected = this.catalog.orderedBooks().filter((project) => selectedPaths.has(project.path));
-      for (const project of selected) {
-        if (typeof project.fields['series-id'] === 'string' && project.fields['series-id'] !== series.id)
-          await this.books.removeSeries(project.path);
-      }
-      for (const [index, project] of selected.entries()) {
-        await this.books.assignSeries(project.path, series.id, index + 1);
-      }
-      new Notice(`Saved ${selected.length} Project${selected.length === 1 ? '' : 's'} in this Series.`);
+      await this.books.removeSeries(project.path);
+      new Notice(`Removed “${String(project.fields.title)}” from this Series.`);
     } catch (cause) {
-      error.setText(cause instanceof Error ? cause.message : 'Series membership could not be saved.');
+      error.setText(cause instanceof Error ? cause.message : 'Project could not be removed from this Series.');
       error.focus();
     }
   }
