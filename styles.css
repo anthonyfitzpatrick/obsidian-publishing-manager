@@ -515,11 +515,12 @@
 }
 
 .pm-project-dashboard-cards {
+  align-items: start;
   display: grid;
   gap: 12px;
-  /* Covers are compact dashboard thumbnails, not full-width posters. The grid reserves three
-     capped card slots and leaves unused portfolio space empty when fewer Projects exist. */
-  grid-template-columns: repeat(3, minmax(0, 180px));
+  /* Covers are compact dashboard thumbnails, not full-width posters. Cards retain their cap at
+     every pane width, and unused portfolio space remains deliberately empty. */
+  grid-template-columns: repeat(auto-fill, minmax(150px, 180px));
   justify-content: start;
   margin-block: 16px;
 }
@@ -532,9 +533,10 @@
   color: var(--text-normal);
   cursor: pointer;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
   height: auto;
   min-height: 0;
+  min-width: 0;
   overflow: hidden;
   padding: 0;
   text-align: start;
@@ -557,11 +559,13 @@
 }
 
 .pm-project-dashboard-card__content {
+  min-width: 0;
   padding: 12px;
 }
 
 .pm-project-dashboard-card__content h3 {
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 /* The Series editor previews the exact same KDP-shaped derivative used by Dashboard cards. */
@@ -1295,7 +1299,7 @@
 /* Single-column panes keep the same actions/content and replace crowded tabs with a picker. */
 @container (max-width: 800px) {
   .pm-project-dashboard-cards {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(140px, 180px));
   }
 
   .pm-global-data-grid {
@@ -1463,7 +1467,7 @@
   }
 
   .pm-project-dashboard-cards {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 180px));
   }
 }
 
