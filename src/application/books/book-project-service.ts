@@ -37,6 +37,11 @@ export interface EditBookProjectInput {
   readonly cover?: string | undefined;
 }
 
+/** Series has no duplicate Project metadata; it only owns optional local cover art. */
+export interface EditSeriesInput {
+  readonly cover?: string | undefined;
+}
+
 /** Persisted book result includes the current path required for navigation. */
 export interface BookProjectResult {
   readonly path: VaultPath;
@@ -206,6 +211,18 @@ export class BookProjectService {
     return { path, book: hydrateBookProject(saved) };
   }
 
+  /** Stores or clears a Series cover without changing its Projects or their order. */
+  public async editSeries(path: VaultPath, patch: EditSeriesInput): Promise<void> {
+    const loaded = await this.repository.load(path);
+    assertSeriesType(loaded.envelope.pmType);
+    const saved = await this.repository.save(
+      loaded,
+      { fields: 'cover' in patch ? { cover: patch.cover } : {} },
+      this.clock.now().toISOString()
+    );
+    this.catalog.accept(saved, 'modified');
+  }
+
   /** Archives a book without deleting its note, identity, links, body, or unknown fields. */
   public async archive(path: VaultPath): Promise<BookProjectResult> {
     const loaded = await this.repository.load(path);
@@ -256,6 +273,13 @@ function assertValidBook(fields: Readonly<Record<string, unknown>>): void {
 function assertBookType(type: string): void {
   if (type !== 'book') {
     throw new BookProjectServiceError('book-not-book', `Expected a book record but found ${type}.`);
+  }
+}
+
+/** Prevents a Series presentation edit from mutating another managed record family. */
+function assertSeriesType(type: string): void {
+  if (type !== 'series') {
+    throw new BookProjectServiceError('series-not-found', `Expected a series record but found ${type}.`);
   }
 }
 

@@ -132,7 +132,7 @@ export function registerPublishingViews(
         calendar,
         () => new CreateBookModal(plugin.app, books, catalog).open(),
         () => new CreateSeriesModal(plugin.app, books, catalog).open(),
-        () => new ManageSeriesModal(plugin.app, books, catalog).open(),
+        (record) => new ManageSeriesModal(plugin.app, books, catalog, record.id).open(),
         openBook,
         refreshCatalog,
         completeDashboardTools

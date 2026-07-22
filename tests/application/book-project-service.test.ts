@@ -130,6 +130,20 @@ describe('book project service', () => {
     expect(catalog.orderedBooks(seriesId).map(({ fields }) => fields.title)).toEqual(['Second Book']);
   });
 
+  it('stores a Series cover independently from its Project membership', async () => {
+    const { catalog, service } = createHarness();
+    await catalog.initialize([]);
+    const seriesId = await service.createSeries('Cover Test Series');
+    const series = catalog.recordById(seriesId);
+    if (series === undefined) throw new Error('Expected created Series in the local catalog.');
+
+    await service.editSeries(series.path, { cover: 'Publishing Manager/Series/Covers/cover.webp' });
+
+    expect(catalog.recordById(seriesId)?.fields.cover).toBe(
+      'Publishing Manager/Series/Covers/cover.webp'
+    );
+  });
+
   it('archives and restores without deletion while updating activity and next milestone', async () => {
     const { vault, catalog, service, clock } = createHarness();
     await catalog.initialize([]);

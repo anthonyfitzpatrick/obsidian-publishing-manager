@@ -12,7 +12,6 @@ import { normalizeVaultPath } from '../../domain/storage/vault-path';
 import { CreateBookModal } from '../dialogs/create-book-modal';
 import { CreateSeriesModal } from '../dialogs/create-series-modal';
 import { EditBookModal } from '../dialogs/edit-book-modal';
-import { ManageSeriesModal } from '../dialogs/manage-series-modal';
 
 /** Adds create/archive/restore commands and lets Plugin own their unload lifecycle. */
 export function registerBookCommands(
@@ -30,12 +29,6 @@ export function registerBookCommands(
     name: 'Create series',
     callback: () => new CreateSeriesModal(plugin.app, books, catalog).open()
   });
-  plugin.addCommand({
-    id: 'manage-series',
-    name: 'Manage series Projects',
-    callback: () => new ManageSeriesModal(plugin.app, books, catalog).open()
-  });
-
   plugin.addCommand({
     id: 'edit-active-book',
     name: 'Edit active book project',

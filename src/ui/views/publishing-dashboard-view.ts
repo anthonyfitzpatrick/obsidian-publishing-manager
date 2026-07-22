@@ -71,7 +71,7 @@ export class PublishingDashboardView extends ItemView {
     private readonly calendar: CalendarProjectService,
     private readonly createBook: () => void,
     private readonly createSeries: () => void,
-    private readonly manageSeries: () => void,
+    private readonly openSeries: (record: CatalogRecord) => void,
     private readonly openBook: (record: CatalogRecord, tab?: string) => Promise<void>,
     private readonly refreshCatalog: () => Promise<void>,
     private readonly tools: PublishingDashboardTools
@@ -173,7 +173,6 @@ export class PublishingDashboardView extends ItemView {
           .onClick(this.createBook)
       );
       menu.addItem((item) => item.setTitle('New Series').setIcon('list-ordered').onClick(this.createSeries));
-      menu.addItem((item) => item.setTitle('Manage Series').setIcon('folder-tree').onClick(this.manageSeries));
       menu.showAtMouseEvent(event);
     });
 
@@ -183,7 +182,8 @@ export class PublishingDashboardView extends ItemView {
     renderPublishingWorkspaces(root, model.kind === 'empty', this.createBook, this.tools);
     renderOperationalCards(root, operations);
 
-    if (model.kind === 'empty') {
+    const series = this.catalog.seriesRecords();
+    if (model.kind === 'empty' && series.length === 0) {
       const empty = root.createDiv({ cls: 'pm-empty-state' });
       const icon = empty.createDiv({ cls: 'pm-empty-state__icon' });
       setIcon(icon, 'book-open');
@@ -203,12 +203,14 @@ export class PublishingDashboardView extends ItemView {
     renderPortfolioTable(
       root,
       operations,
+      series,
       this.portfolioPage,
       (page) => {
         this.portfolioPage = page;
         if (this.snapshot !== undefined) this.render(this.snapshot);
       },
       (record) => void this.openBook(record),
+      this.openSeries,
       (record) => this.projectCoverUrl(record)
     );
   }
@@ -545,23 +547,32 @@ function renderDashboardControls(
 function renderPortfolioTable(
   parent: HTMLElement,
   model: OperationalDashboardModel,
+  series: readonly CatalogRecord[],
   requestedPage: number,
   changePage: (page: number) => void,
   openBook: (record: CatalogRecord) => void,
+  openSeries: (record: CatalogRecord) => void,
   coverUrl: (record: CatalogRecord) => string | undefined
 ): void {
   const pageSize = 50;
-  const pageCount = Math.max(1, Math.ceil(model.portfolio.length / pageSize));
+  const entries: readonly PortfolioCard[] = [
+    ...series.map((record) => ({ kind: 'series' as const, record })),
+    ...model.portfolio.map(({ book }) => ({ kind: 'project' as const, record: book }))
+  ];
+  const pageCount = Math.max(1, Math.ceil(entries.length / pageSize));
   const page = Math.min(Math.max(0, requestedPage), pageCount - 1);
-  const rows = model.portfolio.slice(page * pageSize, (page + 1) * pageSize);
+  const rows = entries.slice(page * pageSize, (page + 1) * pageSize);
   const section = parent.createEl('section', {
     cls: 'pm-panel pm-portfolio',
     attr: { id: 'pm-dashboard-portfolio', tabindex: '-1' }
   });
   const heading = section.createDiv({ cls: 'pm-section-heading' });
-  heading.createDiv().createEl('h2', { text: 'Project portfolio' });
-  heading.createSpan({ cls: 'pm-count-badge', text: `${model.portfolio.length} projects` });
-  if (model.portfolio.length > pageSize) {
+  heading.createDiv().createEl('h2', { text: 'Publishing portfolio' });
+  heading.createSpan({
+    cls: 'pm-count-badge',
+    text: `${model.portfolio.length} projects · ${series.length} series`
+  });
+  if (entries.length > pageSize) {
     const paging = section.createDiv({
       cls: 'pm-action-row',
       attr: { 'aria-label': 'Portfolio pages' }
@@ -585,28 +596,42 @@ function renderPortfolioTable(
     next.disabled = page + 1 >= pageCount;
     next.addEventListener('click', () => changePage(page + 1));
   }
-  renderProjectCards(section, rows, openBook, coverUrl);
+  renderProjectCards(section, rows, openBook, openSeries, coverUrl);
 }
+
+type PortfolioCard = { readonly kind: 'project' | 'series'; readonly record: CatalogRecord };
 
 /** Renders a fixed desktop Project-card grid so a small portfolio never becomes one stretched row. */
 function renderProjectCards(
   parent: HTMLElement,
-  rows: readonly OperationalDashboardModel['portfolio'][number][],
+  rows: readonly PortfolioCard[],
   openBook: (record: CatalogRecord) => void,
+  openSeries: (record: CatalogRecord) => void,
   coverUrl: (record: CatalogRecord) => string | undefined
 ): void {
-  const cards = parent.createDiv({ cls: 'pm-project-dashboard-cards', attr: { 'aria-label': 'Projects' } });
+  const cards = parent.createDiv({ cls: 'pm-project-dashboard-cards', attr: { 'aria-label': 'Projects and series' } });
   for (const row of rows) {
     const card = cards.createEl('button', {
       cls: 'pm-project-dashboard-card',
       attr: { type: 'button' }
     });
-    const cover = coverUrl(row.book);
+    const cover = coverUrl(row.record);
     if (cover === undefined) card.createDiv({ cls: 'pm-project-dashboard-card__placeholder', text: 'No cover' });
-    else card.createEl('img', { attr: { src: cover, alt: `${String(row.book.fields.title)} cover art` } });
+    else
+      card.createEl('img', {
+        attr: {
+          src: cover,
+          alt: `${String(row.record.fields[row.kind === 'series' ? 'name' : 'title'])} cover art`
+        }
+      });
     const content = card.createDiv({ cls: 'pm-project-dashboard-card__content' });
-    content.createEl('h3', { text: String(row.book.fields.title) });
-    card.addEventListener('click', () => openBook(row.book));
+    content.createEl('h3', {
+      text: String(row.record.fields[row.kind === 'series' ? 'name' : 'title'])
+    });
+    card.addEventListener('click', () => {
+      if (row.kind === 'series') openSeries(row.record);
+      else openBook(row.record);
+    });
   }
 }
 

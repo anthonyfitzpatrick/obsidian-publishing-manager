@@ -53,7 +53,9 @@ const relation = (relationship: ManagedRecordType, required: boolean): RecordFie
 export const RECORD_SCHEMAS = {
   series: schema('series', {
     name: requiredString(),
-    'ordering-policy': optionalString()
+    'ordering-policy': optionalString(),
+    // Series cover art follows the same local-vault path contract as a Project cover.
+    cover: constrainedString(false, { format: 'vault-path', maximumBytes: 1_024 })
   }),
   book: schema('book', {
     title: requiredString(),
