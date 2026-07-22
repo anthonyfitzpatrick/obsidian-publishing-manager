@@ -163,6 +163,7 @@ export class BookWorkspaceView extends ItemView {
     section.createEl('p', {
       text: 'Freshness is derived from live existence and comparison evidence. Matching modified time and size are useful but cannot prove identical content; SHA-256 verification reads the entire file only when you explicitly request it.'
     });
+    this.renderProjectCoverControls(section, book);
 
     const records = this.catalog
       .recordsOfType('asset-reference')
@@ -258,6 +259,91 @@ export class BookWorkspaceView extends ItemView {
       }
     }
     this.renderAssetRepairPreview(section, book.id);
+  }
+
+  /** Keeps Dashboard-card cover configuration in Assets, away from the everyday Project overview form. */
+  private renderProjectCoverControls(parent: HTMLElement, book: CatalogRecord): void {
+    const draft = this.drafts.ensure(book);
+    const section = parent.createEl('section', { cls: 'pm-edition-subsection' });
+    section.createEl('h3', { text: 'Project cover art' });
+    section.createEl('p', {
+      text: 'Optional local image for Project cards. The optimized copy stays in your vault; this image is not uploaded anywhere.'
+    });
+    const fields = section.createDiv({ cls: 'pm-form-grid' });
+    const cover = createInputField(fields, 'Cover art vault path', 'text', draft.cover);
+    cover.placeholder = 'Covers/Warden of Silence.jpg';
+    cover.setAttribute('aria-describedby', 'pm-project-cover-help');
+    fields.createEl('small', {
+      cls: 'pm-field--wide',
+      text: 'Choose a local image or paste its vault path.',
+      attr: { id: 'pm-project-cover-help' }
+    });
+    const coverDrop = fields.createEl('button', {
+      cls: 'pm-cover-drop-zone pm-field--wide',
+      text: 'Drop cover art here, or click to choose an image',
+      attr: { type: 'button' }
+    });
+    const picker = document.createElement('input');
+    picker.type = 'file';
+    picker.accept = 'image/avif,image/gif,image/jpeg,image/png,image/svg+xml,image/webp';
+    picker.hidden = true;
+    coverDrop.appendChild(picker);
+    const validation = section.createDiv({ cls: 'pm-validation-summary', attr: { 'aria-live': 'polite' } });
+    const actions = section.createDiv({ cls: 'pm-action-row' });
+    const save = actions.createEl('button', {
+      cls: 'pm-button pm-button--primary', text: 'Save changes', attr: { type: 'button' }
+    });
+    const discard = actions.createEl('button', {
+      cls: 'pm-button pm-button--secondary', text: 'Discard draft', attr: { type: 'button' }
+    });
+    const update = (path: string) => {
+      const next = this.drafts.update(book.path, { cover: path });
+      renderDraftValidation(validation, next);
+      save.toggleAttribute('disabled', !next.dirty || next.diagnostics.length > 0);
+      discard.toggleAttribute('disabled', !next.dirty);
+    };
+    cover.addEventListener('input', () => update(cover.value));
+    const acceptCover = (source: File | TFile) => {
+      void this.optimizeProjectCover(book, source)
+        .then((path) => {
+          cover.value = path;
+          update(path);
+          new Notice('Optimized Project cover art is ready. Save changes to attach it to this Project.');
+        })
+        .catch((cause: unknown) =>
+          new Notice(cause instanceof Error ? cause.message : 'Could not prepare the Project cover art.')
+        );
+    };
+    picker.addEventListener('change', () => {
+      const selected = picker.files?.[0];
+      if (selected !== undefined) acceptCover(selected);
+    });
+    coverDrop.addEventListener('click', () => picker.click());
+    coverDrop.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      coverDrop.addClass('is-dragging');
+    });
+    coverDrop.addEventListener('dragleave', () => coverDrop.removeClass('is-dragging'));
+    coverDrop.addEventListener('drop', (event) => {
+      event.preventDefault();
+      coverDrop.removeClass('is-dragging');
+      const file = event.dataTransfer?.files[0];
+      if (file !== undefined) return acceptCover(file);
+      const path = event.dataTransfer?.getData('text/plain').trim();
+      const vaultFile = path === undefined ? null : this.app.vault.getAbstractFileByPath(path);
+      if (vaultFile instanceof TFile) acceptCover(vaultFile);
+      else new Notice('Drop a local image file or choose one from your device.');
+    });
+    renderDraftValidation(validation, draft);
+    save.toggleAttribute('disabled', !draft.dirty || draft.diagnostics.length > 0);
+    discard.toggleAttribute('disabled', !draft.dirty);
+    save.addEventListener('click', () => void this.saveDraft(book, save));
+    discard.addEventListener('click', () => {
+      new ConfirmDiscardModal(this.app, () => {
+        this.drafts.discard(book.path);
+        if (this.snapshot !== undefined) this.render(this.snapshot);
+      }).open();
+    });
   }
 
   /** Renders text-labelled evidence so every state remains understandable without badge color. */
@@ -781,26 +867,6 @@ export class BookWorkspaceView extends ItemView {
       text: draft.summary,
       attr: { rows: '6', maxlength: '4000' }
     });
-    const cover = createInputField(fields, 'Project cover art vault path', 'text', draft.cover);
-    cover.placeholder = 'Covers/Warden of Silence.jpg';
-    cover.setAttribute('aria-describedby', 'pm-project-cover-help');
-    const coverHelp = fields.createEl('small', {
-      cls: 'pm-field--wide',
-      text: 'Optional local image path. The image remains in your vault and is shown on Project cards.',
-      attr: { id: 'pm-project-cover-help' }
-    });
-    // A real button keeps the picker reachable by keyboard and screen-reader users while the
-    // surrounding drag handlers still support the faster drop workflow for local cover files.
-    const coverDrop = fields.createEl('button', {
-      cls: 'pm-cover-drop-zone pm-field--wide',
-      text: 'Drop cover art here, or click to choose an image',
-      attr: { type: 'button' }
-    });
-    const picker = document.createElement('input');
-    picker.type = 'file';
-    picker.accept = 'image/avif,image/gif,image/jpeg,image/png,image/svg+xml,image/webp';
-    picker.hidden = true;
-    coverDrop.appendChild(picker);
     const validation = form.createDiv({
       cls: 'pm-validation-summary',
       attr: { 'aria-live': 'polite' }
@@ -828,41 +894,6 @@ export class BookWorkspaceView extends ItemView {
     language.addEventListener('input', () => update({ primaryLanguage: language.value }));
     status.addEventListener('change', () => update({ status: status.value as BookStatus }));
     summary.addEventListener('input', () => update({ summary: summary.value }));
-    cover.addEventListener('input', () => update({ cover: cover.value }));
-    const acceptCover = (source: File | TFile) => {
-      void this.optimizeProjectCover(record, source)
-        .then((path) => {
-          cover.value = path;
-          update({ cover: path });
-          new Notice('Optimized Project cover art is ready. Save changes to attach it to this Project.');
-        })
-        .catch((cause: unknown) =>
-          new Notice(cause instanceof Error ? cause.message : 'Could not prepare the Project cover art.')
-        );
-    };
-    picker.addEventListener('change', () => {
-      const selected = picker.files?.[0];
-      if (selected !== undefined) acceptCover(selected);
-    });
-    coverDrop.addEventListener('click', () => picker.click());
-    coverDrop.addEventListener('dragover', (event) => {
-      event.preventDefault();
-      coverDrop.addClass('is-dragging');
-    });
-    coverDrop.addEventListener('dragleave', () => coverDrop.removeClass('is-dragging'));
-    coverDrop.addEventListener('drop', (event) => {
-      event.preventDefault();
-      coverDrop.removeClass('is-dragging');
-      const file = event.dataTransfer?.files[0];
-      if (file !== undefined) {
-        acceptCover(file);
-        return;
-      }
-      const path = event.dataTransfer?.getData('text/plain').trim();
-      const vaultFile = path === undefined ? null : this.app.vault.getAbstractFileByPath(path);
-      if (vaultFile instanceof TFile) acceptCover(vaultFile);
-      else new Notice('Drop a local image file or choose one from your device.');
-    });
     renderDraftValidation(validation, draft);
     save.toggleAttribute('disabled', !draft.dirty || draft.diagnostics.length > 0);
     discard.toggleAttribute('disabled', !draft.dirty);
