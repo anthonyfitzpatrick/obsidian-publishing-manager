@@ -214,6 +214,18 @@ export class BookCatalog {
     return matches.length === 1 ? matches[0] : undefined;
   }
 
+  /**
+   * Lists valid Series parents for creation and membership controls. The catalog remains the
+   * disposable projection; callers receive no storage capability and must still use the service
+   * layer for every assignment.
+   */
+  public seriesRecords(): readonly CatalogRecord[] {
+    const diagnostics = this.collectDiagnostics();
+    return [...this.recordsByPath.values()]
+      .filter((record) => record.type === 'series' && !hasPathError(record.path, diagnostics))
+      .sort((left, right) => String(left.fields.name).localeCompare(String(right.fields.name)));
+  }
+
   /** Reports whether a proposed explicit series position is already occupied by another book. */
   public isSeriesPositionOccupied(
     seriesId: string,

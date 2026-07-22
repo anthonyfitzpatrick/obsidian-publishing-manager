@@ -32,6 +32,7 @@ import type { CatalogRecord } from '../../domain/catalog/catalog-model';
 import { normalizeVaultPath } from '../../domain/storage/vault-path';
 import { CreateBookModal } from '../dialogs/create-book-modal';
 import { CreateSeriesModal } from '../dialogs/create-series-modal';
+import { ManageSeriesModal } from '../dialogs/manage-series-modal';
 import type { BookDraftStore } from '../state/book-draft-store';
 import { BookWorkspaceView, BOOK_WORKSPACE_VIEW_TYPE } from './book-workspace-view';
 import {
@@ -129,8 +130,9 @@ export function registerPublishingViews(
         dashboardPreferences,
         sales,
         calendar,
-        () => new CreateBookModal(plugin.app, books).open(),
-        () => new CreateSeriesModal(plugin.app, books).open(),
+        () => new CreateBookModal(plugin.app, books, catalog).open(),
+        () => new CreateSeriesModal(plugin.app, books, catalog).open(),
+        () => new ManageSeriesModal(plugin.app, books, catalog).open(),
         openBook,
         refreshCatalog,
         completeDashboardTools

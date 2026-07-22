@@ -234,7 +234,7 @@ export default class PublishingManagerPlugin extends Plugin {
     this.register(new BrowserMetadataVisualsProviderTransport(metadataVisualsProvider).start());
 
     registerFoundationCommand(this, getFoundationStatus);
-    registerBookCommands(this, books);
+    registerBookCommands(this, books, catalog);
     registerWorkflowCommands(this, catalog, workflows);
     // Standalone views expose reveal-or-create routes instead of registering their own ribbon
     // icons. The Dashboard receives those narrow routes and becomes the single visual entry point.

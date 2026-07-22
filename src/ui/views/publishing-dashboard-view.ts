@@ -71,6 +71,7 @@ export class PublishingDashboardView extends ItemView {
     private readonly calendar: CalendarProjectService,
     private readonly createBook: () => void,
     private readonly createSeries: () => void,
+    private readonly manageSeries: () => void,
     private readonly openBook: (record: CatalogRecord, tab?: string) => Promise<void>,
     private readonly refreshCatalog: () => Promise<void>,
     private readonly tools: PublishingDashboardTools
@@ -172,6 +173,7 @@ export class PublishingDashboardView extends ItemView {
           .onClick(this.createBook)
       );
       menu.addItem((item) => item.setTitle('New Series').setIcon('list-ordered').onClick(this.createSeries));
+      menu.addItem((item) => item.setTitle('Manage Series').setIcon('folder-tree').onClick(this.manageSeries));
       menu.showAtMouseEvent(event);
     });
 

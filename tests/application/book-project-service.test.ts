@@ -123,6 +123,11 @@ describe('book project service', () => {
     await expect(service.assignSeries(first.path, seriesId, 1)).rejects.toMatchObject({
       code: 'series-position-occupied'
     });
+
+    const standalone = await service.removeSeries(second.path);
+    expect(standalone.book.seriesId).toBeUndefined();
+    expect(standalone.book.seriesPosition).toBeUndefined();
+    expect(catalog.orderedBooks(seriesId).map(({ fields }) => fields.title)).toEqual(['Second Book']);
   });
 
   it('archives and restores without deletion while updating activity and next milestone', async () => {

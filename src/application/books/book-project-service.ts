@@ -189,6 +189,23 @@ export class BookProjectService {
     return { path, book: hydrateBookProject(saved) };
   }
 
+  /** Removes only Series membership; the Project remains a normal standalone Project. */
+  public async removeSeries(path: VaultPath): Promise<BookProjectResult> {
+    const loaded = await this.repository.load(path);
+    assertBookType(loaded.envelope.pmType);
+    const nextFields = { ...loaded.fields };
+    delete nextFields['series-id'];
+    delete nextFields['series-position'];
+    assertValidBook(nextFields);
+    const saved = await this.repository.save(
+      loaded,
+      { fields: { 'series-id': undefined, 'series-position': undefined } },
+      this.clock.now().toISOString()
+    );
+    this.catalog.accept(saved, 'modified');
+    return { path, book: hydrateBookProject(saved) };
+  }
+
   /** Archives a book without deleting its note, identity, links, body, or unknown fields. */
   public async archive(path: VaultPath): Promise<BookProjectResult> {
     const loaded = await this.repository.load(path);

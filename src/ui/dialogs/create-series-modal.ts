@@ -1,22 +1,22 @@
-/**
- * Creates a canonical series record without coupling the Dashboard to storage details. Series
- * membership remains an explicit later action; this modal only establishes the reusable parent.
- */
+/** Creates a lightweight Series parent, then immediately opens its Project-membership editor. */
 
 import { Modal, Notice, Setting, type App } from 'obsidian';
 
 import type { BookProjectService } from '../../application/books/book-project-service';
+import type { BookCatalog } from '../../application/catalog/book-catalog';
+import { ManageSeriesModal } from './manage-series-modal';
 
-/** Focused local Series creation dialog used by the Dashboard and command palette. */
+/** Focused Series creation dialog used by the Dashboard and command palette. */
 export class CreateSeriesModal extends Modal {
   public constructor(
     app: App,
-    private readonly books: BookProjectService
+    private readonly books: BookProjectService,
+    private readonly catalog: BookCatalog
   ) {
     super(app);
   }
 
-  /** Builds the one required field and keeps validation feedback inside this modal instance. */
+  /** Keeps Series creation to one name field: it is only a container for Projects. */
   public override onOpen(): void {
     this.setTitle('Create series');
     let name = '';
@@ -26,7 +26,7 @@ export class CreateSeriesModal extends Modal {
     });
     new Setting(this.contentEl)
       .setName('Series name')
-      .setDesc('Required stable series name. Projects can be assigned to it later.')
+      .setDesc('A Series is a named container for related Projects. You will choose its Projects next.')
       .addText((text) => {
         text.setPlaceholder('Series name').onChange((value) => {
           name = value;
@@ -50,12 +50,13 @@ export class CreateSeriesModal extends Modal {
     this.contentEl.empty();
   }
 
-  /** Saves only after application validation; user input remains visible if that validation fails. */
+  /** Opens membership immediately after a successful create so the Series is never a dead end. */
   private async submit(name: string, error: HTMLElement): Promise<void> {
     try {
-      await this.books.createSeries(name);
-      new Notice(`Created series “${name}”.`);
+      const seriesId = await this.books.createSeries(name);
       this.close();
+      new Notice(`Created series “${name}”. Add its Projects next.`);
+      new ManageSeriesModal(this.app, this.books, this.catalog, seriesId).open();
     } catch (cause) {
       error.setText(cause instanceof Error ? cause.message : 'Series could not be created.');
       error.focus();
