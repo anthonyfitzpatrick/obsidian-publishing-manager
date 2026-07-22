@@ -22,8 +22,10 @@ export interface IsbnWorkspaceState {
   transaction?: IsbnTransactionPreview;
   editionId?: string;
   formatId?: string;
+  /** A free global identifier can be selected for this Project without rendering the global pool. */
+  availableIsbnId?: string;
   correctionReason: string;
-  /** Zero-based disposable page; the complete canonical ISBN pool remains in the catalog. */
+  /** Zero-based disposable page for ISBNs already related to this Project. */
   poolPage: number;
 }
 
@@ -45,12 +47,11 @@ export function renderIsbnWorkspace(context: IsbnWorkspaceContext): void {
   const heading = page.createDiv({ cls: 'pm-section-heading' });
   const title = heading.createDiv();
   title.createEl('p', { cls: 'pm-eyebrow', text: 'Canonical identifier pool' });
-  title.createEl('h2', { text: 'ISBN management' });
+  title.createEl('h2', { text: 'Project ISBNs' });
   title.createEl('p', {
-    text: 'Normalize ISBN-10/13 values, import with row-level evidence, and move identifiers through previewed reservation, assignment, publication, release, retirement, or correction.'
+    text: 'Assign and manage ISBNs used by this Project. Add identifiers and browse the full inventory in Global data library.'
   });
   renderTransactionPreview(page, context);
-  renderImport(page, context);
   renderAssignmentSelectors(page, context);
   renderPool(page, context);
 }
@@ -204,6 +205,43 @@ function renderAssignmentSelectors(parent: HTMLElement, context: IsbnWorkspaceCo
     else delete context.state.formatId;
   });
   renderFormats();
+  const free = context.snapshot.isbns.filter((record) => record.fields.status === 'available');
+  const freeLabel = card.createEl('label', { cls: 'pm-field', text: 'Available ISBN' });
+  const freeIsbn = freeLabel.createEl('select', { attr: { 'aria-label': 'Available ISBN to assign' } });
+  freeIsbn.createEl('option', { value: '', text: 'Choose available ISBN' });
+  for (const record of free)
+    freeIsbn.createEl('option', {
+      value: record.id,
+      text: String(record.fields.value),
+      attr: record.id === context.state.availableIsbnId ? { selected: 'true' } : {}
+    });
+  freeIsbn.addEventListener('change', () => {
+    if (freeIsbn.value) context.state.availableIsbnId = freeIsbn.value;
+    else delete context.state.availableIsbnId;
+  });
+  const assign = card.createEl('button', {
+    cls: 'pm-button pm-button--primary',
+    text: 'Assign selected ISBN',
+    attr: { type: 'button' }
+  });
+  assign.addEventListener('click', () => {
+    const recordId = context.state.availableIsbnId;
+    if (recordId === undefined) {
+      new Notice('Choose an available ISBN first.');
+      return;
+    }
+    try {
+      context.state.transaction = context.isbns.previewTransaction({
+        recordId,
+        action: 'assign',
+        ...(context.state.editionId === undefined ? {} : { editionId: context.state.editionId }),
+        ...(context.state.formatId === undefined ? {} : { formatId: context.state.formatId })
+      });
+      context.rerender();
+    } catch (cause) {
+      new Notice(errorMessage(cause));
+    }
+  });
   const reason = card.createEl('input', {
     value: context.state.correctionReason,
     attr: { type: 'text', placeholder: 'Published ISBN correction reason' }
@@ -215,14 +253,25 @@ function renderAssignmentSelectors(parent: HTMLElement, context: IsbnWorkspaceCo
 
 function renderPool(parent: HTMLElement, context: IsbnWorkspaceContext): void {
   const pageSize = 50;
-  const total = context.snapshot.isbns.length;
+  const editionIds = new Set(
+    context.snapshot.editions
+      .filter((edition) => edition.fields['book-id'] === context.book.id)
+      .map((edition) => edition.id)
+  );
+  const projectIsbns = context.snapshot.isbns.filter(
+    (record) => typeof record.fields['edition-id'] === 'string' && editionIds.has(record.fields['edition-id'])
+  );
+  const total = projectIsbns.length;
   const window = pagedCollectionWindow(total, context.state.poolPage, pageSize);
   context.state.poolPage = window.page;
-  const visible = pageCollection(context.snapshot.isbns, window);
+  const visible = pageCollection(projectIsbns, window);
   const section = parent.createEl('section', { cls: 'pm-panel' });
-  section.createEl('h3', { text: `ISBN pool · ${total}` });
+  section.createEl('h3', { text: `ISBNs assigned to this Project · ${total}` });
   if (total === 0) {
-    section.createEl('p', { cls: 'pm-muted', text: 'No ISBNs. Add one above.' });
+    section.createEl('p', {
+      cls: 'pm-muted',
+      text: 'No ISBNs are assigned to this Project. Choose a free ISBN above, or manage the global inventory in Global data library.'
+    });
     return;
   }
   const grid = section.createDiv({ cls: 'pm-isbn-grid' });
