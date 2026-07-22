@@ -601,25 +601,44 @@
   width: 100%;
 }
 
-.pm-series-project-card__controls {
+.pm-series-project-card__part {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-medium);
+  margin: 8px 0 0;
+  text-align: center;
+}
+
+/* Series order is occasional administration rather than Project-card content. It is intentionally
+   a compact, separate panel so the visual Project card stays equivalent to its Dashboard form. */
+.pm-series-membership-management {
+  border-block-start: 1px solid var(--pm-panel-border);
+  margin-block-start: 20px;
+  padding-block-start: 20px;
+}
+
+.pm-series-membership-management__rows {
   display: grid;
   gap: 10px;
   margin-block-start: 14px;
-  padding: 0 12px 12px;
-  text-align: start;
 }
 
-.pm-series-project-card__controls .pm-button {
-  box-sizing: border-box;
+.pm-series-membership-management__row {
+  align-items: end;
+  background: var(--background-secondary);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) minmax(120px, 180px) auto;
+  padding: 12px;
+}
+
+.pm-series-membership-management__row strong {
   min-width: 0;
   overflow-wrap: anywhere;
-  white-space: normal;
-  width: 100%;
 }
 
-/* A native input defaults to content-box sizing, which can otherwise add its horizontal padding
-   outside a narrow card. The part field must remain fully inside the same visual frame as its Project. */
-.pm-series-project-card__controls .pm-field input {
+.pm-series-membership-management__row .pm-field input {
   box-sizing: border-box;
   min-width: 0;
 }
@@ -634,6 +653,11 @@
      form controls beside each other. Dashboard portfolio cards retain their compact two-column rule. */
   .pm-series-project-cards {
     grid-template-columns: minmax(0, 180px);
+  }
+
+  .pm-series-membership-management__row {
+    align-items: stretch;
+    grid-template-columns: 1fr;
   }
 }
 

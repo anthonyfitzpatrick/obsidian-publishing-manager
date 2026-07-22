@@ -26,6 +26,8 @@ export class SeriesWorkspaceView extends ItemView {
   private unsubscribe: (() => void) | undefined;
   private snapshot: BookCatalogSnapshot | undefined;
   private selectedPath: VaultPath | undefined;
+  /** Keeps routine reading/navigation clean; maintenance controls appear only on request. */
+  private isManagingSeriesOrder = false;
 
   public constructor(
     leaf: WorkspaceLeaf,
@@ -201,7 +203,17 @@ export class SeriesWorkspaceView extends ItemView {
     const panel = parent.createEl('section', { cls: 'pm-panel' });
     const heading = panel.createDiv({ cls: 'pm-section-heading' });
     heading.createDiv().createEl('h2', { text: 'Projects in this Series' });
-    const add = heading.createEl('button', {
+    const commands = heading.createDiv({ cls: 'pm-action-row' });
+    const manage = commands.createEl('button', {
+      cls: 'pm-button pm-button--secondary',
+      text: this.isManagingSeriesOrder ? 'Done managing' : 'Manage order',
+      attr: { type: 'button' }
+    });
+    manage.addEventListener('click', () => {
+      this.isManagingSeriesOrder = !this.isManagingSeriesOrder;
+      this.render();
+    });
+    const add = commands.createEl('button', {
       cls: 'pm-button pm-button--primary',
       text: 'Add Project',
       attr: { type: 'button' }
@@ -226,8 +238,8 @@ export class SeriesWorkspaceView extends ItemView {
     const partNumbers = new Map(
       projects.map((project) => [project.path, Number(project.fields['series-position'])])
     );
-    // Membership uses the same compact visual language as the Dashboard. The controls stay in
-    // each card, so a Series remains easy to maintain without falling back to a dense settings row.
+    // Routine Series browsing deliberately matches the Dashboard: cards show the Project, not
+    // its maintenance form. The dedicated management area below opens only when it is needed.
     const cards = panel.createDiv({
       cls: 'pm-project-dashboard-cards pm-series-project-cards',
       attr: { 'aria-label': 'Projects in this Series' }
@@ -247,16 +259,31 @@ export class SeriesWorkspaceView extends ItemView {
       this.renderProjectCardCover(open, project, title);
       const content = open.createDiv({ cls: 'pm-project-dashboard-card__content' });
       content.createEl('h3', { text: title });
+      content.createEl('p', {
+        cls: 'pm-series-project-card__part',
+        text: `Part ${partNumbers.get(project.path) ?? '—'}`
+      });
       open.addEventListener('click', () => void this.openProject(project));
-      const controls = card.createDiv({ cls: 'pm-series-project-card__controls' });
-      const partField = controls.createEl('label', { cls: 'pm-field', text: 'Part number' });
+    }
+    if (!this.isManagingSeriesOrder) return;
+    const management = panel.createEl('section', { cls: 'pm-series-membership-management' });
+    management.createEl('h3', { text: 'Manage Series order' });
+    management.createEl('p', {
+      text: 'Update Part numbers or remove a Project from this Series. Save applies every Part number together.'
+    });
+    const rows = management.createDiv({ cls: 'pm-series-membership-management__rows' });
+    for (const project of projects) {
+      const title = typeof project.fields.title === 'string' ? project.fields.title : project.id;
+      const row = rows.createDiv({ cls: 'pm-series-membership-management__row' });
+      row.createEl('strong', { text: title });
+      const partField = row.createEl('label', { cls: 'pm-field', text: 'Part number' });
       const partInput = partField.createEl('input', {
         type: 'number',
         value: String(partNumbers.get(project.path) ?? ''),
         attr: { min: '1', step: '1', 'aria-label': `Part number for ${title}` }
       });
       partInput.addEventListener('input', () => partNumbers.set(project.path, Number(partInput.value)));
-      const remove = controls.createEl('button', {
+      const remove = row.createEl('button', {
         cls: 'pm-button pm-button--secondary',
         text: 'Remove from Series',
         attr: { type: 'button' }
@@ -266,7 +293,7 @@ export class SeriesWorkspaceView extends ItemView {
         void this.removeProject(project, error).finally(() => remove.removeAttribute('disabled'));
       });
     }
-    const actions = panel.createDiv({ cls: 'pm-action-row pm-series-project-card-actions' });
+    const actions = management.createDiv({ cls: 'pm-action-row pm-series-project-card-actions' });
     const save = actions.createEl('button', {
       cls: 'pm-button pm-button--primary',
       text: 'Save Part numbers',
