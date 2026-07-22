@@ -615,6 +615,12 @@ function renderProjectCards(
       cls: 'pm-project-dashboard-card',
       attr: { type: 'button' }
     });
+    // The record type belongs above the visual cover so users can identify the card before
+    // reading the artwork or title. This also keeps Project and Series cards structurally equal.
+    card.createEl('p', {
+      cls: 'pm-project-dashboard-card__type',
+      text: row.kind === 'series' ? 'Series' : 'Project'
+    });
     const cover = coverUrl(row.record);
     if (cover === undefined) card.createDiv({ cls: 'pm-project-dashboard-card__placeholder', text: 'No cover' });
     else
@@ -625,8 +631,6 @@ function renderProjectCards(
         }
       });
     const content = card.createDiv({ cls: 'pm-project-dashboard-card__content' });
-    // Cover art alone does not make the parent record type obvious, so every peer card names it.
-    content.createEl('p', { cls: 'pm-eyebrow', text: row.kind === 'series' ? 'Series' : 'Project' });
     content.createEl('h3', {
       text: String(row.record.fields[row.kind === 'series' ? 'name' : 'title'])
     });

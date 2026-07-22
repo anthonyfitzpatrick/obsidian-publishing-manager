@@ -533,7 +533,7 @@
   color: var(--text-normal);
   cursor: pointer;
   display: grid;
-  grid-template-rows: auto auto;
+  grid-template-rows: auto auto auto;
   height: auto;
   min-height: 0;
   min-width: 0;
@@ -551,6 +551,19 @@
   width: 100%;
 }
 
+/* The card type is intentionally read before the artwork: Project and Series look alike by design. */
+.pm-project-dashboard-card__type {
+  color: var(--text-normal);
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-semibold);
+  letter-spacing: 0.08em;
+  margin: 0;
+  padding: 10px 12px 8px;
+  text-align: center;
+  text-transform: uppercase;
+  white-space: normal;
+}
+
 .pm-project-dashboard-card__placeholder {
   align-items: center;
   color: var(--text-muted);
@@ -561,11 +574,15 @@
 .pm-project-dashboard-card__content {
   min-width: 0;
   padding: 12px;
+  text-align: center;
 }
 
 .pm-project-dashboard-card__content h3 {
   margin: 0;
   overflow-wrap: anywhere;
+  text-align: center;
+  white-space: normal;
+  word-break: break-word;
 }
 
 /* The Series editor previews the exact same KDP-shaped derivative used by Dashboard cards. */
