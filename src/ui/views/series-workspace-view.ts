@@ -7,7 +7,6 @@
 import {
   ItemView,
   Notice,
-  Setting,
   TFile,
   type ViewStateResult,
   type WorkspaceLeaf
@@ -226,36 +225,58 @@ export class SeriesWorkspaceView extends ItemView {
     const partNumbers = new Map(
       projects.map((project) => [project.path, Number(project.fields['series-position'])])
     );
+    // Membership uses the same compact visual language as the Dashboard. The controls stay in
+    // each card, so a Series remains easy to maintain without falling back to a dense settings row.
+    const cards = panel.createDiv({
+      cls: 'pm-project-dashboard-cards pm-series-project-cards',
+      attr: { 'aria-label': 'Projects in this Series' }
+    });
     for (const project of projects) {
       const title = typeof project.fields.title === 'string' ? project.fields.title : project.id;
-      new Setting(panel)
-        .setName(title)
-        .setDesc('Part number')
-        .addText((text) => {
-          text.setValue(String(partNumbers.get(project.path) ?? '')).onChange((value) => {
-            partNumbers.set(project.path, Number(value));
-          });
-          text.inputEl.type = 'number';
-          text.inputEl.min = '1';
-          text.inputEl.step = '1';
-          text.inputEl.setAttr('aria-label', `Part number for ${title}`);
-        })
-        .addButton((button) =>
-          button.setButtonText('Remove from Series').onClick(() => {
-            button.setDisabled(true);
-            void this.removeProject(project, error).finally(() => button.setDisabled(false));
-          })
-        );
+      const card = cards.createEl('article', { cls: 'pm-project-dashboard-card pm-series-project-card' });
+      card.createEl('p', { cls: 'pm-project-dashboard-card__type', text: 'Project' });
+      this.renderProjectCardCover(card, project, title);
+      const content = card.createDiv({ cls: 'pm-project-dashboard-card__content' });
+      content.createEl('h3', { text: title });
+      const controls = content.createDiv({ cls: 'pm-series-project-card__controls' });
+      const partField = controls.createEl('label', { cls: 'pm-field', text: 'Part number' });
+      const partInput = partField.createEl('input', {
+        type: 'number',
+        value: String(partNumbers.get(project.path) ?? ''),
+        attr: { min: '1', step: '1', 'aria-label': `Part number for ${title}` }
+      });
+      partInput.addEventListener('input', () => partNumbers.set(project.path, Number(partInput.value)));
+      const remove = controls.createEl('button', {
+        cls: 'pm-button pm-button--secondary',
+        text: 'Remove from Series',
+        attr: { type: 'button' }
+      });
+      remove.addEventListener('click', () => {
+        remove.setAttr('disabled', 'true');
+        void this.removeProject(project, error).finally(() => remove.removeAttribute('disabled'));
+      });
     }
-    new Setting(panel).addButton((button) =>
-      button
-        .setButtonText('Save Part numbers')
-        .setCta()
-        .onClick(() => {
-          button.setDisabled(true);
-          void this.savePartNumbers(series, partNumbers, error).finally(() => button.setDisabled(false));
-        })
-    );
+    const actions = panel.createDiv({ cls: 'pm-action-row pm-series-project-card-actions' });
+    const save = actions.createEl('button', {
+      cls: 'pm-button pm-button--primary',
+      text: 'Save Part numbers',
+      attr: { type: 'button' }
+    });
+    save.addEventListener('click', () => {
+      save.setAttr('disabled', 'true');
+      void this.savePartNumbers(series, partNumbers, error).finally(() => save.removeAttribute('disabled'));
+    });
+  }
+
+  /** Resolves a Project cover without making membership presentation depend on the Dashboard view. */
+  private renderProjectCardCover(parent: HTMLElement, project: CatalogRecord, title: string): void {
+    const path = project.fields.cover;
+    const file = typeof path === 'string' ? this.app.vault.getAbstractFileByPath(path) : null;
+    if (!(file instanceof TFile) || !isCoverFile(file)) {
+      parent.createDiv({ cls: 'pm-project-dashboard-card__placeholder', text: 'No cover' });
+      return;
+    }
+    parent.createEl('img', { attr: { src: this.app.vault.getResourcePath(file), alt: `${title} cover art` } });
   }
 
   /** Persists all Part numbers as one validated Series-order operation, including direct swaps. */

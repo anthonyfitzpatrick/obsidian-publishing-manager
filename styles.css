@@ -585,6 +585,28 @@
   word-break: break-word;
 }
 
+/* Attached Projects deliberately reuse Dashboard cards; these additions keep their management
+   controls readable without turning the card back into a broad settings row. */
+.pm-series-project-card {
+  cursor: default !important;
+}
+
+.pm-series-project-card__controls {
+  display: grid;
+  gap: 10px;
+  margin-block-start: 14px;
+  text-align: start;
+}
+
+.pm-series-project-card__controls .pm-button {
+  width: 100%;
+}
+
+.pm-series-project-card-actions {
+  justify-content: flex-end;
+  margin-block-start: 16px;
+}
+
 /* The Series editor previews the exact same KDP-shaped derivative used by Dashboard cards. */
 .pm-series-cover-preview {
   aspect-ratio: var(--pm-project-cover-ratio);
