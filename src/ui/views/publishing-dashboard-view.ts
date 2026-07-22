@@ -625,6 +625,8 @@ function renderProjectCards(
         }
       });
     const content = card.createDiv({ cls: 'pm-project-dashboard-card__content' });
+    // Cover art alone does not make the parent record type obvious, so every peer card names it.
+    content.createEl('p', { cls: 'pm-eyebrow', text: row.kind === 'series' ? 'Series' : 'Project' });
     content.createEl('h3', {
       text: String(row.record.fields[row.kind === 'series' ? 'name' : 'title'])
     });
