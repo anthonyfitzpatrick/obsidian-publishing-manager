@@ -129,31 +129,27 @@ export class SeriesWorkspaceView extends ItemView {
       attr: { type: 'button' }
     });
     openMarkdown.addEventListener('click', () => void this.openMarkdown(series));
-    this.renderHeaderCover(side, series);
 
     const page = root.createDiv({ cls: 'pm-series-workspace__content' });
     this.renderCoverPanel(page, series);
     this.renderMembershipPanel(page, series);
   }
 
-  /** Shows the current local Series cover in the same persistent header position as a Project. */
-  private renderHeaderCover(parent: HTMLElement, series: CatalogRecord): void {
-    const path = series.fields.cover;
-    const file = typeof path === 'string' ? this.app.vault.getAbstractFileByPath(path) : null;
-    if (!(file instanceof TFile) || !isCoverFile(file)) return;
-    const cover = parent.createDiv({ cls: 'pm-workspace-header__cover' });
-    cover.createEl('img', {
-      attr: { src: this.app.vault.getResourcePath(file), alt: `${String(series.fields.name)} cover art` }
-    });
-  }
-
-  /** Offers the same local drag/drop derivative workflow used by Project cover art. */
+  /** Keeps the current cover next to its editing controls so it never stretches the Series header. */
   private renderCoverPanel(parent: HTMLElement, series: CatalogRecord): void {
     const panel = parent.createEl('section', { cls: 'pm-panel' });
     panel.createEl('h2', { text: 'Series cover art' });
     panel.createEl('p', {
       text: 'Optional local image. It is optimized for the Dashboard card while the original file remains untouched in your vault.'
     });
+    const currentPath = series.fields.cover;
+    const current = typeof currentPath === 'string' ? this.app.vault.getAbstractFileByPath(currentPath) : null;
+    if (current instanceof TFile && isCoverFile(current)) {
+      panel.createEl('img', {
+        cls: 'pm-series-cover-preview',
+        attr: { src: this.app.vault.getResourcePath(current), alt: `${String(series.fields.name)} cover art` }
+      });
+    }
     const error = panel.createDiv({
       cls: 'publishing-manager-form-error',
       attr: { role: 'alert', 'aria-live': 'assertive', tabindex: '-1' }
