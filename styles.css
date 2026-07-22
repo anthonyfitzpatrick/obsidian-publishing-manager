@@ -661,16 +661,6 @@
   }
 }
 
-/* The Series editor previews the exact same KDP-shaped derivative used by Dashboard cards. */
-.pm-series-cover-preview {
-  aspect-ratio: var(--pm-project-cover-ratio);
-  border-radius: calc(var(--pm-radius) - 3px);
-  display: block;
-  margin: 0 0 12px;
-  max-width: 168px;
-  object-fit: cover;
-}
-
 /* Series uses a durable workspace page, not a modal; panels follow the Project page rhythm. */
 .pm-series-workspace__content {
   display: grid;

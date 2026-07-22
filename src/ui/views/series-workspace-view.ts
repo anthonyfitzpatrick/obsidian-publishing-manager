@@ -135,21 +135,13 @@ export class SeriesWorkspaceView extends ItemView {
     this.renderMembershipPanel(page, series);
   }
 
-  /** Keeps the current cover next to its editing controls so it never stretches the Series header. */
+  /** Provides the Series cover upload workflow; the cover is intentionally displayed only on Dashboard cards. */
   private renderCoverPanel(parent: HTMLElement, series: CatalogRecord): void {
     const panel = parent.createEl('section', { cls: 'pm-panel' });
     panel.createEl('h2', { text: 'Series cover art' });
     panel.createEl('p', {
       text: 'Optional local image. It is optimized for the Dashboard card while the original file remains untouched in your vault.'
     });
-    const currentPath = series.fields.cover;
-    const current = typeof currentPath === 'string' ? this.app.vault.getAbstractFileByPath(currentPath) : null;
-    if (current instanceof TFile && isCoverFile(current)) {
-      panel.createEl('img', {
-        cls: 'pm-series-cover-preview',
-        attr: { src: this.app.vault.getResourcePath(current), alt: `${String(series.fields.name)} cover art` }
-      });
-    }
     const error = panel.createDiv({
       cls: 'publishing-manager-form-error',
       attr: { role: 'alert', 'aria-live': 'assertive', tabindex: '-1' }
