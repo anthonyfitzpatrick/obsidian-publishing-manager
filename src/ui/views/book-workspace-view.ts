@@ -1097,7 +1097,10 @@ export class BookWorkspaceView extends ItemView {
       }
     });
 
-    const details = parent.createEl('dl', { cls: 'pm-edition-facts' });
+    const disclosure = parent.createEl('details', { cls: 'pm-edition-details' });
+    disclosure.createEl('summary', { text: 'Item details and management' });
+    const detailBody = disclosure.createDiv({ cls: 'pm-edition-details__body' });
+    const details = detailBody.createEl('dl', { cls: 'pm-edition-facts' });
     editionFact(details, 'Publication date', valueText(edition.fields['publication-date']));
     editionFact(details, 'Cover', valueText(edition.fields.cover));
     editionFact(details, 'Trim', trimText(edition));
@@ -1108,9 +1111,9 @@ export class BookWorkspaceView extends ItemView {
     editionFact(details, 'Audio metadata', mapText(edition.fields['audio-metadata']));
     editionFact(details, 'Notes', valueText(edition.fields.notes));
 
-    this.renderEditionFormats(parent, edition);
-    this.renderEditionComparison(parent, edition, bookEditions);
-    this.renderEditionDependants(parent, edition, bookEditions);
+    this.renderEditionFormats(detailBody, edition);
+    this.renderEditionComparison(detailBody, edition, bookEditions);
+    this.renderEditionDependants(detailBody, edition, bookEditions);
   }
 
   /** Renders semantic format/file cards and launches the conditional add-format workflow. */
