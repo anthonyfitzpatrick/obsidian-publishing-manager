@@ -63,6 +63,12 @@ import {
 } from './distribution-workspace';
 import type { BookDraftStore, BookOverviewDraft } from '../state/book-draft-store';
 import {
+  PRIMARY_LANGUAGE_OPTIONS,
+  primaryLanguageLabel,
+  regionalLanguageOptions
+} from '../language-options';
+import { COUNTRY_OPTIONS, countryCodeFromSearch, countrySearchLabel } from '../country-options';
+import {
   ENABLED_WORKSPACE_TABS,
   isWorkspaceTab,
   nextWorkspaceTab,
@@ -851,7 +857,6 @@ export class BookWorkspaceView extends ItemView {
 
     const fields = form.createDiv({ cls: 'pm-form-grid' });
     const title = createInputField(fields, 'Title', 'text', draft.title);
-    const language = createInputField(fields, 'Primary language', 'text', draft.primaryLanguage);
     const statusLabel = fields.createEl('label', { cls: 'pm-field' });
     statusLabel.createSpan({ text: 'Status' });
     const status = statusLabel.createEl('select');
@@ -862,11 +867,68 @@ export class BookWorkspaceView extends ItemView {
         attr: draft.status === value ? { selected: 'true' } : {}
       });
     }
+
+    const languageLabel = fields.createEl('label', { cls: 'pm-field' });
+    languageLabel.createSpan({ text: 'Primary language' });
+    const language = languageLabel.createEl('select', { attr: { 'aria-label': 'Primary language' } });
+    populateLanguageOptions(language, draft.primaryLanguage);
+    const regionalLanguageLabel = fields.createEl('label', { cls: 'pm-field' });
+    regionalLanguageLabel.createSpan({ text: 'Regional language' });
+    const regionalLanguage = regionalLanguageLabel.createEl('select', {
+      attr: { 'aria-label': 'Regional language' }
+    });
+    populateRegionalLanguageOptions(regionalLanguage, draft.primaryLanguage, draft.regionalLanguage);
     const summaryLabel = fields.createEl('label', { cls: 'pm-field pm-field--wide' });
     summaryLabel.createSpan({ text: 'Summary' });
     const summary = summaryLabel.createEl('textarea', {
       text: draft.summary,
       attr: { rows: '6', maxlength: '4000' }
+    });
+    const publisherDetails = form.createEl('details', { cls: 'pm-panel pm-project-publisher-registry' });
+    publisherDetails.createEl('summary', { text: 'Publisher' });
+    publisherDetails.createEl('p', {
+      text: 'Global is the default. Add a country variant only where the publisher or ISBN differs.'
+    });
+    const publisherFields = publisherDetails.createDiv({ cls: 'pm-form-grid' });
+    const publisher = createInputField(publisherFields, 'Default publisher', 'text', draft.publisher);
+    const publisherCountry = createInputField(
+      publisherFields,
+      'Publisher country',
+      'search',
+      draft.publisherCountry.length === 0 ? '' : countrySearchLabel(draft.publisherCountry)
+    );
+    publisherCountry.placeholder = 'Search countries';
+    publisherCountry.setAttr('list', 'pm-default-publisher-country-search-options');
+    const defaultCountryOptions = publisherDetails.createEl('datalist', {
+      attr: { id: 'pm-default-publisher-country-search-options' }
+    });
+    for (const option of COUNTRY_OPTIONS) {
+      defaultCountryOptions.createEl('option', { value: `${option.label} (${option.code})` });
+    }
+    const publisherVariant = createInputField(publisherFields, 'Global publisher variant', 'text', draft.publisherVariant);
+    const territoryDetails = publisherDetails.createEl('details', { cls: 'pm-project-territory-registry' });
+    territoryDetails.createEl('summary', { text: 'Add or manage country variants' });
+    territoryDetails.createEl('p', {
+      text: 'A country variant stays within this Project and may use its own publisher or ISBN.'
+    });
+    const territoryList = territoryDetails.createDiv({ cls: 'pm-project-territory-list' });
+    const territoryFields = territoryDetails.createDiv({ cls: 'pm-form-grid' });
+    const territoryCountry = createInputField(territoryFields, 'Country', 'search', '');
+    territoryCountry.placeholder = 'Search countries';
+    territoryCountry.setAttr('list', 'pm-country-search-options');
+    const countryOptions = territoryDetails.createEl('datalist', { attr: { id: 'pm-country-search-options' } });
+    for (const option of COUNTRY_OPTIONS.filter((option) => option.code !== 'GLOBAL')) {
+      countryOptions.createEl('option', { value: `${option.label} (${option.code})` });
+    }
+    const territoryPublisher = createInputField(territoryFields, 'Publisher', 'text', '');
+    const addTerritory = territoryDetails.createEl('button', {
+      cls: 'pm-button pm-button--secondary',
+      text: 'Add country variant',
+      attr: { type: 'button' }
+    });
+    const territoryNotice = territoryDetails.createDiv({
+      cls: 'pm-validation-summary',
+      attr: { 'aria-live': 'polite' }
     });
     const validation = form.createDiv({
       cls: 'pm-validation-summary',
@@ -892,9 +954,51 @@ export class BookWorkspaceView extends ItemView {
       discard.toggleAttribute('disabled', !next.dirty);
     };
     title.addEventListener('input', () => update({ title: title.value }));
-    language.addEventListener('input', () => update({ primaryLanguage: language.value }));
+    language.addEventListener('change', () => {
+      populateRegionalLanguageOptions(regionalLanguage, language.value, '');
+      update({ primaryLanguage: language.value, regionalLanguage: '' });
+    });
+    regionalLanguage.addEventListener('change', () => update({ regionalLanguage: regionalLanguage.value }));
+    publisher.addEventListener('input', () => update({ publisher: publisher.value }));
+    publisherCountry.addEventListener('change', () => {
+      const country = countryCodeFromSearch(publisherCountry.value);
+      if (publisherCountry.value.trim().length > 0 && country === undefined) {
+        territoryNotice.setText('Choose a country from the searchable list.');
+        return;
+      }
+      territoryNotice.empty();
+      update({ publisherCountry: country ?? '' });
+    });
+    publisherVariant.addEventListener('input', () => update({ publisherVariant: publisherVariant.value }));
     status.addEventListener('change', () => update({ status: status.value as BookStatus }));
     summary.addEventListener('input', () => update({ summary: summary.value }));
+    renderPublisherTerritories(territoryList, draft, (country) => {
+      update({
+        publisherImprintsByCountry: draft.publisherImprintsByCountry.filter(
+          (territory) => territory.country !== country
+        )
+      });
+      this.render(snapshot);
+    });
+    addTerritory.addEventListener('click', () => {
+      const country = countryCodeFromSearch(territoryCountry.value);
+      const publisherName = territoryPublisher.value.trim();
+      if (country === undefined || country === 'GLOBAL' || publisherName.length === 0) {
+        territoryNotice.setText('Choose a country from the searchable list and enter a publisher name.');
+        return;
+      }
+      if (draft.publisherImprintsByCountry.some((territory) => territory.country === country)) {
+        territoryNotice.setText(`${country} already has a Project publisher record. Remove it before replacing it.`);
+        return;
+      }
+      update({
+        publisherImprintsByCountry: [
+          ...draft.publisherImprintsByCountry,
+          { country, publisher: publisherName }
+        ]
+      });
+      this.render(snapshot);
+    });
     renderDraftValidation(validation, draft);
     save.toggleAttribute('disabled', !draft.dirty || draft.diagnostics.length > 0);
     discard.toggleAttribute('disabled', !draft.dirty);
@@ -1476,12 +1580,64 @@ function renderContextItem(
 function createInputField(
   parent: HTMLElement,
   label: string,
-  type: 'text',
+  type: 'text' | 'search',
   value: string
 ): HTMLInputElement {
   const wrapper = parent.createEl('label', { cls: 'pm-field' });
   wrapper.createSpan({ text: label });
   return wrapper.createEl('input', { type, value });
+}
+
+/** Fills a readable language picker while keeping an unusual legacy code visible and unchanged. */
+function populateLanguageOptions(select: HTMLSelectElement, selected: string): void {
+  select.empty();
+  if (!PRIMARY_LANGUAGE_OPTIONS.some((option) => option.code === selected)) {
+    select.createEl('option', { value: selected, text: primaryLanguageLabel(selected) });
+  }
+  for (const option of PRIMARY_LANGUAGE_OPTIONS) {
+    select.createEl('option', { value: option.code, text: option.label });
+  }
+  select.value = selected;
+}
+
+/** Rebuilds the dependent regional picker whenever the Project's primary language changes. */
+function populateRegionalLanguageOptions(
+  select: HTMLSelectElement,
+  primaryLanguage: string,
+  selected: string
+): void {
+  select.empty();
+  select.createEl('option', { value: '', text: 'No regional variant' });
+  const options = regionalLanguageOptions(primaryLanguage);
+  if (selected.length > 0 && !options.some((option) => option.code === selected)) {
+    select.createEl('option', { value: selected, text: `Existing variant (${selected})` });
+  }
+  for (const option of options) select.createEl('option', { value: option.code, text: option.label });
+  select.value = selected;
+}
+
+/** Shows compact country overrides with one deliberate removal action per Project territory. */
+function renderPublisherTerritories(
+  parent: HTMLElement,
+  draft: BookOverviewDraft,
+  remove: (country: string) => void
+): void {
+  parent.empty();
+  if (draft.publisherImprintsByCountry.length === 0) {
+    parent.createEl('p', { text: 'No country-specific publishers yet.' });
+    return;
+  }
+  for (const territory of draft.publisherImprintsByCountry) {
+    const row = parent.createDiv({ cls: 'pm-project-territory-row' });
+    row.createEl('strong', { text: countrySearchLabel(territory.country) });
+    row.createSpan({ text: territory.publisher });
+    const button = row.createEl('button', {
+      cls: 'pm-button pm-button--secondary',
+      text: 'Remove',
+      attr: { type: 'button', 'aria-label': `Remove ${territory.country} publisher override` }
+    });
+    button.addEventListener('click', () => remove(territory.country));
+  }
 }
 
 /** Replaces inline validation without rerendering controls or disturbing keyboard focus. */

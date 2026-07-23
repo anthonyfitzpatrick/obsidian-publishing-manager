@@ -9,6 +9,7 @@ import {
   hydrateBookProject,
   validateBookProject,
   type BookProject,
+  type PublisherImprintTerritory,
   type BookStatus
 } from '../../domain/books/book-project';
 import type { Clock } from '../../domain/foundation/clock';
@@ -23,6 +24,12 @@ import type { ManagedRecordRepositoryPort } from '../storage/record-storage-port
 export interface CreateBookProjectInput {
   readonly title: string;
   readonly primaryLanguage: string;
+  readonly regionalLanguage?: string;
+  readonly publisher?: string;
+  readonly publisherCountry?: string;
+  readonly publisherVariant?: string;
+  readonly imprint?: string;
+  readonly publisherImprintsByCountry?: readonly PublisherImprintTerritory[];
   readonly status: BookStatus;
   readonly summary?: string;
   readonly cover?: string;
@@ -32,6 +39,12 @@ export interface CreateBookProjectInput {
 export interface EditBookProjectInput {
   readonly title?: string;
   readonly primaryLanguage?: string;
+  readonly regionalLanguage?: string | undefined;
+  readonly publisher?: string | undefined;
+  readonly publisherCountry?: string | undefined;
+  readonly publisherVariant?: string | undefined;
+  readonly imprint?: string | undefined;
+  readonly publisherImprintsByCountry?: readonly PublisherImprintTerritory[] | undefined;
   readonly status?: BookStatus;
   readonly summary?: string | undefined;
   readonly cover?: string | undefined;
@@ -111,6 +124,16 @@ export class BookProjectService {
     const nextFields: Record<string, unknown> = { ...loaded.fields };
     if (patch.title !== undefined) nextFields.title = patch.title;
     if (patch.primaryLanguage !== undefined) nextFields['primary-language'] = patch.primaryLanguage;
+    if ('regionalLanguage' in patch) nextFields['regional-language'] = patch.regionalLanguage;
+    if ('publisher' in patch) nextFields.publisher = patch.publisher;
+    if ('publisherCountry' in patch) nextFields['publisher-country'] = patch.publisherCountry;
+    if ('publisherVariant' in patch) nextFields['publisher-variant'] = patch.publisherVariant;
+    if ('imprint' in patch) nextFields.imprint = patch.imprint;
+    if ('publisherImprintsByCountry' in patch) {
+      nextFields['publisher-imprints-by-country'] = publisherTerritoriesForStorage(
+        patch.publisherImprintsByCountry
+      );
+    }
     if (patch.status !== undefined) nextFields.status = patch.status;
     if ('summary' in patch) nextFields.summary = patch.summary;
     if ('cover' in patch) nextFields.cover = patch.cover;
@@ -123,6 +146,18 @@ export class BookProjectService {
           ...(patch.primaryLanguage === undefined
             ? {}
             : { 'primary-language': patch.primaryLanguage }),
+          ...('regionalLanguage' in patch ? { 'regional-language': patch.regionalLanguage } : {}),
+          ...('publisher' in patch ? { publisher: patch.publisher } : {}),
+          ...('publisherCountry' in patch ? { 'publisher-country': patch.publisherCountry } : {}),
+          ...('publisherVariant' in patch ? { 'publisher-variant': patch.publisherVariant } : {}),
+          ...('imprint' in patch ? { imprint: patch.imprint } : {}),
+          ...('publisherImprintsByCountry' in patch
+            ? {
+                'publisher-imprints-by-country': publisherTerritoriesForStorage(
+                  patch.publisherImprintsByCountry
+                )
+              }
+            : {}),
           ...(patch.status === undefined ? {} : { status: patch.status }),
           ...('summary' in patch ? { summary: patch.summary } : {}),
           ...('cover' in patch ? { cover: patch.cover } : {})
@@ -287,10 +322,34 @@ function toStorageFields(input: CreateBookProjectInput): Readonly<Record<string,
   return {
     title: input.title,
     'primary-language': input.primaryLanguage,
+    ...(input.regionalLanguage === undefined ? {} : { 'regional-language': input.regionalLanguage }),
+    ...(input.publisher === undefined ? {} : { publisher: input.publisher }),
+    ...(input.publisherCountry === undefined ? {} : { 'publisher-country': input.publisherCountry }),
+    ...(input.publisherVariant === undefined ? {} : { 'publisher-variant': input.publisherVariant }),
+    ...(input.imprint === undefined ? {} : { imprint: input.imprint }),
+    ...(input.publisherImprintsByCountry === undefined
+      ? {}
+      : { 'publisher-imprints-by-country': publisherTerritoriesForStorage(input.publisherImprintsByCountry) }),
     status: input.status,
     ...(input.summary === undefined ? {} : { summary: input.summary }),
     ...(input.cover === undefined ? {} : { cover: input.cover })
   };
+}
+
+/** Serializes the editable list to a country-keyed map so one Project cannot hold duplicate countries. */
+function publisherTerritoriesForStorage(
+  territories: readonly PublisherImprintTerritory[] | undefined
+): Readonly<Record<string, { readonly publisher: string; readonly imprint?: string }> | undefined> {
+  if (territories === undefined) return undefined;
+  return Object.fromEntries(
+    territories.map((territory) => [
+      territory.country,
+      {
+        publisher: territory.publisher,
+        ...(territory.imprint === undefined ? {} : { imprint: territory.imprint })
+      }
+    ])
+  );
 }
 
 /** Rejects a complete proposed state before any repository mutation. */

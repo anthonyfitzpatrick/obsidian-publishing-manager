@@ -41,6 +41,7 @@ export interface CreateEditionInput {
   readonly medium?: EditionMedium;
   readonly customType?: string;
   readonly status: EditionStatus;
+  readonly countryVariant?: string;
   readonly publicationDate?: string;
   readonly cover?: string;
   readonly fullCover?: string;
@@ -59,6 +60,7 @@ export interface CreateEditionInput {
 export interface EditEditionInput {
   readonly customType?: string | undefined;
   readonly status: EditionStatus;
+  readonly countryVariant?: string | undefined;
   readonly publicationDate?: string | undefined;
   readonly cover?: string | undefined;
   readonly fullCover?: string | undefined;
@@ -523,6 +525,7 @@ function editionStorageFields(
     medium: input.medium ?? defaultMediumFor(input.type),
     revision,
     status: input.status,
+    ...(input.countryVariant === undefined ? {} : { 'country-variant': input.countryVariant }),
     ...(input.publicationDate === undefined ? {} : { 'publication-date': input.publicationDate }),
     ...(input.cover === undefined ? {} : { cover: input.cover }),
     ...(input.fullCover === undefined ? {} : { 'full-cover': input.fullCover }),
@@ -546,6 +549,7 @@ function editableStorageFields(input: EditEditionInput): Readonly<Record<string,
   return {
     'custom-type': input.customType,
     status: input.status,
+    'country-variant': input.countryVariant,
     'publication-date': input.publicationDate,
     cover: input.cover,
     'full-cover': input.fullCover,
@@ -595,6 +599,7 @@ function storageFieldsToCreateInput(fields: Readonly<Record<string, unknown>>): 
     type: fields.type as EditionType,
     medium: fields.medium as EditionMedium,
     status: fields.status as EditionStatus,
+    ...(typeof fields['country-variant'] === 'string' ? { countryVariant: fields['country-variant'] } : {}),
     ...(typeof fields['custom-type'] === 'string' ? { customType: fields['custom-type'] } : {}),
     ...(typeof fields['publication-date'] === 'string'
       ? { publicationDate: fields['publication-date'] }

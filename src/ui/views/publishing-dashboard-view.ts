@@ -475,7 +475,6 @@ function renderDashboardControls(
   const form = details.createEl('form', { cls: 'pm-form-grid' });
   for (const [key, label] of [
     ['series', 'Series ID'],
-    ['imprint', 'Imprint'],
     ['owner', 'Owner'],
     ['status', 'Book status'],
     ['editionType', 'Edition type'],

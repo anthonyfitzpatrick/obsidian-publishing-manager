@@ -10,6 +10,8 @@ import { Modal, Notice, Setting, type App } from 'obsidian';
 import type { BookProjectService } from '../../application/books/book-project-service';
 import type { BookCatalog } from '../../application/catalog/book-catalog';
 import { BOOK_STATUSES, type BookStatus } from '../../domain/books/book-project';
+import { PRIMARY_LANGUAGE_OPTIONS, regionalLanguageOptions } from '../language-options';
+import { COUNTRY_OPTIONS, countryCodeFromSearch } from '../country-options';
 
 /** Focused master-Project creation dialog launched from the command palette. */
 export class CreateBookModal extends Modal {
@@ -27,6 +29,10 @@ export class CreateBookModal extends Modal {
     this.setTitle('Create publishing project');
     let title = '';
     let primaryLanguage = 'en';
+    let regionalLanguage = '';
+    let publisher = '';
+    let publisherCountry = '';
+    let publisherVariant = '';
     let status: BookStatus = 'planned';
     let summary = '';
     let seriesId: string | undefined;
@@ -48,14 +54,74 @@ export class CreateBookModal extends Modal {
       });
 
     new Setting(this.contentEl)
-      .setName('Primary language')
-      .setDesc('Language code, for example en or sv.')
+      .setName('Publisher country')
+      .setDesc('Optional. Search by country name or use its two-letter code.')
       .addText((text) => {
-        text.setValue(primaryLanguage).onChange((value) => {
-          primaryLanguage = value;
+        text.inputEl.type = 'search';
+        const listId = 'pm-create-publisher-country-options';
+        text.inputEl.setAttr('list', listId);
+        text.inputEl.setAttr('placeholder', 'Search countries');
+        const options = this.contentEl.createEl('datalist', { attr: { id: listId } });
+        for (const option of COUNTRY_OPTIONS) options.createEl('option', { value: `${option.label} (${option.code})` });
+        text.onChange((value) => {
+          publisherCountry = value;
           error.empty();
         });
-        text.inputEl.setAttr('aria-label', 'Primary language');
+        text.inputEl.setAttr('aria-label', 'Publisher country');
+      });
+
+    new Setting(this.contentEl)
+      .setName('Global publisher variant')
+      .setDesc('Optional publishing identity used globally alongside the default publisher.')
+      .addText((text) => {
+        text.setValue(publisherVariant).onChange((value) => {
+          publisherVariant = value;
+          error.empty();
+        });
+        text.inputEl.setAttr('aria-label', 'Global publisher variant');
+      });
+
+    let refreshRegionalLanguage: () => void = () => {};
+
+    new Setting(this.contentEl)
+      .setName('Primary language')
+      .setDesc('Choose the main language used by this Project.')
+      .addDropdown((dropdown) => {
+        for (const option of PRIMARY_LANGUAGE_OPTIONS) dropdown.addOption(option.code, option.label);
+        dropdown.setValue(primaryLanguage).onChange((value) => {
+          primaryLanguage = value;
+          regionalLanguage = '';
+          refreshRegionalLanguage();
+          error.empty();
+        });
+        dropdown.selectEl.setAttr('aria-label', 'Primary language');
+      });
+    const regionalSetting = new Setting(this.contentEl)
+      .setName('Regional language')
+      .setDesc('Optional publishing variant, such as US English or British English.');
+    refreshRegionalLanguage = (): void => {
+      regionalSetting.controlEl.empty();
+      regionalSetting.addDropdown((dropdown) => {
+        dropdown.addOption('', 'No regional variant');
+        for (const option of regionalLanguageOptions(primaryLanguage)) dropdown.addOption(option.code, option.label);
+        dropdown.setValue(regionalLanguage).onChange((value) => {
+          regionalLanguage = value;
+          error.empty();
+        });
+        dropdown.selectEl.setAttr('aria-label', 'Regional language');
+      });
+    };
+    refreshRegionalLanguage();
+
+    new Setting(this.contentEl)
+      .setName('Default publisher')
+      .setDesc('Optional default when no country-specific publisher is recorded in the Project overview.')
+      .addText((text) => {
+        text.setValue(publisher).onChange((value) => {
+          publisher = value;
+          error.empty();
+        });
+        text.inputEl.setAttr('aria-label', 'Default publisher');
       });
 
     new Setting(this.contentEl).setName('Status').addDropdown((dropdown) => {
@@ -101,7 +167,7 @@ export class CreateBookModal extends Modal {
         .setCta()
         .onClick(() => {
           button.setDisabled(true);
-          void this.submit({ title, primaryLanguage, status, summary, seriesId }, error).finally(() => {
+          void this.submit({ title, primaryLanguage, regionalLanguage, publisher, publisherCountry, publisherVariant, status, summary, seriesId }, error).finally(() => {
             button.setDisabled(false);
           });
         });
@@ -118,6 +184,10 @@ export class CreateBookModal extends Modal {
     draft: {
       readonly title: string;
       readonly primaryLanguage: string;
+      readonly regionalLanguage: string;
+      readonly publisher: string;
+      readonly publisherCountry: string;
+      readonly publisherVariant: string;
       readonly status: BookStatus;
       readonly summary: string;
       readonly seriesId: string | undefined;
@@ -128,6 +198,16 @@ export class CreateBookModal extends Modal {
       const result = await this.books.create({
         title: draft.title,
         primaryLanguage: draft.primaryLanguage,
+        ...(draft.regionalLanguage.length === 0 ? {} : { regionalLanguage: draft.regionalLanguage }),
+        ...(draft.publisher.trim().length === 0 ? {} : { publisher: draft.publisher.trim() }),
+        ...(draft.publisherCountry.trim().length === 0
+          ? {}
+          : (() => {
+              const country = countryCodeFromSearch(draft.publisherCountry);
+              if (country === undefined) throw new Error('Choose a publisher country from the searchable list.');
+              return { publisherCountry: country };
+            })()),
+        ...(draft.publisherVariant.trim().length === 0 ? {} : { publisherVariant: draft.publisherVariant.trim() }),
         status: draft.status,
         ...(draft.summary.length === 0 ? {} : { summary: draft.summary })
       });

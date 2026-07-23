@@ -23,6 +23,7 @@ import {
   isEditionType,
   type EditionMedium
 } from '../../domain/editions/edition-project';
+import { COUNTRY_OPTIONS, countrySearchLabel } from '../country-options';
 
 interface ConditionalControls {
   readonly trimWidth?: HTMLInputElement;
@@ -87,6 +88,15 @@ export class EditionEditorModal extends Modal {
       EDITION_STATUSES,
       currentString(this.existing, 'status', 'planned')
     );
+    const countryVariant = form.createEl('label', { cls: 'pm-field' });
+    countryVariant.createSpan({ text: 'Country variant' });
+    const countryVariantSelect = countryVariant.createEl('select', { attr: { 'aria-label': 'Country variant' } });
+    const currentCountryVariant = currentString(this.existing, 'country-variant', 'GLOBAL');
+    for (const option of COUNTRY_OPTIONS) countryVariantSelect.createEl('option', {
+      value: option.code,
+      text: countrySearchLabel(option.code),
+      attr: option.code === currentCountryVariant ? { selected: 'true' } : {}
+    });
     const publicationDate = createInput(
       form,
       'Publication date',
@@ -286,6 +296,7 @@ export class EditionEditorModal extends Modal {
         customType,
         medium,
         status,
+        countryVariant: countryVariantSelect,
         publicationDate,
         isbn,
         coverPath: () => coverPath,
@@ -312,6 +323,7 @@ export class EditionEditorModal extends Modal {
     readonly customType: HTMLInputElement;
     readonly medium: HTMLSelectElement;
     readonly status: HTMLSelectElement;
+    readonly countryVariant: HTMLSelectElement;
     readonly publicationDate: HTMLInputElement;
     readonly isbn: HTMLSelectElement;
     readonly coverPath: () => string;
@@ -330,6 +342,7 @@ export class EditionEditorModal extends Modal {
     const shared = {
       customType: optionalText(controls.customType.value),
       status: controls.status.value,
+      countryVariant: controls.countryVariant.value,
       publicationDate: optionalText(controls.publicationDate.value),
       cover: optionalText(controls.coverPath()),
       fullCover: optionalText(controls.fullCoverPath()),
@@ -350,6 +363,7 @@ export class EditionEditorModal extends Modal {
         type: controls.type.value,
         medium: controls.medium.value,
         status: shared.status,
+        countryVariant: shared.countryVariant,
         retailLinks: shared.retailLinks,
         audioMetadata: shared.audioMetadata,
         ...(shared.customType === undefined ? {} : { customType: shared.customType }),
@@ -601,7 +615,7 @@ function createIsbnSelect(
     type: 'search',
     attr: {
       id: 'pm-isbn-search',
-      placeholder: 'Type ISBN digits, publisher, or imprint',
+      placeholder: 'Type ISBN digits or publisher',
       autocomplete: 'off'
     }
   });
@@ -618,7 +632,7 @@ function createIsbnSelect(
     const matching = available.filter((record) => {
       if (record.id === currentId) return true;
       const value = String(record.fields.value).toLowerCase();
-      const searchable = [value, String(record.fields.publisher ?? ''), String(record.fields.imprint ?? '')]
+      const searchable = [value, String(record.fields.publisher ?? '')]
         .join(' ')
         .toLowerCase();
       return query.length === 0 || searchable.includes(query) || value.replace(/[^a-z0-9]/gu, '').includes(normalizedQuery);

@@ -46,7 +46,7 @@ export class PublishingManagerSettingsTab extends PluginSettingTab {
       },
       {
         name: 'Defaults',
-        desc: 'Future imprint, language, currency, workflow, platform, and template defaults.'
+        desc: 'Future publisher, language, currency, workflow, platform, and template defaults.'
       },
       { name: 'Readiness', desc: 'Rule packs, weights, blocker policy, and score threshold.' },
       { name: 'Tasks and dates', desc: 'Week, working days, estimates, and overdue policy.' },

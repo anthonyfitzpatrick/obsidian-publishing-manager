@@ -142,7 +142,6 @@ export class PublishingSettingsSections {
     );
     const draft = { ...this.value.defaults };
     for (const [key, label] of [
-      ['imprint', 'Imprint'],
       ['language', 'Language code'],
       ['currency', 'Currency'],
       ['timezone', 'Timezone'],

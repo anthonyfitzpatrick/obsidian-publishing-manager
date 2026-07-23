@@ -55,4 +55,47 @@ describe('book project domain', () => {
       seriesPosition: 2
     });
   });
+
+  it('preserves a readable Project language choice and validates country publisher overrides', () => {
+    const book = hydrateBookProject({
+      envelope: {
+        pmId: 'pm-book-00000002',
+        pmType: 'book',
+        pmSchema: 1,
+        createdAt: '2026-07-23T10:00:00.000Z',
+        updatedAt: '2026-07-23T10:00:00.000Z'
+      },
+      fields: {
+        title: 'Territory Project',
+        'primary-language': 'en',
+        'regional-language': 'en-GB',
+        publisher: 'Wolf 359 Press',
+        imprint: 'Watchers',
+        'publisher-imprints-by-country': {
+          US: { publisher: 'US Publisher', imprint: 'US Imprint' },
+          GB: { publisher: 'Wolf 359 Press' }
+        },
+        status: 'planned'
+      }
+    });
+
+    expect(book).toMatchObject({
+      primaryLanguage: 'en',
+      regionalLanguage: 'en-GB',
+      publisher: 'Wolf 359 Press',
+      publisherImprintsByCountry: [
+        { country: 'GB', publisher: 'Wolf 359 Press' },
+        { country: 'US', publisher: 'US Publisher', imprint: 'US Imprint' }
+      ]
+    });
+    expect(
+      validateBookProject({
+        title: 'Territory Project',
+        'primary-language': 'en',
+        'regional-language': 'fr-FR',
+        'publisher-imprints-by-country': { UnitedStates: { publisher: 'Invalid country' } },
+        status: 'planned'
+      }).map(({ code }) => code)
+    ).toEqual(['book.invalid-language', 'book.invalid-publisher-territory']);
+  });
 });

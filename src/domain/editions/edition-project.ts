@@ -51,6 +51,8 @@ export interface EditionProjectFields {
   readonly medium: EditionMedium;
   readonly revision: number;
   readonly status: EditionStatus;
+  /** Global is the default; a country value identifies this Publishing Item as a market variant. */
+  readonly countryVariant?: string;
   readonly customType?: string;
   readonly publicationDate?: string;
   readonly cover?: string;
@@ -356,6 +358,7 @@ export function hydrateEditionProject(record: EditionRecordSnapshot): EditionPro
     medium: record.fields.medium as EditionMedium,
     revision: record.fields.revision as number,
     status: record.fields.status as EditionStatus,
+    ...optionalString(record.fields, 'country-variant', 'countryVariant'),
     retailLinks: retailLinks as Readonly<Record<string, string>>,
     audioMetadata: audioMetadata as Readonly<Record<string, string>>,
     createdAt: record.envelope.createdAt,

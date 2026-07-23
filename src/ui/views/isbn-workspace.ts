@@ -168,7 +168,7 @@ function renderAssignmentSelectors(parent: HTMLElement, context: IsbnWorkspaceCo
   const card = parent.createEl('section', { cls: 'pm-panel' });
   card.createEl('h3', { text: 'Assignment target' });
   card.createEl('p', {
-    text: 'Choose an edition and optional concrete format before Reserve or Assign. One assigned/published ISBN may occupy each edition/format scope.'
+    text: 'Choose a Publishing Item revision and optional concrete format before Reserve or Assign. Each revision can receive its own ISBN.'
   });
   const editions = context.snapshot.editions.filter(
     (edition) => edition.fields['book-id'] === context.book.id

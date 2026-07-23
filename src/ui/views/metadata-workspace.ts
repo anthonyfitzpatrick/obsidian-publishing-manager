@@ -130,7 +130,7 @@ function renderEffectiveGroups(
     },
     {
       label: 'Publisher and rights',
-      fields: ['publisher', 'imprint', 'copyright', 'contributors']
+      fields: ['publisher', 'copyright', 'contributors']
     },
     { label: 'Reading age', fields: ['reading-age-min', 'reading-age-max'] }
   ];

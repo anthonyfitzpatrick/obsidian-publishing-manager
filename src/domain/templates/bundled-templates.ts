@@ -22,20 +22,20 @@ export const BUNDLED_PUBLISHING_TEMPLATES: readonly PublishingTemplate[] = (
       kind: 'book',
       name: 'Basic book project',
       description:
-        'Minimal planned book identity with language and optional synopsis-free imprint.',
+        'Minimal planned book identity with language and an optional publisher.',
       version: 1,
       applicability: { scope: 'new-book' },
       defaults: {
         title: '{{title}}',
         'primary-language': '{{language}}',
         status: 'planned',
-        imprint: '{{imprint}}'
+        publisher: '{{publisher}}'
       },
       requiredFields: ['title', 'primary-language', 'status'],
       variables: [
         variable('title', 'Book title', true),
         variable('language', 'Primary language', true, 'string', 'en'),
-        variable('imprint', 'Imprint', false)
+        variable('publisher', 'Publisher', false)
       ]
     },
     {

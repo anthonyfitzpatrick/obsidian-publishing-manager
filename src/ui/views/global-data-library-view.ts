@@ -7,6 +7,7 @@ import type {
   IsbnProjectService
 } from '../../application/isbn/isbn-project-service';
 import type { CatalogRecord } from '../../domain/catalog/catalog-model';
+import { countrySearchLabel } from '../country-options';
 import { pageCollection, pagedCollectionWindow } from '../view-models/paged-collection';
 
 export const GLOBAL_DATA_LIBRARY_VIEW_TYPE = 'publishing-manager-global-data-library';
@@ -70,8 +71,8 @@ export class IsbnInventoryView extends ItemView {
   private isbnImportText = '';
   private isbnImportPreview: IsbnImportPreview | undefined;
   private isbnImportOpen = false;
-  /** Twenty rows is the readable default; users can deliberately choose a larger working view. */
-  private isbnInventoryPageSize = 20;
+  /** Ten available ISBNs keep allocation review compact; users can deliberately choose more. */
+  private isbnInventoryPageSize = 10;
   private isbnInventoryPage = 0;
   /** Sorting is disposable presentation state; no canonical ISBN Markdown is rewritten. */
   private isbnInventorySortField: IsbnInventorySortField = 'isbn';
@@ -267,7 +268,9 @@ export class IsbnInventoryView extends ItemView {
 
   /** Lists canonical ISBN records without copying them into a competing data store. */
   private renderIsbnInventory(parent: HTMLElement): void {
-    const inventory = parent.createEl('section', { cls: 'pm-panel pm-global-data-import' });
+    const inventory = parent.createEl('section', {
+      cls: 'pm-panel pm-global-data-import pm-isbn-available-list'
+    });
     const allRecords = [...this.isbns.records()];
     const records = allRecords
       .filter((record) => record.fields.status === 'available')
@@ -275,7 +278,8 @@ export class IsbnInventoryView extends ItemView {
     const assigned = allRecords
       .filter((record) => record.fields.status !== 'available')
       .sort((left, right) => this.compareInventoryRows(left, right));
-    inventory.createEl('h2', { text: 'Available ISBNs' });
+    // The heading reports the complete allocatable pool, not merely the selected page of ten rows.
+    inventory.createEl('h2', { text: `Available ISBNs · ${records.length}` });
     if (allRecords.length === 0) {
       inventory.createEl('p', {
         cls: 'pm-muted',
@@ -291,7 +295,7 @@ export class IsbnInventoryView extends ItemView {
     rows.value = String(this.isbnInventoryPageSize);
     rows.addEventListener('change', () => {
       const pageSize = Number.parseInt(rows.value, 10);
-      this.isbnInventoryPageSize = [10, 20, 50, 100].includes(pageSize) ? pageSize : 20;
+      this.isbnInventoryPageSize = [10, 20, 50, 100].includes(pageSize) ? pageSize : 10;
       this.isbnInventoryPage = 0;
       this.render();
     });
@@ -301,7 +305,7 @@ export class IsbnInventoryView extends ItemView {
       ['isbn', 'ISBN'],
       ['status', 'Status'],
       ['assignment', 'Assigned to'],
-      ['publisher', 'Publisher / imprint']
+      ['publisher', 'Publisher']
     ] as const)
       sort.createEl('option', { value, text: label });
     sort.value = this.isbnInventorySortField;
@@ -359,7 +363,8 @@ export class IsbnInventoryView extends ItemView {
   private renderInventoryTable(parent: HTMLElement, records: readonly CatalogRecord[]): void {
     const table = parent.createEl('table', { cls: 'pm-mobile-table' });
     const header = table.createEl('thead').createEl('tr');
-    for (const label of ['ISBN', 'Status', 'Assigned to', 'Publisher / imprint']) header.createEl('th', { text: label });
+    for (const label of ['ISBN', 'Status', 'Assigned to', 'Publisher', 'Publisher location'])
+      header.createEl('th', { text: label });
     const body = table.createEl('tbody');
     for (const record of records) {
       const row = body.createEl('tr');
@@ -367,7 +372,8 @@ export class IsbnInventoryView extends ItemView {
         ['ISBN', String(record.fields.value)],
         ['Status', readableStatus(record.fields.status)],
         ['Assigned to', this.assignmentLabel(record)],
-        ['Publisher / imprint', publisherLabel(record)]
+        ['Publisher', publisherLabel(record, this.catalog)],
+        ['Publisher location', publisherLocationsLabel(record, this.catalog)]
       ] as const;
       for (const [label, value] of values) row.createEl('td', { text: value, attr: { 'data-label': label } });
     }
@@ -424,7 +430,7 @@ export class IsbnInventoryView extends ItemView {
     const value = (record: CatalogRecord): string => {
       if (this.isbnInventorySortField === 'status') return readableStatus(record.fields.status);
       if (this.isbnInventorySortField === 'assignment') return this.assignmentLabel(record);
-      if (this.isbnInventorySortField === 'publisher') return publisherLabel(record);
+      if (this.isbnInventorySortField === 'publisher') return publisherLabel(record, this.catalog);
       return String(record.fields.value);
     };
     const comparison = value(left).localeCompare(value(right), undefined, {
@@ -444,11 +450,35 @@ function readableStatus(value: unknown): string {
 }
 
 /** Avoids a visually noisy empty column while retaining optional provenance when it exists. */
-function publisherLabel(record: CatalogRecord): string {
-  const parts = [record.fields.publisher, record.fields.imprint].filter(
-    (value): value is string => typeof value === 'string' && value.trim().length > 0
-  );
-  return parts.length > 0 ? parts.join(' · ') : '—';
+function publisherLabel(record: CatalogRecord, catalog: BookCatalog): string {
+  const editionId = record.fields['edition-id'];
+  const edition = typeof editionId === 'string' ? catalog.recordById(editionId) : undefined;
+  const bookId = edition?.type === 'edition' ? edition.fields['book-id'] : undefined;
+  const book = typeof bookId === 'string' ? catalog.recordById(bookId) : undefined;
+  const publisher = record.fields.publisher ?? (book?.type === 'book' ? book.fields.publisher : undefined);
+  const variant = record.fields['publisher-variant'] ?? (book?.type === 'book' ? book.fields['publisher-variant'] : undefined);
+  const values = [publisher, variant].filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+  return values.length > 0 ? values.join(' · ') : '—';
+}
+
+/** Projects own publisher territory choices; ISBNs simply reveal the linked Project countries. */
+function publisherLocationsLabel(record: CatalogRecord, catalog: BookCatalog): string {
+  const editionId = record.fields['edition-id'];
+  const edition = typeof editionId === 'string' ? catalog.recordById(editionId) : undefined;
+  const bookId = edition?.type === 'edition' ? edition.fields['book-id'] : undefined;
+  const book = typeof bookId === 'string' ? catalog.recordById(bookId) : undefined;
+  if (book?.type !== 'book') return '—';
+  const countries = new Set<string>();
+  if (typeof book.fields['publisher-country'] === 'string') countries.add(book.fields['publisher-country']);
+  const territories = book.fields['publisher-imprints-by-country'];
+  if (typeof territories === 'object' && territories !== null && !Array.isArray(territories)) {
+    for (const country of Object.keys(territories)) countries.add(country);
+  }
+  if (countries.size === 0) return countrySearchLabel('GLOBAL');
+  return [...countries]
+    .sort((left, right) => (left === 'GLOBAL' ? -1 : right === 'GLOBAL' ? 1 : left.localeCompare(right)))
+    .map((country) => countrySearchLabel(country))
+    .join(' · ');
 }
 
 /** Keeps externally supplied select values from altering the fixed, reviewed sort options. */

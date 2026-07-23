@@ -63,6 +63,12 @@ export const RECORD_SCHEMAS = {
       allowedValues: ['planned', 'active', 'ready', 'published', 'suspended', 'archived']
     }),
     'primary-language': constrainedString(true, { format: 'token', maximumBytes: 40 }),
+    'regional-language': constrainedString(false, { format: 'token', maximumBytes: 40 }),
+    publisher: optionalString(),
+    'publisher-country': constrainedString(false, { allowedValues: ['GLOBAL'], format: 'country', maximumBytes: 6 }),
+    'publisher-variant': optionalString(),
+    imprint: optionalString(),
+    'publisher-imprints-by-country': { kind: 'object', required: false },
     'series-id': relation('series', false),
     'series-position': { kind: 'integer', required: false },
     summary: optionalString(),
@@ -90,6 +96,7 @@ export const RECORD_SCHEMAS = {
     status: constrainedString(true, {
       allowedValues: ['planned', 'active', 'ready', 'published', 'suspended', 'archived']
     }),
+    'country-variant': constrainedString(false, { allowedValues: ['GLOBAL'], format: 'country', maximumBytes: 6 }),
     'publication-date': { kind: 'date', required: false },
     cover: optionalString(),
     'full-cover': constrainedString(false, { format: 'vault-path', maximumBytes: 1_024 }),
@@ -173,6 +180,9 @@ export const RECORD_SCHEMAS = {
     'edition-id': relation('edition', false),
     'format-id': relation('format', false),
     publisher: optionalString(),
+    'publisher-country': constrainedString(false, { allowedValues: ['GLOBAL'], format: 'country', maximumBytes: 6 }),
+    'publisher-variant': optionalString(),
+    'publication-country': constrainedString(false, { allowedValues: ['GLOBAL'], format: 'country', maximumBytes: 6 }),
     imprint: optionalString(),
     'acquisition-note': optionalString(),
     'assigned-at': { kind: 'datetime', required: false },

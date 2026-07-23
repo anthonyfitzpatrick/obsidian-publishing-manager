@@ -777,16 +777,14 @@
   width: 42px;
 }
 
-/* Workspace header remains contextually visible and collapses to one column on mobile. */
+/* The Project workspace deliberately uses one document scroll. The header, tabs, and active
+   workspace stay in normal flow so no lower content can disappear beneath a sticky layer. */
 .pm-workspace-header {
   background: var(--background-primary);
   border-block-end: 1px solid var(--pm-panel-border);
   margin: calc(-1 * clamp(16px, 3vw, 32px));
   margin-block-end: 18px;
   padding: clamp(16px, 3vw, 28px);
-  position: sticky;
-  top: 0;
-  z-index: 5;
 }
 
 .pm-breadcrumb {
@@ -883,6 +881,49 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+/* Language remains a core Project property. Publisher identity is separate and collapsed until
+   needed, keeping the routine Project overview short while preserving country-level control. */
+.pm-project-publisher-registry {
+  margin-block-start: 18px;
+}
+
+.pm-project-publisher-registry > summary {
+  cursor: pointer;
+  font-weight: var(--font-semibold);
+}
+
+.pm-project-publisher-registry > p {
+  color: var(--text-muted);
+  margin-block: 10px 14px;
+}
+
+/* Project identity uses one quiet disclosure for country-specific publishing identities. The
+   registry stays out of the default overview while remaining a normal, keyboard-friendly form. */
+.pm-project-territory-registry {
+  margin-block-start: 18px;
+}
+
+.pm-project-territory-registry > summary {
+  cursor: pointer;
+  font-weight: var(--font-semibold);
+}
+
+.pm-project-territory-list {
+  display: grid;
+  gap: 8px;
+  margin-block: 12px;
+}
+
+.pm-project-territory-row {
+  align-items: center;
+  border: 1px solid var(--pm-panel-border);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 3rem minmax(0, 1fr) minmax(0, 1fr) auto;
+  padding: 9px 11px;
+}
+
 /* Keeps the legal/publishing explanation visually attached to the manual classification input. */
 .pm-classification-explainer {
   padding: var(--size-4-3);
@@ -949,7 +990,7 @@
   padding: 14px;
 }
 
-/* Edition management uses an accessible master/detail layout that becomes stacked mobile cards. */
+/* Publishing-item collections remain in the same scroll flow as their Project header. */
 .pm-editions-layout {
   align-items: start;
   display: grid;
@@ -958,8 +999,7 @@
 }
 
 .pm-edition-master {
-  position: sticky;
-  top: 12px;
+  position: static;
 }
 
 .pm-edition-list,
@@ -1335,6 +1375,13 @@
   color: var(--color-red);
 }
 
+/* Available inventory is the positive allocation state; the green table treatment mirrors the
+   explicit red assigned list without relying on color alone because the Status column remains. */
+.pm-isbn-available-list h2,
+.pm-isbn-available-list tbody td {
+  color: var(--color-green);
+}
+
 /* Both ISBN projections use the same explicit columns, preventing sparse rows from collapsing
    into one unreadable run of text when optional publisher/imprint evidence is absent. */
 .pm-global-data-import .pm-mobile-table,
@@ -1363,10 +1410,13 @@
   white-space: nowrap;
 }
 
-.pm-isbn-assigned-list .pm-mobile-table :is(th, td):nth-child(1) { width: 14%; }
-.pm-isbn-assigned-list .pm-mobile-table :is(th, td):nth-child(2) { width: 14%; }
-.pm-isbn-assigned-list .pm-mobile-table :is(th, td):nth-child(3) { width: 44%; }
-.pm-isbn-assigned-list .pm-mobile-table :is(th, td):nth-child(4) { width: 28%; }
+/* Five explicit widths must total 100%; otherwise the trailing Publisher location column is
+   given no usable width by the fixed table layout and vanishes despite being rendered. */
+.pm-isbn-assigned-list .pm-mobile-table :is(th, td):nth-child(1) { width: 11%; }
+.pm-isbn-assigned-list .pm-mobile-table :is(th, td):nth-child(2) { width: 12%; }
+.pm-isbn-assigned-list .pm-mobile-table :is(th, td):nth-child(3) { width: 31%; }
+.pm-isbn-assigned-list .pm-mobile-table :is(th, td):nth-child(4) { width: 24%; }
+.pm-isbn-assigned-list .pm-mobile-table :is(th, td):nth-child(5) { width: 22%; }
 
 /* Pricing uses the same data in a wide semantic matrix and narrow cards; CSS switches visibility
    without changing the operations or evidence available to keyboard and touch users. */

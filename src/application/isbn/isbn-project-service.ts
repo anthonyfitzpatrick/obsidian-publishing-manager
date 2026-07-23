@@ -176,6 +176,9 @@ export class IsbnProjectService {
       this.assertAssignmentAvailable(edition.id, format?.id, record.id);
       return {
         ...omitAssignment({ ...record.fields }),
+        // ISBN import data remains authoritative when already present. Otherwise the assigned
+        // Publishing Item inherits the master Project's default identity at assignment time.
+        ...(input.action === 'assign' ? this.projectPublisherIdentity(record, edition) : {}),
         status: input.action === 'reserve' ? 'reserved' : 'assigned',
         'edition-id': edition.id,
         ...(format === undefined ? {} : { 'format-id': format.id }),
@@ -316,6 +319,29 @@ export class IsbnProjectService {
     const record = id === undefined ? undefined : this.catalog.recordById(id);
     if (record?.type !== 'edition') throw new Error('Choose an edition for this ISBN.');
     return record;
+  }
+  /** Resolves default Project identity without inventing a country for an ISBN allocation. */
+  private projectPublisherIdentity(
+    isbn: CatalogRecord,
+    edition: CatalogRecord
+  ): Readonly<Record<string, unknown>> {
+    const bookId = edition.fields['book-id'];
+    const book = typeof bookId === 'string' ? this.catalog.recordById(bookId) : undefined;
+    if (book?.type !== 'book') return {};
+    const publisher = book.fields.publisher;
+    const publisherCountry = book.fields['publisher-country'];
+    const publisherVariant = book.fields['publisher-variant'];
+    return {
+      ...(typeof isbn.fields.publisher === 'string' || typeof publisher !== 'string'
+        ? {}
+        : { publisher }),
+      ...(typeof isbn.fields['publisher-country'] === 'string' || typeof publisherCountry !== 'string'
+        ? {}
+        : { 'publisher-country': publisherCountry }),
+      ...(typeof isbn.fields['publisher-variant'] === 'string' || typeof publisherVariant !== 'string'
+        ? {}
+        : { 'publisher-variant': publisherVariant })
+    };
   }
   private requireFormat(id: string, editionId: string): CatalogRecord {
     const record = this.catalog.recordById(id);
