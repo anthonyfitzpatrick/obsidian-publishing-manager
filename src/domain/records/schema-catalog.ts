@@ -92,6 +92,7 @@ export const RECORD_SCHEMAS = {
     }),
     'publication-date': { kind: 'date', required: false },
     cover: optionalString(),
+    'full-cover': constrainedString(false, { format: 'vault-path', maximumBytes: 1_024 }),
     'retail-links': { kind: 'object', required: false },
     notes: optionalString(),
     'source-edition-id': relation('edition', false),

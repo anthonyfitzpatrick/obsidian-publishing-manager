@@ -54,6 +54,7 @@ export interface EditionProjectFields {
   readonly customType?: string;
   readonly publicationDate?: string;
   readonly cover?: string;
+  readonly fullCover?: string;
   readonly retailLinks: Readonly<Record<string, string>>;
   readonly notes?: string;
   readonly sourceEditionId?: string;
@@ -249,6 +250,13 @@ export function validateEditionProject(
       message: 'Cover must be an unambiguous vault-relative path.'
     });
   }
+  if (fields['full-cover'] !== undefined && !isSafeOptionalPath(fields['full-cover'])) {
+    diagnostics.push({
+      code: 'edition.invalid-cover',
+      field: 'fullCover',
+      message: 'Full-wrap cover must be an unambiguous vault-relative path.'
+    });
+  }
   if (!isStringMap(fields['retail-links'] ?? {})) {
     diagnostics.push({
       code: 'edition.invalid-retail-links',
@@ -356,6 +364,7 @@ export function hydrateEditionProject(record: EditionRecordSnapshot): EditionPro
     ...optionalString(record.fields, 'custom-type', 'customType'),
     ...optionalString(record.fields, 'publication-date', 'publicationDate'),
     ...optionalString(record.fields, 'cover', 'cover'),
+    ...optionalString(record.fields, 'full-cover', 'fullCover'),
     ...optionalString(record.fields, 'notes', 'notes'),
     ...optionalString(record.fields, 'source-edition-id', 'sourceEditionId'),
     ...optionalString(record.fields, 'trim-width', 'trimWidth'),

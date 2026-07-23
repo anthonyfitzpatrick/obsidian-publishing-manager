@@ -975,10 +975,20 @@ export class BookWorkspaceView extends ItemView {
       attr: { type: 'button' }
     });
     add.addEventListener('click', () => {
-      new EditionEditorModal(this.app, this.editions, book.id, undefined, (editionId) => {
-        this.selectedEditionId = editionId;
-        new Notice('Publishing item created.');
-      }).open();
+      new EditionEditorModal(
+        this.app,
+        this.editions,
+        book.id,
+        book.path,
+        typeof book.fields.cover === 'string' ? book.fields.cover : undefined,
+        this.isbns,
+        this.snapshot?.isbns ?? [],
+        undefined,
+        (editionId) => {
+          this.selectedEditionId = editionId;
+          new Notice('Publishing item created.');
+        }
+      ).open();
     });
 
     if (bookEditions.length === 0) {
@@ -1055,9 +1065,19 @@ export class BookWorkspaceView extends ItemView {
       edition.archived ? 'Restore edition' : 'Archive edition'
     );
     edit.addEventListener('click', () => {
-      new EditionEditorModal(this.app, this.editions, book.id, edition, () => {
-        new Notice('Edition saved.');
-      }).open();
+      new EditionEditorModal(
+        this.app,
+        this.editions,
+        book.id,
+        book.path,
+        typeof book.fields.cover === 'string' ? book.fields.cover : undefined,
+        this.isbns,
+        this.snapshot?.isbns ?? [],
+        edition,
+        () => {
+          new Notice('Edition saved.');
+        }
+      ).open();
     });
     revise.addEventListener('click', () => {
       new EditionRevisionModal(this.app, this.editions, edition.path, (editionId) => {

@@ -11,6 +11,7 @@ import type {
   EditEditionInput,
   EditionProjectService
 } from '../../application/editions/edition-project-service';
+import type { IsbnProjectService } from '../../application/isbn/isbn-project-service';
 import type { CatalogRecord } from '../../domain/catalog/catalog-model';
 import {
   EDITION_MEDIA,
@@ -39,6 +40,10 @@ export class EditionEditorModal extends Modal {
     app: App,
     private readonly service: EditionProjectService,
     private readonly bookId: string,
+    private readonly projectPath: string,
+    private readonly projectCover: string | undefined,
+    private readonly isbns: IsbnProjectService,
+    private readonly isbnRecords: readonly CatalogRecord[],
     private readonly existing: CatalogRecord | undefined,
     private readonly onSaved: (editionId: string) => void
   ) {
@@ -84,7 +89,106 @@ export class EditionEditorModal extends Modal {
       'date',
       currentString(this.existing, 'publication-date')
     );
-    const cover = createText(form, 'Cover vault path', currentString(this.existing, 'cover'));
+    const currentIsbn = this.existing === undefined
+      ? undefined
+      : this.isbnRecords.find((record) => record.fields['edition-id'] === this.existing?.id);
+    const isbn = createIsbnSelect(form, this.isbnRecords, currentIsbn?.id);
+    const isbnGuidance = form.createEl('p', {
+      cls: 'pm-muted pm-field--wide',
+      text: currentIsbn === undefined
+        ? 'Selecting an ISBN assigns it to this Publishing Item when it is saved. It then becomes unavailable to every other item.'
+        : `This item is already assigned ISBN ${String(currentIsbn.fields.value)}. Use the guarded ISBN workflow to correct an assignment.`
+    });
+    isbn.disabled = currentIsbn !== undefined;
+    let coverPath = currentString(this.existing, 'cover');
+    const coverChoices = form.createEl('section', { cls: 'pm-cover-choices pm-field--wide' });
+    coverChoices.createEl('h3', { text: 'Cover art' });
+    coverChoices.createEl('p', {
+      text: 'Choose the Project cover art or upload a separate cover for this Publishing Item.'
+    });
+    const coverActions = coverChoices.createDiv({ cls: 'pm-action-row' });
+    const useProjectCover = coverActions.createEl('button', {
+      cls: 'pm-button pm-button--secondary',
+      text: 'Use Project cover art',
+      attr: { type: 'button' }
+    });
+    useProjectCover.disabled = this.projectCover === undefined;
+    const uploadCover = coverActions.createEl('button', {
+      cls: 'pm-button pm-button--primary',
+      text: 'Upload new artwork',
+      attr: { type: 'button' }
+    });
+    const picker = document.createElement('input');
+    picker.type = 'file';
+    picker.accept = 'image/avif,image/gif,image/jpeg,image/png,image/svg+xml,image/webp';
+    picker.hidden = true;
+    coverChoices.appendChild(picker);
+    const coverState = coverChoices.createEl('p', {
+      cls: 'pm-muted',
+      attr: { 'aria-live': 'polite' }
+    });
+    const showCoverState = () => {
+      if (coverPath.length === 0) coverState.setText('No cover selected.');
+      else if (coverPath === this.projectCover) coverState.setText('Using the current Project cover art.');
+      else coverState.setText('Using separately uploaded Publishing Item artwork.');
+    };
+    useProjectCover.addEventListener('click', () => {
+      if (this.projectCover === undefined) return;
+      coverPath = this.projectCover;
+      showCoverState();
+    });
+    uploadCover.addEventListener('click', () => picker.click());
+    picker.addEventListener('change', () => {
+      const source = picker.files?.[0];
+      if (source === undefined) return;
+      uploadCover.disabled = true;
+      coverState.setText('Preparing local cover artwork…');
+      void this.storeLocalFile(source, 'item-cover')
+        .then((path) => {
+          coverPath = path;
+          showCoverState();
+        })
+        .catch((cause: unknown) =>
+          coverState.setText(cause instanceof Error ? cause.message : 'Could not prepare the cover artwork.')
+        )
+        .finally(() => {
+          uploadCover.disabled = false;
+          picker.value = '';
+        });
+    });
+    showCoverState();
+    let fullCoverPath = currentString(this.existing, 'full-cover');
+    const fullCoverChoices = form.createEl('section', { cls: 'pm-cover-choices pm-field--wide' });
+    fullCoverChoices.createEl('h3', { text: 'Full-wrap print cover' });
+    fullCoverChoices.createEl('p', {
+      text: 'Optional front, spine, and back artwork for paperback or hardcover production. This original file is kept separately from the front cover image.'
+    });
+    const uploadFullCover = fullCoverChoices.createEl('button', {
+      cls: 'pm-button pm-button--secondary', text: 'Upload full-wrap cover', attr: { type: 'button' }
+    });
+    const fullCoverPicker = document.createElement('input');
+    fullCoverPicker.type = 'file';
+    fullCoverPicker.accept = 'application/pdf,image/avif,image/gif,image/jpeg,image/png,image/svg+xml,image/webp';
+    fullCoverPicker.hidden = true;
+    fullCoverChoices.appendChild(fullCoverPicker);
+    const fullCoverState = fullCoverChoices.createEl('p', { cls: 'pm-muted', attr: { 'aria-live': 'polite' } });
+    const showFullCoverState = () => fullCoverState.setText(
+      fullCoverPath.length === 0 ? 'No full-wrap cover selected.' : 'Full-wrap cover file ready for this Publishing Item.'
+    );
+    uploadFullCover.addEventListener('click', () => fullCoverPicker.click());
+    fullCoverPicker.addEventListener('change', () => {
+      const source = fullCoverPicker.files?.[0];
+      if (source === undefined) return;
+      uploadFullCover.disabled = true;
+      fullCoverState.setText('Saving full-wrap cover locally…');
+      void this.storeOriginalFile(source, 'item-full-cover')
+        .then((path) => { fullCoverPath = path; showFullCoverState(); })
+        .catch((cause: unknown) => fullCoverState.setText(cause instanceof Error ? cause.message : 'Could not save the full-wrap cover.'))
+        .finally(() => { uploadFullCover.disabled = false; fullCoverPicker.value = ''; });
+    });
+    const updateFullCoverVisibility = () =>
+      fullCoverChoices.toggleClass('is-hidden', !['paperback', 'hardcover'].includes(type.value));
+    showFullCoverState();
     const retailLinks = createArea(
       form,
       'Retail links',
@@ -124,6 +228,7 @@ export class EditionEditorModal extends Modal {
       const preset = defaultMediumFor(type.value);
       medium.disabled = this.existing !== undefined || preset !== undefined;
       if (preset !== undefined) medium.value = preset;
+      updateFullCoverVisibility();
       customType
         .closest<HTMLElement>('.pm-field')
         ?.toggleClass('is-hidden', type.value !== 'custom');
@@ -156,7 +261,9 @@ export class EditionEditorModal extends Modal {
         medium,
         status,
         publicationDate,
-        cover,
+        isbn,
+        coverPath: () => coverPath,
+        fullCoverPath: () => fullCoverPath,
         retailLinks,
         notes,
         conditional: conditionalControls
@@ -180,7 +287,9 @@ export class EditionEditorModal extends Modal {
     readonly medium: HTMLSelectElement;
     readonly status: HTMLSelectElement;
     readonly publicationDate: HTMLInputElement;
-    readonly cover: HTMLInputElement;
+    readonly isbn: HTMLSelectElement;
+    readonly coverPath: () => string;
+    readonly fullCoverPath: () => string;
     readonly retailLinks: HTMLTextAreaElement;
     readonly notes: HTMLTextAreaElement;
     readonly conditional: ConditionalControls;
@@ -196,7 +305,8 @@ export class EditionEditorModal extends Modal {
       customType: optionalText(controls.customType.value),
       status: controls.status.value,
       publicationDate: optionalText(controls.publicationDate.value),
-      cover: optionalText(controls.cover.value),
+      cover: optionalText(controls.coverPath()),
+      fullCover: optionalText(controls.fullCoverPath()),
       retailLinks: linesToMap(controls.retailLinks.value),
       notes: optionalText(controls.notes.value),
       trimWidth: optionalText(controls.conditional.trimWidth?.value ?? ''),
@@ -221,6 +331,7 @@ export class EditionEditorModal extends Modal {
           ? {}
           : { publicationDate: shared.publicationDate }),
         ...(shared.cover === undefined ? {} : { cover: shared.cover }),
+        ...(shared.fullCover === undefined ? {} : { fullCover: shared.fullCover }),
         ...(shared.notes === undefined ? {} : { notes: shared.notes }),
         ...(shared.trimWidth === undefined ? {} : { trimWidth: shared.trimWidth }),
         ...(shared.trimHeight === undefined ? {} : { trimHeight: shared.trimHeight }),
@@ -236,6 +347,7 @@ export class EditionEditorModal extends Modal {
         customType: shared.customType,
         publicationDate: shared.publicationDate,
         cover: shared.cover,
+        fullCover: shared.fullCover,
         notes: shared.notes,
         trimWidth: shared.trimWidth,
         trimHeight: shared.trimHeight,
@@ -246,8 +358,57 @@ export class EditionEditorModal extends Modal {
       };
       editionId = (await this.service.edit(this.existing.path, input)).edition.id;
     }
+    if (controls.isbn.value.length > 0) {
+      const preview = this.isbns.previewTransaction({
+        recordId: controls.isbn.value,
+        action: 'assign',
+        editionId
+      });
+      await this.isbns.applyTransaction(preview);
+    }
     this.onSaved(editionId);
     this.close();
+  }
+
+  /** Encodes local item artwork as a bounded derivative so raw vault paths stay out of the form. */
+  private async storeLocalFile(source: File, prefix: string): Promise<string> {
+    if (!source.type.startsWith('image/')) {
+      throw new Error('Choose an AVIF, GIF, JPEG, PNG, SVG, or WebP image.');
+    }
+    const bitmap = await createImageBitmap(new Blob([await source.arrayBuffer()], { type: source.type }));
+    const scale = Math.min(1, 480 / bitmap.width, 768 / bitmap.height);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext('2d');
+    if (context === null) throw new Error('This device could not prepare the cover image.');
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const artwork = await new Promise<Blob>((resolve, reject) =>
+      canvas.toBlob(
+        (blob) => (blob === null ? reject(new Error('Could not encode the cover image.')) : resolve(blob)),
+        'image/webp',
+        0.78
+      )
+    );
+    const folder = `${this.projectPath.slice(0, this.projectPath.lastIndexOf('/'))}/Covers`;
+    if (this.app.vault.getAbstractFileByPath(folder) === null) await this.app.vault.createFolder(folder);
+    const target = `${folder}/${prefix}-${Date.now()}.webp`;
+    await this.app.vault.createBinary(target, await artwork.arrayBuffer());
+    return target;
+  }
+
+  /** Keeps production wrap artwork at original dimensions; only card/front covers are compressed. */
+  private async storeOriginalFile(source: File, prefix: string): Promise<string> {
+    if (!source.type.startsWith('image/') && source.type !== 'application/pdf') {
+      throw new Error('Choose an image or PDF full-wrap cover.');
+    }
+    const folder = `${this.projectPath.slice(0, this.projectPath.lastIndexOf('/'))}/Covers`;
+    if (this.app.vault.getAbstractFileByPath(folder) === null) await this.app.vault.createFolder(folder);
+    const extension = source.name.split('.').pop()?.replace(/[^a-z0-9]/giu, '').toLowerCase() || 'bin';
+    const target = `${folder}/${prefix}-${Date.now()}.${extension}`;
+    await this.app.vault.createBinary(target, await source.arrayBuffer());
+    return target;
   }
 }
 
@@ -356,6 +517,34 @@ function createSelect<T extends string>(
         .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
         .join(' '),
       attr: value === selected ? { selected: 'true' } : {}
+    });
+  }
+  return select;
+}
+
+/** Lists only globally available identifiers, plus this item's existing immutable assignment. */
+function createIsbnSelect(
+  parent: HTMLElement,
+  records: readonly CatalogRecord[],
+  currentId: string | undefined
+): HTMLSelectElement {
+  const wrapper = parent.createEl('label', { cls: 'pm-field' });
+  wrapper.createSpan({ text: 'ISBN' });
+  const select = wrapper.createEl('select');
+  select.createEl('option', { value: '', text: 'No ISBN assigned yet' });
+  for (const record of records
+    .filter(
+      (candidate) =>
+        candidate.id === currentId || String(candidate.fields.status) === 'available'
+    )
+    .sort((left, right) => String(left.fields.value).localeCompare(String(right.fields.value)))) {
+    select.createEl('option', {
+      value: record.id,
+      text:
+        record.id === currentId
+          ? `${String(record.fields.value)} (assigned to this item)`
+          : String(record.fields.value),
+      attr: record.id === currentId ? { selected: 'true' } : {}
     });
   }
   return select;

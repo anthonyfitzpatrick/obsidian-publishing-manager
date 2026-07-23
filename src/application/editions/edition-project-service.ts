@@ -43,6 +43,7 @@ export interface CreateEditionInput {
   readonly status: EditionStatus;
   readonly publicationDate?: string;
   readonly cover?: string;
+  readonly fullCover?: string;
   readonly retailLinks?: Readonly<Record<string, string>>;
   readonly notes?: string;
   readonly trimWidth?: string;
@@ -60,6 +61,7 @@ export interface EditEditionInput {
   readonly status: EditionStatus;
   readonly publicationDate?: string | undefined;
   readonly cover?: string | undefined;
+  readonly fullCover?: string | undefined;
   readonly retailLinks: Readonly<Record<string, string>>;
   readonly notes?: string | undefined;
   readonly trimWidth?: string | undefined;
@@ -273,7 +275,7 @@ export class EditionProjectService {
       );
     }
     if (selection.marketing)
-      copyFields(loaded.fields, proposed, ['cover', 'retail-links'], copiedFields);
+      copyFields(loaded.fields, proposed, ['cover', 'full-cover', 'retail-links'], copiedFields);
     if (selection.notes) copyFields(loaded.fields, proposed, ['notes'], copiedFields);
     assertValidEdition(proposed);
     return {
@@ -523,6 +525,7 @@ function editionStorageFields(
     status: input.status,
     ...(input.publicationDate === undefined ? {} : { 'publication-date': input.publicationDate }),
     ...(input.cover === undefined ? {} : { cover: input.cover }),
+    ...(input.fullCover === undefined ? {} : { 'full-cover': input.fullCover }),
     'retail-links': input.retailLinks ?? {},
     ...(input.notes === undefined ? {} : { notes: input.notes }),
     ...(sourceEditionId === undefined ? {} : { 'source-edition-id': sourceEditionId }),
@@ -545,6 +548,7 @@ function editableStorageFields(input: EditEditionInput): Readonly<Record<string,
     status: input.status,
     'publication-date': input.publicationDate,
     cover: input.cover,
+    'full-cover': input.fullCover,
     'retail-links': input.retailLinks,
     notes: input.notes,
     'trim-width': input.trimWidth,
@@ -596,6 +600,7 @@ function storageFieldsToCreateInput(fields: Readonly<Record<string, unknown>>): 
       ? { publicationDate: fields['publication-date'] }
       : {}),
     ...(typeof fields.cover === 'string' ? { cover: fields.cover } : {}),
+    ...(typeof fields['full-cover'] === 'string' ? { fullCover: fields['full-cover'] } : {}),
     retailLinks: (fields['retail-links'] ?? {}) as Readonly<Record<string, string>>,
     ...(typeof fields.notes === 'string' ? { notes: fields.notes } : {}),
     ...(typeof fields['trim-width'] === 'string' ? { trimWidth: fields['trim-width'] } : {}),
