@@ -49,6 +49,7 @@ import {
 import { ConfirmDiscardModal } from '../dialogs/confirm-discard-modal';
 import { ConfirmEditionArchiveModal } from '../dialogs/confirm-edition-archive-modal';
 import { EditionEditorModal } from '../dialogs/edition-editor-modal';
+import { EditionDetailsModal } from '../dialogs/edition-details-modal';
 import { EditionFormatModal } from '../dialogs/edition-format-modal';
 import { EditionRevisionModal } from '../dialogs/edition-revision-modal';
 import { LinkAssetModal, RelinkAssetModal } from '../dialogs/link-asset-modal';
@@ -959,7 +960,7 @@ export class BookWorkspaceView extends ItemView {
     return target;
   }
 
-  /** Renders EDN-009 accessible master/detail edition management with mobile-safe cards. */
+  /** Renders a compact Publishing Item card collection; details open only on an explicit card click. */
   private renderEditions(parent: HTMLElement, book: CatalogRecord): void {
     const bookEditions = this.catalog.editionsForBook(book.id);
     const heading = parent.createDiv({ cls: 'pm-section-heading' });
@@ -1002,24 +1003,16 @@ export class BookWorkspaceView extends ItemView {
       return;
     }
 
-    const selected =
-      bookEditions.find(({ id }) => id === this.selectedEditionId) ?? bookEditions[0];
-    if (selected === undefined) return;
-    const layout = parent.createDiv({ cls: 'pm-editions-layout' });
-    const master = layout.createEl('nav', {
+    const master = parent.createEl('nav', {
       cls: 'pm-edition-master pm-panel',
       attr: { 'aria-label': 'Project publishing items' }
     });
-    master.createEl('h3', { text: `Publishing items · ${bookEditions.length}` });
     const list = master.createEl('ul', { cls: 'pm-edition-list' });
     for (const edition of bookEditions) {
       const item = list.createEl('li');
       const button = item.createEl('button', {
-        cls: `pm-edition-card${edition.id === selected.id ? ' is-selected' : ''}`,
-        attr: {
-          type: 'button',
-          'aria-current': edition.id === selected.id ? 'true' : 'false'
-        }
+        cls: 'pm-edition-card',
+        attr: { type: 'button' }
       });
       button.createEl('strong', { text: editionRecordLabel(edition) });
       button.createSpan({
@@ -1030,15 +1023,11 @@ export class BookWorkspaceView extends ItemView {
       });
       button.addEventListener('click', () => {
         this.selectedEditionId = edition.id;
-        if (this.snapshot !== undefined) this.render(this.snapshot);
+        new EditionDetailsModal(this.app, (content) =>
+          this.renderEditionDetail(content, book, edition, bookEditions)
+        ).open();
       });
     }
-
-    const detail = layout.createEl('article', {
-      cls: 'pm-edition-detail pm-panel',
-      attr: { 'aria-label': `${editionRecordLabel(selected)} details` }
-    });
-    this.renderEditionDetail(detail, book, selected, bookEditions);
   }
 
   /** Builds one edition detail card with conditional data, formats, comparison, and dependencies. */
@@ -1098,6 +1087,8 @@ export class BookWorkspaceView extends ItemView {
     });
 
     const disclosure = parent.createEl('details', { cls: 'pm-edition-details' });
+    // In the dedicated popout the owner explicitly requested the information, so expose it there.
+    disclosure.open = true;
     disclosure.createEl('summary', { text: 'Item details and management' });
     const detailBody = disclosure.createDiv({ cls: 'pm-edition-details__body' });
     const details = detailBody.createEl('dl', { cls: 'pm-edition-facts' });

@@ -12,7 +12,6 @@ import { pageCollection, pagedCollectionWindow } from '../view-models/paged-coll
 export const GLOBAL_DATA_LIBRARY_VIEW_TYPE = 'publishing-manager-global-data-library';
 export const ISBN_INVENTORY_VIEW_TYPE = 'publishing-manager-isbn-inventory';
 type IsbnInventorySortField = 'isbn' | 'status' | 'assignment' | 'publisher';
-type IsbnInventoryFilter = 'all' | 'free' | 'allocated';
 
 /** Directory view: it intentionally offers routes, never high-volume tables or entry forms. */
 export class GlobalDataLibraryView extends ItemView {
@@ -77,8 +76,6 @@ export class IsbnInventoryView extends ItemView {
   /** Sorting is disposable presentation state; no canonical ISBN Markdown is rewritten. */
   private isbnInventorySortField: IsbnInventorySortField = 'isbn';
   private isbnInventorySortDirection: 'asc' | 'desc' = 'asc';
-  /** Free means available; allocated retains every state that must not be taken by another item. */
-  private isbnInventoryFilter: IsbnInventoryFilter = 'all';
 
   public constructor(
     leaf: WorkspaceLeaf,
@@ -273,9 +270,12 @@ export class IsbnInventoryView extends ItemView {
     const inventory = parent.createEl('section', { cls: 'pm-panel pm-global-data-import' });
     const allRecords = [...this.isbns.records()];
     const records = allRecords
-      .filter((record) => this.matchesInventoryFilter(record))
+      .filter((record) => record.fields.status === 'available')
       .sort((left, right) => this.compareInventoryRows(left, right));
-    inventory.createEl('h2', { text: 'ISBNs in this vault' });
+    const assigned = allRecords
+      .filter((record) => record.fields.status !== 'available')
+      .sort((left, right) => this.compareInventoryRows(left, right));
+    inventory.createEl('h2', { text: 'Available ISBNs' });
     if (allRecords.length === 0) {
       inventory.createEl('p', {
         cls: 'pm-muted',
@@ -292,22 +292,6 @@ export class IsbnInventoryView extends ItemView {
     rows.addEventListener('change', () => {
       const pageSize = Number.parseInt(rows.value, 10);
       this.isbnInventoryPageSize = [10, 20, 50, 100].includes(pageSize) ? pageSize : 20;
-      this.isbnInventoryPage = 0;
-      this.render();
-    });
-    const filterLabel = listControls.createEl('label', { text: 'Show' });
-    const filter = filterLabel.createEl('select', {
-      attr: { 'aria-label': 'ISBN inventory availability filter' }
-    });
-    for (const [value, label] of [
-      ['all', 'All ISBNs'],
-      ['free', 'Free ISBNs'],
-      ['allocated', 'Allocated ISBNs']
-    ] as const)
-      filter.createEl('option', { value, text: label });
-    filter.value = this.isbnInventoryFilter;
-    filter.addEventListener('change', () => {
-      this.isbnInventoryFilter = isIsbnInventoryFilter(filter.value) ? filter.value : 'all';
       this.isbnInventoryPage = 0;
       this.render();
     });
@@ -346,29 +330,38 @@ export class IsbnInventoryView extends ItemView {
     if (records.length === 0) {
       inventory.createEl('p', {
         cls: 'pm-muted',
-        text:
-          this.isbnInventoryFilter === 'free'
-            ? 'No free ISBNs are currently available.'
-            : 'No allocated ISBNs are currently recorded.'
+        text: 'No ISBNs are currently available for assignment.'
       });
-      return;
+    } else {
+      const window = pagedCollectionWindow(records.length, this.isbnInventoryPage, this.isbnInventoryPageSize);
+      this.isbnInventoryPage = window.page;
+      inventory.createEl('p', { cls: 'pm-muted', text: `Showing ISBNs ${window.offset + 1}–${window.end} of ${records.length}.` });
+      this.renderInventoryTable(inventory, pageCollection(records, window));
+      if (records.length > this.isbnInventoryPageSize)
+        this.renderInventoryNavigation(inventory, window.offset, window.end, records.length);
     }
-    const window = pagedCollectionWindow(
-      records.length,
-      this.isbnInventoryPage,
-      this.isbnInventoryPageSize
-    );
-    this.isbnInventoryPage = window.page;
-    inventory.createEl('p', {
+    this.renderAssignedIsbnList(parent, assigned);
+  }
+
+  /** Keeps allocated identifiers visible but clearly distinct from the available working inventory. */
+  private renderAssignedIsbnList(parent: HTMLElement, records: readonly CatalogRecord[]): void {
+    if (records.length === 0) return;
+    const assigned = parent.createEl('section', { cls: 'pm-panel pm-isbn-assigned-list' });
+    assigned.createEl('h2', { text: `Assigned ISBNs · ${records.length}` });
+    assigned.createEl('p', {
       cls: 'pm-muted',
-      text: `Showing ISBNs ${window.offset + 1}–${window.end} of ${records.length}.`
+      text: 'These ISBNs are allocated and cannot be selected for another Publishing Item.'
     });
-    const table = inventory.createEl('table', { cls: 'pm-mobile-table' });
+    this.renderInventoryTable(assigned, records);
+  }
+
+  /** Renders the same canonical columns for available and assigned projections without duplicating data. */
+  private renderInventoryTable(parent: HTMLElement, records: readonly CatalogRecord[]): void {
+    const table = parent.createEl('table', { cls: 'pm-mobile-table' });
     const header = table.createEl('thead').createEl('tr');
-    for (const label of ['ISBN', 'Status', 'Assigned to', 'Publisher / imprint'])
-      header.createEl('th', { text: label });
+    for (const label of ['ISBN', 'Status', 'Assigned to', 'Publisher / imprint']) header.createEl('th', { text: label });
     const body = table.createEl('tbody');
-    for (const record of pageCollection(records, window)) {
+    for (const record of records) {
       const row = body.createEl('tr');
       const values = [
         ['ISBN', String(record.fields.value)],
@@ -376,11 +369,8 @@ export class IsbnInventoryView extends ItemView {
         ['Assigned to', this.assignmentLabel(record)],
         ['Publisher / imprint', publisherLabel(record)]
       ] as const;
-      for (const [label, value] of values)
-        row.createEl('td', { text: value, attr: { 'data-label': label } });
+      for (const [label, value] of values) row.createEl('td', { text: value, attr: { 'data-label': label } });
     }
-    if (records.length > this.isbnInventoryPageSize)
-      this.renderInventoryNavigation(inventory, window.offset, window.end, records.length);
   }
 
   /** Keeps the current page bounded while preserving the full canonical list in the catalog. */
@@ -444,12 +434,6 @@ export class IsbnInventoryView extends ItemView {
     return this.isbnInventorySortDirection === 'asc' ? comparison : -comparison;
   }
 
-  /** Filters only the rendered projection; it never alters ISBN status or primary-key history. */
-  private matchesInventoryFilter(record: CatalogRecord): boolean {
-    if (this.isbnInventoryFilter === 'all') return true;
-    const isFree = record.fields.status === 'available';
-    return this.isbnInventoryFilter === 'free' ? isFree : !isFree;
-  }
 }
 
 /** Converts stored lifecycle tokens into a concise, readable inventory label. */
@@ -470,9 +454,4 @@ function publisherLabel(record: CatalogRecord): string {
 /** Keeps externally supplied select values from altering the fixed, reviewed sort options. */
 function isIsbnInventorySortField(value: string): value is IsbnInventorySortField {
   return ['isbn', 'status', 'assignment', 'publisher'].includes(value);
-}
-
-/** Keeps externally supplied select values from widening the availability filter's meaning. */
-function isIsbnInventoryFilter(value: string): value is IsbnInventoryFilter {
-  return ['all', 'free', 'allocated'].includes(value);
 }

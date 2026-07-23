@@ -1006,6 +1006,10 @@
   min-width: 0;
 }
 
+.pm-edition-details-modal {
+  max-width: min(1_020px, 92vw);
+}
+
 .pm-edition-detail > .pm-section-heading {
   align-items: flex-start;
 }
@@ -1316,6 +1320,15 @@
   text-align: left;
   vertical-align: top;
   overflow-wrap: anywhere;
+}
+
+.pm-isbn-assigned-list {
+  border-color: var(--color-red);
+}
+
+.pm-isbn-assigned-list h2,
+.pm-isbn-assigned-list tbody td {
+  color: var(--color-red);
 }
 
 /* Pricing uses the same data in a wide semantic matrix and narrow cards; CSS switches visibility
