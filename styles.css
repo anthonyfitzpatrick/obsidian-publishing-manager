@@ -1580,8 +1580,19 @@
   }
 }
 
+.pm-print-details-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.pm-print-details-heading h3 {
+  margin: 0;
+}
+
 .pm-trim-unit-rocker {
-  align-content: start;
+  flex: 0 0 auto;
 }
 
 .pm-rocker {

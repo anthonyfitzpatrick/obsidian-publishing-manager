@@ -385,9 +385,12 @@ export class EditionEditorModal extends Modal {
       };
       editionId = (await this.service.edit(this.existing.path, input)).edition.id;
     }
-    if (controls.isbn.value.length > 0) {
+    const selectedIsbn = this.isbnRecords.find((record) => record.id === controls.isbn.value);
+    // Editing must not replay an already-complete assignment. The existing global record is the
+    // source of truth; only an identifier not already linked to this Publishing Item is assigned.
+    if (selectedIsbn !== undefined && selectedIsbn.fields['edition-id'] !== editionId) {
       const preview = this.isbns.previewTransaction({
-        recordId: controls.isbn.value,
+        recordId: selectedIsbn.id,
         action: 'assign',
         editionId
       });
@@ -457,11 +460,12 @@ function renderConditional(
     audioMetadata?: HTMLTextAreaElement;
   } = {};
   if (print) {
-    parent.createEl('h3', { cls: 'pm-field--wide', text: 'Print details' });
+    const printHeading = parent.createDiv({ cls: 'pm-print-details-heading pm-field--wide' });
+    printHeading.createEl('h3', { text: 'Print details' });
     controls.trimWidth = createNumber(parent, 'Trim width', currentString(existing, 'trim-width'));
     controls.trimHeight = createNumber(parent, 'Trim height', currentString(existing, 'trim-height'));
     controls.trimUnit = createTrimUnitRocker(
-      parent,
+      printHeading,
       currentString(existing, 'trim-unit', 'mm'),
       controls.trimWidth,
       controls.trimHeight
@@ -527,8 +531,7 @@ function createTrimUnitRocker(
   width: HTMLInputElement,
   height: HTMLInputElement
 ): HTMLInputElement {
-  const wrapper = parent.createDiv({ cls: 'pm-field pm-trim-unit-rocker' });
-  wrapper.createSpan({ text: 'Trim unit' });
+  const wrapper = parent.createDiv({ cls: 'pm-trim-unit-rocker' });
   const group = wrapper.createDiv({ cls: 'pm-rocker', attr: { role: 'group', 'aria-label': 'Trim unit' } });
   const metric = group.createEl('button', {
     cls: 'pm-rocker__option', text: 'Metric (mm)', attr: { type: 'button' }
