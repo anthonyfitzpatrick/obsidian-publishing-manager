@@ -976,7 +976,7 @@
   gap: 8px;
 }
 
-.pm-edition-card {
+.pm-edition-card:not(.pm-project-dashboard-card) {
   background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
   border-radius: 9px;
@@ -989,7 +989,7 @@
   width: 100%;
 }
 
-.pm-edition-card.is-selected {
+.pm-edition-card:not(.pm-project-dashboard-card).is-selected {
   background: var(--background-secondary);
   border-color: var(--interactive-accent);
   box-shadow: inset 3px 0 0 var(--interactive-accent);
@@ -1000,6 +1000,10 @@
 .pm-format-list small,
 .pm-dependant-list small {
   color: var(--text-muted);
+}
+
+.pm-edition-card-grid {
+  grid-template-columns: repeat(4, minmax(150px, 180px));
 }
 
 .pm-edition-detail {

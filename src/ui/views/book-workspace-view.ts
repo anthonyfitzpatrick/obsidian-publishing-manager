@@ -1007,20 +1007,20 @@ export class BookWorkspaceView extends ItemView {
       cls: 'pm-edition-master pm-panel',
       attr: { 'aria-label': 'Project publishing items' }
     });
-    const list = master.createEl('ul', { cls: 'pm-edition-list' });
+    const list = master.createEl('ul', {
+      cls: 'pm-edition-list pm-project-dashboard-cards pm-edition-card-grid',
+      attr: { 'aria-label': 'Publishing Items' }
+    });
     for (const edition of bookEditions) {
       const item = list.createEl('li');
       const button = item.createEl('button', {
-        cls: 'pm-edition-card',
+        cls: 'pm-project-dashboard-card pm-edition-card',
         attr: { type: 'button' }
       });
-      button.createEl('strong', { text: editionRecordLabel(edition) });
-      button.createSpan({
-        text: edition.archived ? '◇ Archived' : `● ${capitalize(String(edition.fields.status))}`
-      });
-      button.createEl('small', {
-        text: `${capitalize(String(edition.fields.medium))} · ${this.catalog.formatsForEdition(edition.id).length} formats`
-      });
+      button.createEl('p', { cls: 'pm-project-dashboard-card__type', text: 'Publishing item' });
+      this.renderPublishingItemCardCover(button, edition, book);
+      const content = button.createDiv({ cls: 'pm-project-dashboard-card__content' });
+      content.createEl('h3', { text: editionRecordLabel(edition) });
       button.addEventListener('click', () => {
         this.selectedEditionId = edition.id;
         new EditionDetailsModal(this.app, (content) =>
@@ -1028,6 +1028,23 @@ export class BookWorkspaceView extends ItemView {
         ).open();
       });
     }
+  }
+
+  /** Reuses the Project/Series card cover contract, preferring item artwork and falling back to Project artwork. */
+  private renderPublishingItemCardCover(
+    parent: HTMLElement,
+    edition: CatalogRecord,
+    book: CatalogRecord
+  ): void {
+    const path = typeof edition.fields.cover === 'string' ? edition.fields.cover : book.fields.cover;
+    const file = typeof path === 'string' ? this.app.vault.getAbstractFileByPath(path) : null;
+    if (file instanceof TFile && /^(avif|gif|jpe?g|png|svg|webp)$/iu.test(file.extension)) {
+      parent.createEl('img', {
+        attr: { src: this.app.vault.getResourcePath(file), alt: `${editionRecordLabel(edition)} cover art` }
+      });
+      return;
+    }
+    parent.createDiv({ cls: 'pm-project-dashboard-card__placeholder', text: 'No cover' });
   }
 
   /** Builds one edition detail card with conditional data, formats, comparison, and dependencies. */
