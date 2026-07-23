@@ -27,7 +27,7 @@ import {
 interface ConditionalControls {
   readonly trimWidth?: HTMLInputElement;
   readonly trimHeight?: HTMLInputElement;
-  readonly trimUnit?: HTMLSelectElement;
+  readonly trimUnit?: HTMLInputElement;
   readonly pageCount?: HTMLInputElement;
   readonly narrator?: HTMLInputElement;
   readonly duration?: HTMLInputElement;
@@ -450,7 +450,7 @@ function renderConditional(
   const controls: {
     trimWidth?: HTMLInputElement;
     trimHeight?: HTMLInputElement;
-    trimUnit?: HTMLSelectElement;
+    trimUnit?: HTMLInputElement;
     pageCount?: HTMLInputElement;
     narrator?: HTMLInputElement;
     duration?: HTMLInputElement;
@@ -458,30 +458,15 @@ function renderConditional(
   } = {};
   if (print) {
     parent.createEl('h3', { cls: 'pm-field--wide', text: 'Print details' });
-    controls.trimWidth = createInput(
+    controls.trimWidth = createNumber(parent, 'Trim width', currentString(existing, 'trim-width'));
+    controls.trimHeight = createNumber(parent, 'Trim height', currentString(existing, 'trim-height'));
+    controls.trimUnit = createTrimUnitRocker(
       parent,
-      'Trim width',
-      'text',
-      currentString(existing, 'trim-width')
+      currentString(existing, 'trim-unit', 'mm'),
+      controls.trimWidth,
+      controls.trimHeight
     );
-    controls.trimHeight = createInput(
-      parent,
-      'Trim height',
-      'text',
-      currentString(existing, 'trim-height')
-    );
-    controls.trimUnit = createSelect(
-      parent,
-      'Trim unit',
-      ['mm', 'in'] as const,
-      currentString(existing, 'trim-unit', 'mm')
-    );
-    controls.pageCount = createInput(
-      parent,
-      'Page count',
-      'number',
-      currentNumber(existing, 'page-count')
-    );
+    controls.pageCount = createNumber(parent, 'Page count', currentNumber(existing, 'page-count'), '1');
   }
   if (audio) {
     parent.createEl('h3', { cls: 'pm-field--wide', text: 'Audio details' });
@@ -524,6 +509,59 @@ function createInput(
   const wrapper = parent.createEl('label', { cls: 'pm-field' });
   wrapper.createSpan({ text: label });
   return wrapper.createEl('input', { type, value });
+}
+
+/** Creates a decimal-capable numeric control so trim values cannot contain arbitrary text. */
+function createNumber(parent: HTMLElement, label: string, value = '', step = '0.001'): HTMLInputElement {
+  const input = createInput(parent, label, 'number', value);
+  input.min = '0';
+  input.step = step;
+  input.inputMode = 'decimal';
+  return input;
+}
+
+/** Stores a unit token in a hidden input while the two visible buttons form a true unit rocker. */
+function createTrimUnitRocker(
+  parent: HTMLElement,
+  initial: string,
+  width: HTMLInputElement,
+  height: HTMLInputElement
+): HTMLInputElement {
+  const wrapper = parent.createDiv({ cls: 'pm-field pm-trim-unit-rocker' });
+  wrapper.createSpan({ text: 'Trim unit' });
+  const group = wrapper.createDiv({ cls: 'pm-rocker', attr: { role: 'group', 'aria-label': 'Trim unit' } });
+  const metric = group.createEl('button', {
+    cls: 'pm-rocker__option', text: 'Metric (mm)', attr: { type: 'button' }
+  });
+  const imperial = group.createEl('button', {
+    cls: 'pm-rocker__option', text: 'Imperial (in)', attr: { type: 'button' }
+  });
+  const unit = wrapper.createEl('input', { type: 'hidden', value: initial === 'in' ? 'in' : 'mm' });
+  const setUnit = (next: 'mm' | 'in', convert: boolean) => {
+    const previous = unit.value === 'in' ? 'in' : 'mm';
+    if (convert && previous !== next) {
+      for (const input of [width, height]) {
+        const value = Number(input.value);
+        if (input.value.trim().length > 0 && Number.isFinite(value)) {
+          input.value = formatTrimDimension(next === 'in' ? value / 25.4 : value * 25.4);
+        }
+      }
+    }
+    unit.value = next;
+    metric.toggleClass('is-active', next === 'mm');
+    imperial.toggleClass('is-active', next === 'in');
+    metric.setAttribute('aria-pressed', String(next === 'mm'));
+    imperial.setAttribute('aria-pressed', String(next === 'in'));
+  };
+  metric.addEventListener('click', () => setUnit('mm', true));
+  imperial.addEventListener('click', () => setUnit('in', true));
+  setUnit(unit.value === 'in' ? 'in' : 'mm', false);
+  return unit;
+}
+
+/** Rounds converted millimetre/inch values without leaving display-only trailing zeroes. */
+function formatTrimDimension(value: number): string {
+  return String(Math.round(value * 1_000) / 1_000);
 }
 
 /** Creates one labelled stable-vocabulary selector. */

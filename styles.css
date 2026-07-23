@@ -1580,6 +1580,33 @@
   }
 }
 
+.pm-trim-unit-rocker {
+  align-content: start;
+}
+
+.pm-rocker {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 290px;
+  overflow: hidden;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background: var(--background-secondary);
+}
+
+.pm-rocker__option {
+  min-height: 38px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.pm-rocker__option.is-active {
+  color: var(--text-on-accent);
+  background: var(--interactive-accent);
+}
+
 /* Respect reduced-motion preferences; the M1 UI otherwise uses no required animation. */
 @media (prefers-reduced-motion: reduce) {
   .publishing-manager *,
