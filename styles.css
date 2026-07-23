@@ -1331,6 +1331,33 @@
   color: var(--color-red);
 }
 
+/* Both ISBN projections use the same explicit columns, preventing sparse rows from collapsing
+   into one unreadable run of text when optional publisher/imprint evidence is absent. */
+.pm-global-data-import .pm-mobile-table,
+.pm-isbn-assigned-list .pm-mobile-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.pm-global-data-import .pm-mobile-table :is(th, td),
+.pm-isbn-assigned-list .pm-mobile-table :is(th, td) {
+  padding: 0.55rem 0.75rem;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.pm-isbn-assigned-list .pm-mobile-table :is(th, td) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pm-isbn-assigned-list .pm-mobile-table :is(th, td):nth-child(1) { width: 14%; }
+.pm-isbn-assigned-list .pm-mobile-table :is(th, td):nth-child(2) { width: 14%; }
+.pm-isbn-assigned-list .pm-mobile-table :is(th, td):nth-child(3) { width: 44%; }
+.pm-isbn-assigned-list .pm-mobile-table :is(th, td):nth-child(4) { width: 28%; }
+
 /* Pricing uses the same data in a wide semantic matrix and narrow cards; CSS switches visibility
    without changing the operations or evidence available to keyboard and touch users. */
 .pm-pricing-page {
