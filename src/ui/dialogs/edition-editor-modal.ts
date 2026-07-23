@@ -89,6 +89,33 @@ export class EditionEditorModal extends Modal {
       'date',
       currentString(this.existing, 'publication-date')
     );
+    const updatePublicationDate = () => {
+      const published = status.value === 'published';
+      publicationDate.disabled = !published;
+      publicationDate.closest<HTMLElement>('.pm-field')?.toggleClass('is-disabled', !published);
+      publicationDate.setAttribute(
+        'aria-describedby',
+        published ? 'pm-publication-date-ready' : 'pm-publication-date-locked'
+      );
+    };
+    const publicationDateHelp = form.createEl('small', {
+      cls: 'pm-muted pm-field--wide',
+      attr: { id: 'pm-publication-date-locked' },
+      text: 'Publication date becomes available only when status is Published.'
+    });
+    const publicationDateReadyHelp = form.createEl('small', {
+      cls: 'pm-muted pm-field--wide is-hidden',
+      attr: { id: 'pm-publication-date-ready' },
+      text: 'Record the confirmed publication date for this published item.'
+    });
+    const syncPublicationDateHelp = () => {
+      updatePublicationDate();
+      const published = status.value === 'published';
+      publicationDateHelp.toggleClass('is-hidden', published);
+      publicationDateReadyHelp.toggleClass('is-hidden', !published);
+    };
+    status.addEventListener('change', syncPublicationDateHelp);
+    syncPublicationDateHelp();
     const currentIsbn = this.existing === undefined
       ? undefined
       : this.isbnRecords.find((record) => record.fields['edition-id'] === this.existing?.id);
@@ -528,25 +555,47 @@ function createIsbnSelect(
   records: readonly CatalogRecord[],
   currentId: string | undefined
 ): HTMLSelectElement {
-  const wrapper = parent.createEl('label', { cls: 'pm-field' });
-  wrapper.createSpan({ text: 'ISBN' });
-  const select = wrapper.createEl('select');
-  select.createEl('option', { value: '', text: 'No ISBN assigned yet' });
-  for (const record of records
-    .filter(
-      (candidate) =>
-        candidate.id === currentId || String(candidate.fields.status) === 'available'
-    )
-    .sort((left, right) => String(left.fields.value).localeCompare(String(right.fields.value)))) {
-    select.createEl('option', {
-      value: record.id,
-      text:
-        record.id === currentId
-          ? `${String(record.fields.value)} (assigned to this item)`
-          : String(record.fields.value),
-      attr: record.id === currentId ? { selected: 'true' } : {}
+  const wrapper = parent.createDiv({ cls: 'pm-field' });
+  wrapper.createEl('label', { text: 'Find ISBN', attr: { for: 'pm-isbn-search' } });
+  const search = wrapper.createEl('input', {
+    type: 'search',
+    attr: {
+      id: 'pm-isbn-search',
+      placeholder: 'Type ISBN digits, publisher, or imprint',
+      autocomplete: 'off'
+    }
+  });
+  const selectLabel = wrapper.createEl('label', { text: 'ISBN', attr: { for: 'pm-isbn-select' } });
+  const select = wrapper.createEl('select', { attr: { id: 'pm-isbn-select' } });
+  const available = records
+    .filter((candidate) => candidate.id === currentId || String(candidate.fields.status) === 'available')
+    .sort((left, right) => String(left.fields.value).localeCompare(String(right.fields.value)));
+  const result = wrapper.createEl('small', { cls: 'pm-muted', attr: { 'aria-live': 'polite' } });
+  const render = () => {
+    const previous = select.value || currentId || '';
+    const query = search.value.trim().toLowerCase();
+    const normalizedQuery = query.replace(/[^a-z0-9]/gu, '');
+    const matching = available.filter((record) => {
+      if (record.id === currentId) return true;
+      const value = String(record.fields.value).toLowerCase();
+      const searchable = [value, String(record.fields.publisher ?? ''), String(record.fields.imprint ?? '')]
+        .join(' ')
+        .toLowerCase();
+      return query.length === 0 || searchable.includes(query) || value.replace(/[^a-z0-9]/gu, '').includes(normalizedQuery);
     });
-  }
+    select.empty();
+    select.createEl('option', { value: '', text: 'No ISBN assigned yet' });
+    for (const record of matching) {
+      select.createEl('option', {
+        value: record.id,
+        text: record.id === currentId ? `${String(record.fields.value)} (assigned to this item)` : String(record.fields.value),
+        attr: record.id === previous ? { selected: 'true' } : {}
+      });
+    }
+    result.setText(`${matching.length} available ISBN${matching.length === 1 ? '' : 's'} shown.`);
+  };
+  search.addEventListener('input', render);
+  render();
   return select;
 }
 
