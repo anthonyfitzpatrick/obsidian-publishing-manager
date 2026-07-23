@@ -1342,9 +1342,15 @@
 
 .pm-global-data-import .pm-mobile-table :is(th, td),
 .pm-isbn-assigned-list .pm-mobile-table :is(th, td) {
-  padding: 0.55rem 0.75rem;
+  padding: 0.2rem 0.75rem;
   text-align: left;
   vertical-align: middle;
+  line-height: 1.25;
+}
+
+.pm-global-data-import .pm-mobile-table tbody tr,
+.pm-isbn-assigned-list .pm-mobile-table tbody tr {
+  height: auto;
 }
 
 .pm-isbn-assigned-list .pm-mobile-table :is(th, td) {
