@@ -1618,6 +1618,41 @@
   background: var(--interactive-accent);
 }
 
+.pm-retail-links {
+  display: grid;
+  gap: 10px;
+}
+
+.pm-retail-links .pm-section-heading {
+  align-items: center;
+}
+
+.pm-retail-links .pm-section-heading h3 {
+  margin: 0;
+}
+
+.pm-retail-links__rows {
+  display: grid;
+  gap: 8px;
+}
+
+.pm-retail-links__row {
+  display: grid;
+  grid-template-columns: minmax(145px, 0.45fr) minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.pm-retail-links__row input[type='url'] {
+  grid-column: span 1;
+}
+
+@container (max-width: 620px) {
+  .pm-retail-links__row {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Respect reduced-motion preferences; the M1 UI otherwise uses no required animation. */
 @media (prefers-reduced-motion: reduce) {
   .publishing-manager *,

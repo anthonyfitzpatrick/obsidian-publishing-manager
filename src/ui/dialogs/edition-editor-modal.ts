@@ -34,6 +34,10 @@ interface ConditionalControls {
   readonly audioMetadata?: HTMLTextAreaElement;
 }
 
+interface RetailLinksEditor {
+  readonly read: () => Readonly<Record<string, string>>;
+}
+
 /** Native modal used by the Project publishing-item master/detail actions. */
 export class EditionEditorModal extends Modal {
   public constructor(
@@ -216,12 +220,7 @@ export class EditionEditorModal extends Modal {
     const updateFullCoverVisibility = () =>
       fullCoverChoices.toggleClass('is-hidden', !['paperback', 'hardcover'].includes(type.value));
     showFullCoverState();
-    const retailLinks = createArea(
-      form,
-      'Retail links',
-      mapToLines(currentMap(this.existing, 'retail-links')),
-      'One “label = URL” entry per line.'
-    );
+    const retailLinks = createRetailLinksEditor(form, currentMap(this.existing, 'retail-links'));
     const notes = createArea(
       form,
       'Publishing item notes',
@@ -317,7 +316,7 @@ export class EditionEditorModal extends Modal {
     readonly isbn: HTMLSelectElement;
     readonly coverPath: () => string;
     readonly fullCoverPath: () => string;
-    readonly retailLinks: HTMLTextAreaElement;
+    readonly retailLinks: RetailLinksEditor;
     readonly notes: HTMLTextAreaElement;
     readonly conditional: ConditionalControls;
   }): Promise<void> {
@@ -334,7 +333,7 @@ export class EditionEditorModal extends Modal {
       publicationDate: optionalText(controls.publicationDate.value),
       cover: optionalText(controls.coverPath()),
       fullCover: optionalText(controls.fullCoverPath()),
-      retailLinks: linesToMap(controls.retailLinks.value),
+      retailLinks: controls.retailLinks.read(),
       notes: optionalText(controls.notes.value),
       trimWidth: optionalText(controls.conditional.trimWidth?.value ?? ''),
       trimHeight: optionalText(controls.conditional.trimHeight?.value ?? ''),
@@ -633,12 +632,89 @@ function createIsbnSelect(
         attr: record.id === previous ? { selected: 'true' } : {}
       });
     }
-    result.setText(`${matching.length} available ISBN${matching.length === 1 ? '' : 's'} shown.`);
+    const availableShown = matching.filter((record) => record.id !== currentId).length;
+    result.setText(`${availableShown} available ISBN${availableShown === 1 ? '' : 's'} shown.`);
   };
   search.addEventListener('input', render);
   render();
   return select;
 }
+
+/** Offers retailer-aware rows while preserving the canonical `label → URL` map on save. */
+function createRetailLinksEditor(
+  parent: HTMLElement,
+  existing: Readonly<Record<string, string>>
+): RetailLinksEditor {
+  const section = parent.createEl('section', { cls: 'pm-retail-links pm-field--wide' });
+  const heading = section.createDiv({ cls: 'pm-section-heading' });
+  heading.createEl('h3', { text: 'Retail links' });
+  const add = heading.createEl('button', {
+    cls: 'pm-button pm-button--secondary', text: 'Add retailer link', attr: { type: 'button' }
+  });
+  section.createEl('p', {
+    cls: 'pm-muted',
+    text: 'Choose a retailer and paste its public product page. Add as many retailer links as needed.'
+  });
+  const rows = section.createDiv({ cls: 'pm-retail-links__rows' });
+  const editors: { retailer: HTMLSelectElement; custom: HTMLInputElement; url: HTMLInputElement }[] = [];
+  const addRow = (label = '', url = '') => {
+    const row = rows.createDiv({ cls: 'pm-retail-links__row' });
+    const retailer = row.createEl('select', { attr: { 'aria-label': 'Retailer' } });
+    for (const value of RETAILER_LABELS) retailer.createEl('option', { value, text: value });
+    const known = RETAILER_LABELS.includes(label as (typeof RETAILER_LABELS)[number]);
+    retailer.value = known ? label : 'Custom retailer';
+    const custom = row.createEl('input', {
+      type: 'text', value: known ? '' : label,
+      attr: { placeholder: 'Retailer name', 'aria-label': 'Custom retailer name' }
+    });
+    custom.toggleClass('is-hidden', known);
+    const link = row.createEl('input', {
+      type: 'url', value: url,
+      attr: { placeholder: 'https://…', 'aria-label': 'Retailer product URL' }
+    });
+    const remove = row.createEl('button', {
+      cls: 'pm-button pm-button--secondary', text: 'Remove', attr: { type: 'button' }
+    });
+    const editor = { retailer, custom, url: link };
+    editors.push(editor);
+    retailer.addEventListener('change', () => custom.toggleClass('is-hidden', retailer.value !== 'Custom retailer'));
+    remove.addEventListener('click', () => {
+      const index = editors.indexOf(editor);
+      if (index >= 0) editors.splice(index, 1);
+      row.remove();
+    });
+  };
+  const entries = Object.entries(existing).sort(([left], [right]) => left.localeCompare(right));
+  if (entries.length === 0) addRow();
+  else for (const [label, url] of entries) addRow(label, url);
+  add.addEventListener('click', () => addRow());
+  return {
+    read: () => {
+      const result: Record<string, string> = {};
+      for (const editor of editors) {
+        const label = (editor.retailer.value === 'Custom retailer' ? editor.custom.value : editor.retailer.value).trim();
+        const url = editor.url.value.trim();
+        if (label.length === 0 && url.length === 0) continue;
+        if (label.length === 0 || url.length === 0) throw new Error('Each retailer link needs both a retailer and a URL.');
+        if (result[label] !== undefined) throw new Error(`Retailer “${label}” appears more than once.`);
+        result[label] = url;
+      }
+      return result;
+    }
+  };
+}
+
+const RETAILER_LABELS = [
+  'Amazon',
+  'Apple Books',
+  'Barnes & Noble',
+  'Google Play Books',
+  'Kobo',
+  'Audible',
+  'Bookshop.org',
+  'Publisher store',
+  'Custom retailer'
+] as const;
 
 /** Creates one full-width labelled textarea plus concise parsing guidance. */
 function createArea(
